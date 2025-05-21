@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Carbon;
+use App\Models\OrderStatusHistory;
 
 class OrderController extends Controller
 {
@@ -467,9 +468,8 @@ class OrderController extends Controller
             // Load order relationships for the email
             $order->load(['customer', 'products']);
             
-            // Get users from Cell Lab and Quality departments
-            $cellLabUsers = User::where('department', 'Cell Lab')->get();
-            $qualityUsers = User::where('department', 'Quality')->get();
+            // Get users who have opted in to receive new order notifications
+            $notificationUsers = User::where('receive_new_order_emails', true)->get();
             
             // Check if we're in test mode
             $testMode = config('mail_debug.test_mode', false);
@@ -516,19 +516,11 @@ class OrderController extends Controller
                             $sentTo[] = $recipient . ' (Test Recipient)';
                         }
                     } else {
-                        // Send to Cell Lab department
-                        foreach ($cellLabUsers as $user) {
+                        // Send to users who opted in
+                        foreach ($notificationUsers as $user) {
                             if ($user->email) {
                                 $customMailer->to($user->email)->send($mail);
-                                $sentTo[] = $user->email . ' (Cell Lab)';
-                            }
-                        }
-                        
-                        // Send to Quality department
-                        foreach ($qualityUsers as $user) {
-                            if ($user->email) {
-                                $customMailer->to($user->email)->send($mail);
-                                $sentTo[] = $user->email . ' (Quality)';
+                                $sentTo[] = $user->email . ' (' . $user->department . ')';
                             }
                         }
                     }
@@ -540,19 +532,11 @@ class OrderController extends Controller
                             $sentTo[] = $recipient . ' (Test Recipient)';
                         }
                     } else {
-                        // Send to Cell Lab department
-                        foreach ($cellLabUsers as $user) {
+                        // Send to users who opted in
+                        foreach ($notificationUsers as $user) {
                             if ($user->email) {
                                 Mail::to($user->email)->send($mail);
-                                $sentTo[] = $user->email . ' (Cell Lab)';
-                            }
-                        }
-                        
-                        // Send to Quality department
-                        foreach ($qualityUsers as $user) {
-                            if ($user->email) {
-                                Mail::to($user->email)->send($mail);
-                                $sentTo[] = $user->email . ' (Quality)';
+                                $sentTo[] = $user->email . ' (' . $user->department . ')';
                             }
                         }
                     }
@@ -595,22 +579,12 @@ class OrderController extends Controller
                         }
                     }
                 } else {
-                    // Send to Cell Lab department
-                    foreach ($cellLabUsers as $user) {
+                    // Send to users who opted in
+                    foreach ($notificationUsers as $user) {
                         if ($user->email) {
                             $sent = mail($user->email, $subject, $htmlContent, $headers);
                             if ($sent) {
-                                $sentTo[] = $user->email . ' (Cell Lab - via PHP mail)';
-                            }
-                        }
-                    }
-                    
-                    // Send to Quality department
-                    foreach ($qualityUsers as $user) {
-                        if ($user->email) {
-                            $sent = mail($user->email, $subject, $htmlContent, $headers);
-                            if ($sent) {
-                                $sentTo[] = $user->email . ' (Quality - via PHP mail)';
+                                $sentTo[] = $user->email . ' (' . $user->department . ' - via PHP mail)';
                             }
                         }
                     }
@@ -621,7 +595,7 @@ class OrderController extends Controller
             if (count($sentTo) > 0) {
                 Log::info('Order #' . $order->id . ' notification emails sent to: ' . implode(', ', $sentTo));
             } else {
-                Log::warning('No notification emails sent for Order #' . $order->id . ': No recipients found in Cell Lab or Quality departments or all mail methods failed');
+                Log::warning('No notification emails sent for Order #' . $order->id . ': No recipients found or all mail methods failed');
             }
         } catch (\Exception $e) {
             // Log detailed error but don't stop the process
@@ -647,17 +621,35 @@ class OrderController extends Controller
      */
     public function updateBatchInfo(Request $request, $id)
     {
-        $request->validate([
+        $order = Order::with('products')->findOrFail($id);
+        
+        // Create custom validation rules
+        $rules = [
             'products' => 'required|array',
             'products.*.product_id' => 'required|exists:products,id',
-            'products.*.batch_number' => 'required|string',
             'products.*.patient_name' => 'nullable|string',
             'products.*.remarks' => 'nullable|string',
             'products.*.qc_document_number' => 'nullable|string',
             'products.*.prepared_by' => 'nullable|string',
-        ]);
+        ];
         
-        $order = Order::findOrFail($id);
+        // For each product, determine if batch_number is required or nullable
+        foreach ($request->products as $index => $productData) {
+            // Find if the product already has a batch number in database
+            $existingProduct = $order->products->firstWhere('id', $productData['product_id']);
+            
+            if ($existingProduct && !empty($existingProduct->pivot->batch_number)) {
+                // If batch number already exists, it's optional
+                $rules['products.' . $index . '.batch_number'] = 'nullable|string';
+            } else {
+                // If no batch number exists, it's required
+                $rules['products.' . $index . '.batch_number'] = 'required|string';
+            }
+        }
+        
+        // Validate with the dynamic rules
+        $validated = $request->validate($rules);
+        
         $user = Auth::user();
         
         // Begin transaction to ensure data consistency
@@ -678,8 +670,9 @@ class OrderController extends Controller
                     'prepared_by' => $productData['prepared_by'] ?? null,
                 ];
                 
-                // Check permissions for batch number
-                if (!empty($productData['batch_number']) && $existingPivot->batch_number !== $productData['batch_number']) {
+                // Only update batch number if it was submitted and user has permission
+                if (isset($productData['batch_number']) && !empty($productData['batch_number']) && 
+                    $existingPivot->batch_number !== $productData['batch_number']) {
                     if ($user->department === 'Cell Lab' || $user->role === 'superadmin') {
                         $updateData['batch_number'] = $productData['batch_number'];
                     } else {
@@ -687,12 +680,17 @@ class OrderController extends Controller
                         $errorMessage = 'Only Cell Lab department can edit batch document numbers.';
                         break;
                     }
-                } else {
-                    $updateData['batch_number'] = $existingPivot->batch_number ?? $productData['batch_number'];
+                } elseif ($existingPivot->batch_number) {
+                    // Keep existing batch number if present
+                    $updateData['batch_number'] = $existingPivot->batch_number;
+                } elseif (isset($productData['batch_number'])) {
+                    // Use new batch number if provided and no existing one
+                    $updateData['batch_number'] = $productData['batch_number'];
                 }
                 
                 // Check permissions for QC document number
-                if (!empty($productData['qc_document_number']) && $existingPivot->qc_document_number !== $productData['qc_document_number']) {
+                if (isset($productData['qc_document_number']) && !empty($productData['qc_document_number']) && 
+                    $existingPivot->qc_document_number !== $productData['qc_document_number']) {
                     if ($user->department === 'Quality' || $user->role === 'superadmin') {
                         $updateData['qc_document_number'] = $productData['qc_document_number'];
                     } else {
@@ -700,8 +698,12 @@ class OrderController extends Controller
                         $errorMessage = 'Only Quality department can edit QC document numbers.';
                         break;
                     }
-                } else {
-                    $updateData['qc_document_number'] = $existingPivot->qc_document_number ?? $productData['qc_document_number'] ?? null;
+                } elseif ($existingPivot->qc_document_number) {
+                    // Keep existing QC document number if present
+                    $updateData['qc_document_number'] = $existingPivot->qc_document_number;
+                } elseif (isset($productData['qc_document_number'])) {
+                    // Use new QC document number if provided and no existing one
+                    $updateData['qc_document_number'] = $productData['qc_document_number'];
                 }
                 
                 if (!$hasErrors) {
@@ -903,22 +905,31 @@ class OrderController extends Controller
      */
     public function markReady(Request $request, $id)
     {
-        // Begin transaction
         DB::beginTransaction();
-        
+
         try {
-            $order = Order::with(['customer', 'products'])->findOrFail($id);
+            $order = Order::with('customer', 'products')->findOrFail($id);
             
-            // Update order status to ready
+            // Check if order is already ready
+            if ($order->status === 'ready') {
+                return redirect()->back()->with('info', 'Order is already marked as Ready.');
+            }
+            
+            // Only allow marking as ready if current status is preparing
+            if ($order->status !== 'preparing') {
+                return redirect()->back()->with('error', 'Only orders in preparing status can be marked as Ready.');
+            }
+            
+            // Update the status to Ready
             $order->status = 'ready';
             $order->save();
             
-            // Send email notifications to Admin & HR department users
+            // Send email notifications to users who opted in
             $this->sendOrderReadyNotifications($order);
             
             DB::commit();
 
-            return redirect()->back()->with('success', 'Order marked as Ready successfully! Email notifications sent to Admin & HR department.');
+            return redirect()->back()->with('success', 'Order marked as Ready successfully! Email notifications sent to designated recipients.');
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error marking order as ready: ' . $e->getMessage());
@@ -927,7 +938,7 @@ class OrderController extends Controller
     }
 
     /**
-     * Send notifications to Admin & HR department users when an order is ready.
+     * Send notifications to users who opted in for order ready notifications.
      * 
      * @param Order $order
      * @return void
@@ -935,19 +946,19 @@ class OrderController extends Controller
     private function sendOrderReadyNotifications(Order $order)
     {
         try {
-            // Get users from Admin & Human Resource department
-            $adminHrUsers = User::where('department', 'Admin & Human Resource')->get();
+            // Get users who have opted in to receive order ready notifications
+            $notificationUsers = User::where('receive_order_ready_emails', true)->get();
             
-            // If no admin HR users found, try to find superadmin and admin users as fallback
-            if ($adminHrUsers->isEmpty()) {
-                $adminHrUsers = User::whereIn('role', ['superadmin', 'admin'])->get();
+            // If no users found who opted in, default to admins as fallback
+            if ($notificationUsers->isEmpty()) {
+                $notificationUsers = User::whereIn('role', ['superadmin', 'admin'])->get();
             }
             
             // Create the email notification
             $mail = new OrderReadyNotification($order);
             
-            // Send to all Admin & HR users
-            foreach ($adminHrUsers as $user) {
+            // Send to all users who opted in
+            foreach ($notificationUsers as $user) {
                 if ($user->email) {
                     try {
                         Mail::to($user->email)->send($mail);
@@ -973,8 +984,8 @@ class OrderController extends Controller
             'status' => 'testing',
             'laravel_mail' => [],
             'php_mail' => [],
-            'cell_lab_users' => [],
-            'quality_users' => [],
+            'users_new_order' => [],
+            'users_ready_order' => [],
             'errors' => [],
             'mail_config' => []
         ];
@@ -991,22 +1002,24 @@ class OrderController extends Controller
             
             $results['order_found'] = 'Using Order #' . $order->id;
             
-            // Get users from Cell Lab and Quality departments
-            $cellLabUsers = User::where('department', 'Cell Lab')->get();
-            $qualityUsers = User::where('department', 'Quality')->get();
+            // Get users who have opted-in to receive email notifications
+            $newOrderUsers = User::where('receive_new_order_emails', true)->get();
+            $readyOrderUsers = User::where('receive_order_ready_emails', true)->get();
             
             // Record user info
-            foreach ($cellLabUsers as $user) {
-                $results['cell_lab_users'][] = [
+            foreach ($newOrderUsers as $user) {
+                $results['users_new_order'][] = [
                     'email' => $user->email,
-                    'name' => ($user->first_name ?? '') . ' ' . ($user->last_name ?? '')
+                    'name' => ($user->first_name ?? '') . ' ' . ($user->last_name ?? ''),
+                    'department' => $user->department
                 ];
             }
             
-            foreach ($qualityUsers as $user) {
-                $results['quality_users'][] = [
+            foreach ($readyOrderUsers as $user) {
+                $results['users_ready_order'][] = [
                     'email' => $user->email,
-                    'name' => ($user->first_name ?? '') . ' ' . ($user->last_name ?? '')
+                    'name' => ($user->first_name ?? '') . ' ' . ($user->last_name ?? ''),
+                    'department' => $user->department
                 ];
             }
             
@@ -1021,29 +1034,30 @@ class OrderController extends Controller
                 'from_name' => config('mail.from.name')
             ];
             
-            // Create the email
-            $mail = new NewOrderNotification($order);
+            // Create the emails
+            $newOrderMail = new NewOrderNotification($order);
+            $readyOrderMail = new OrderReadyNotification($order);
             
             // Send using Laravel Mail
             try {
-                // Send to Cell Lab
-                foreach ($cellLabUsers as $user) {
+                // Test new order emails
+                foreach ($newOrderUsers as $user) {
                     if ($user->email) {
                         try {
-                            Mail::to($user->email)->send($mail);
-                            $results['laravel_mail'][] = 'Sent to ' . $user->email . ' (Cell Lab)';
+                            Mail::to($user->email)->send($newOrderMail);
+                            $results['laravel_mail'][] = 'New Order email sent to ' . $user->email . ' (' . $user->department . ')';
                         } catch (\Exception $e) {
                             $results['errors'][] = 'Laravel mail to ' . $user->email . ' failed: ' . $e->getMessage();
                         }
                     }
                 }
                 
-                // Send to Quality
-                foreach ($qualityUsers as $user) {
+                // Test ready order emails
+                foreach ($readyOrderUsers as $user) {
                     if ($user->email) {
                         try {
-                            Mail::to($user->email)->send($mail);
-                            $results['laravel_mail'][] = 'Sent to ' . $user->email . ' (Quality)';
+                            Mail::to($user->email)->send($readyOrderMail);
+                            $results['laravel_mail'][] = 'Order Ready email sent to ' . $user->email . ' (' . $user->department . ')';
                         } catch (\Exception $e) {
                             $results['errors'][] = 'Laravel mail to ' . $user->email . ' failed: ' . $e->getMessage();
                         }
@@ -1056,7 +1070,8 @@ class OrderController extends Controller
             // Try PHP mail() as fallback if no emails sent via Laravel Mail
             if (empty($results['laravel_mail']) && function_exists('mail')) {
                 $subject = '[TEST] Order #' . $order->id . ' - ' . date('Y-m-d H:i:s');
-                $htmlContent = view('emails.new-order', ['order' => $order])->render();
+                $newOrderHtml = view('emails.new-order', ['order' => $order])->render();
+                $readyOrderHtml = view('emails.order-ready', ['order' => $order])->render();
                 
                 // Basic email headers
                 $headers = "MIME-Version: 1.0\r\n";
@@ -1064,24 +1079,24 @@ class OrderController extends Controller
                 $headers .= "From: MGRC Order System <support@mgrc.com.my>\r\n";
                 $headers .= "X-Priority: 1\r\n";
                 
-                // Send to Cell Lab with PHP mail()
-                foreach ($cellLabUsers as $user) {
+                // Test new order emails with PHP mail()
+                foreach ($newOrderUsers as $user) {
                     if ($user->email) {
-                        $sent = @mail($user->email, $subject, $htmlContent, $headers);
+                        $sent = @mail($user->email, '[TEST] New Order #' . $order->id, $newOrderHtml, $headers);
                         if ($sent) {
-                            $results['php_mail'][] = 'Sent to ' . $user->email . ' (Cell Lab)';
+                            $results['php_mail'][] = 'New Order email sent to ' . $user->email . ' (' . $user->department . ')';
                         } else {
                             $results['errors'][] = 'PHP mail() to ' . $user->email . ' failed';
                         }
                     }
                 }
                 
-                // Send to Quality with PHP mail()
-                foreach ($qualityUsers as $user) {
+                // Test ready order emails with PHP mail()
+                foreach ($readyOrderUsers as $user) {
                     if ($user->email) {
-                        $sent = @mail($user->email, $subject, $htmlContent, $headers);
+                        $sent = @mail($user->email, '[TEST] Order Ready #' . $order->id, $readyOrderHtml, $headers);
                         if ($sent) {
-                            $results['php_mail'][] = 'Sent to ' . $user->email . ' (Quality)';
+                            $results['php_mail'][] = 'Order Ready email sent to ' . $user->email . ' (' . $user->department . ')';
                         } else {
                             $results['errors'][] = 'PHP mail() to ' . $user->email . ' failed';
                         }
@@ -1096,7 +1111,7 @@ class OrderController extends Controller
                 $results['status'] = 'error';
             } else {
                 $results['status'] = 'no_recipients';
-                $results['errors'][] = 'No emails sent: No valid recipients found or all methods failed';
+                $results['errors'][] = 'No emails sent: No users have opted in to receive notifications or all mail methods failed';
             }
             
             // Log result

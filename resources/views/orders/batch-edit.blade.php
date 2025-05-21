@@ -75,12 +75,20 @@
                                         <input type="hidden" name="products[{{ $index }}][quantity]" value="{{ $product->pivot->quantity }}">
                                     </td>
                                     <td>
+                                        @php
+                                            $canEditBatch = Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'superadmin';
+                                        @endphp
                                         <div class="input-group">
-                                            <input type="text" class="form-control batch-number" id="batch_number_{{ $index }}" 
-                                                name="products[{{ $index }}][batch_number]" 
-                                                value="{{ $product->pivot->batch_number ?? '' }}"
-                                                {{ Auth::user()->department !== 'Cell Lab' && Auth::user()->role !== 'superadmin' ? 'disabled' : '' }}
-                                                required>
+                                            @if(!$canEditBatch && $product->pivot->batch_number)
+                                                <input type="text" class="form-control batch-number" disabled value="{{ $product->pivot->batch_number }}">
+                                                <input type="hidden" name="products[{{ $index }}][batch_number]" value="{{ $product->pivot->batch_number }}">
+                                            @else
+                                                <input type="text" class="form-control batch-number" id="batch_number_{{ $index }}" 
+                                                    name="products[{{ $index }}][batch_number]" 
+                                                    value="{{ $product->pivot->batch_number ?? '' }}"
+                                                    {{ !$canEditBatch ? 'disabled' : '' }}
+                                                    {{ !$product->pivot->batch_number ? 'required' : '' }}>
+                                            @endif
                                         </div>
                                         @error('products.' . $index . '.batch_number')
                                             <div class="invalid-feedback d-block">{{ $message }}</div>
@@ -104,12 +112,20 @@
                                         @enderror
                                     </td>
                                     <td>
+                                        @php
+                                            $canEditQc = Auth::user()->department === 'Quality' || Auth::user()->role === 'superadmin';
+                                        @endphp
                                         <div class="input-group">
-                                            <input type="text" class="form-control qc-document" id="qc_document_{{ $index }}" 
-                                                name="products[{{ $index }}][qc_document_number]" 
-                                                value="{{ $product->pivot->qc_document_number ?? '' }}"
-                                                {{ Auth::user()->department !== 'Quality' && Auth::user()->role !== 'superadmin' ? 'disabled' : '' }}
-                                                placeholder="Enter QC doc number">
+                                            @if(!$canEditQc && $product->pivot->qc_document_number)
+                                                <input type="text" class="form-control qc-document" disabled value="{{ $product->pivot->qc_document_number }}">
+                                                <input type="hidden" name="products[{{ $index }}][qc_document_number]" value="{{ $product->pivot->qc_document_number }}">
+                                            @else
+                                                <input type="text" class="form-control qc-document" id="qc_document_{{ $index }}" 
+                                                    name="products[{{ $index }}][qc_document_number]" 
+                                                    value="{{ $product->pivot->qc_document_number ?? '' }}"
+                                                    {{ !$canEditQc ? 'disabled' : '' }}
+                                                    placeholder="Enter QC doc number">
+                                            @endif
                                         </div>
                                         @error('products.' . $index . '.qc_document_number')
                                             <div class="invalid-feedback d-block">{{ $message }}</div>

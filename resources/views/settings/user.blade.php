@@ -260,6 +260,22 @@
                                         </div>
 
                                         <div class="mb-3">
+                                            <label class="form-label">Email Notifications</label>
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" id="receive_new_order_emails" name="receive_new_order_emails" value="1" {{ old('receive_new_order_emails') ? 'checked' : '' }}>
+                                                <label class="form-check-label" for="receive_new_order_emails">
+                                                    Receive new order notifications
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="receive_order_ready_emails" name="receive_order_ready_emails" value="1" {{ old('receive_order_ready_emails') ? 'checked' : '' }}>
+                                                <label class="form-check-label" for="receive_order_ready_emails">
+                                                    Receive order ready notifications
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-3">
                                             <label for="password" class="form-label">Password</label>
                                             <input type="password" class="form-control" id="password" name="password" placeholder="Enter password" required>
                                         </div>
@@ -361,6 +377,22 @@
                                                 <option value="admin" {{ old('role', $editUser->role) == 'admin' ? 'selected' : '' }}>Admin</option>
                                                 <option value="superadmin" {{ old('role', $editUser->role) == 'superadmin' ? 'selected' : '' }}>Super Admin</option>
                                             </select>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label class="form-label">Email Notifications</label>
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" id="edit_receive_new_order_emails" name="receive_new_order_emails" value="1" {{ old('receive_new_order_emails', $editUser->receive_new_order_emails) ? 'checked' : '' }}>
+                                                <label class="form-check-label" for="edit_receive_new_order_emails">
+                                                    Receive new order notifications
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="edit_receive_order_ready_emails" name="receive_order_ready_emails" value="1" {{ old('receive_order_ready_emails', $editUser->receive_order_ready_emails) ? 'checked' : '' }}>
+                                                <label class="form-check-label" for="edit_receive_order_ready_emails">
+                                                    Receive order ready notifications
+                                                </label>
+                                            </div>
                                         </div>
 
                                         <div class="mb-3">

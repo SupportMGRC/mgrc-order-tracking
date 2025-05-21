@@ -10,38 +10,44 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        // User::create([
-        //     'first_name' => 'Super',
-        //     'last_name' => 'Admin',
-        //     'username' => 'superadmin',
-        //     'email' => 'superadmin@example.com',
-        //     'password' => Hash::make('password'),
-        //     'role' => 'superadmin',
-        //     'department' => 'IT',
-        //     'designation' => 'System Administrator',
-        // ]);
+        User::create([
+            'first_name' => 'Super',
+            'last_name' => 'Admin',
+            'username' => 'superadmin',
+            'email' => 'superadmin@mgrc.com.my',
+            'password' => Hash::make('password'),
+            'role' => 'superadmin',
+            'department' => 'IT',
+            'designation' => 'System Administrator',
+            'receive_new_order_emails' => false,
+            'receive_order_ready_emails' => false,
+        ]);
 
-        // User::create([
-        //     'first_name' => 'John',
-        //     'last_name' => 'Doe',
-        //     'username' => 'adminuser',
-        //     'email' => 'admin@example.com',
-        //     'password' => Hash::make('password'),
-        //     'role' => 'admin',
-        //     'department' => 'HR',
-        //     'designation' => 'HR Manager',
-        // ]);
+        User::create([
+            'first_name' => 'John',
+            'last_name' => 'Doe',
+            'username' => 'adminuser',
+            'email' => 'admin@mgrc.com.my',
+            'password' => Hash::make('password'),
+            'role' => 'admin',
+            'department' => 'HR',
+            'designation' => 'HR Manager',
+            'receive_new_order_emails' => false,
+            'receive_order_ready_emails' => false,
+        ]);
 
-        // User::create([
-        //     'first_name' => 'Jane',
-        //     'last_name' => 'Smith',
-        //     'username' => 'normaluser',
-        //     'email' => 'user@example.com',
-        //     'password' => Hash::make('password'),
-        //     'role' => 'user',
-        //     'department' => 'Marketing',
-        //     'designation' => 'Marketing Executive',
-        // ]);
+        User::create([
+            'first_name' => 'Jane',
+            'last_name' => 'Smith',
+            'username' => 'normaluser',
+            'email' => 'user@mgrc.com.my',
+            'password' => Hash::make('password'),
+            'role' => 'user',
+            'department' => 'Marketing',
+            'designation' => 'Marketing Executive',
+            'receive_new_order_emails' => false,
+            'receive_order_ready_emails' => false,
+        ]);
 
         // Admin & Human Resource Department
         User::create([
@@ -53,6 +59,8 @@ class UserSeeder extends Seeder
             'role' => 'user',
             'department' => 'Admin & Human Resource',
             'designation' => 'HR Specialist',
+            'receive_new_order_emails' => false,
+            'receive_order_ready_emails' => false,
         ]);
 
         // Cell Lab Department
@@ -65,6 +73,8 @@ class UserSeeder extends Seeder
             'role' => 'user',
             'department' => 'Cell Lab',
             'designation' => 'Lab Technician',
+            'receive_new_order_emails' => false,
+            'receive_order_ready_emails' => false,
         ]);
 
         // Medical Affairs Department
@@ -77,6 +87,8 @@ class UserSeeder extends Seeder
             'role' => 'user',
             'department' => 'Medical Affairs',
             'designation' => 'Medical Officer',
+            'receive_new_order_emails' => false,
+            'receive_order_ready_emails' => false,
         ]);
 
         // Quality Department
@@ -89,6 +101,8 @@ class UserSeeder extends Seeder
             'role' => 'user',
             'department' => 'Quality',
             'designation' => 'Quality Assurance Specialist',
+            'receive_new_order_emails' => false,
+            'receive_order_ready_emails' => false,
         ]);
 
         // Finance Department
@@ -96,11 +110,13 @@ class UserSeeder extends Seeder
             'first_name' => 'Afiq',
             'last_name' => 'Ismail',
             'username' => 'Afiq',
-            'email' => 'afiqq@mgrc.com.my',
+            'email' => 'afiq@mgrc.com.my',
             'password' => Hash::make('password'),
             'role' => 'user',
             'department' => 'Finance',
             'designation' => 'Financial Analyst',
+            'receive_new_order_emails' => false,
+            'receive_order_ready_emails' => false,
         ]);
 
         // Management Department
@@ -108,11 +124,13 @@ class UserSeeder extends Seeder
             'first_name' => 'Yi',
             'last_name' => 'Bin',
             'username' => 'Yi Bin',
-            'email' => 'yibinler@mgrc.com.my',
+            'email' => 'yibin@mgrc.com.my',
             'password' => Hash::make('password'),
             'role' => 'admin',
             'department' => 'Management',
             'designation' => 'Operations Manager',
+            'receive_new_order_emails' => false,
+            'receive_order_ready_emails' => false,
         ]);
 
         // Software Department
@@ -125,6 +143,8 @@ class UserSeeder extends Seeder
             'role' => 'user',
             'department' => 'Software',
             'designation' => 'Software Developer',
+            'receive_new_order_emails' => false,
+            'receive_order_ready_emails' => false,
         ]);
     }
 }

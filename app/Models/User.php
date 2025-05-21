@@ -25,6 +25,8 @@ class User extends Authenticatable
         'role',
         'department',
         'designation',
+        'receive_new_order_emails',
+        'receive_order_ready_emails',
     ];
 
     /**
@@ -45,6 +47,8 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'receive_new_order_emails' => 'boolean',
+        'receive_order_ready_emails' => 'boolean',
     ];
 
     /**

@@ -68,6 +68,8 @@ class UserController extends Controller
                 'designation' => 'required|string|max:100',
                 'role' => 'nullable|string|max:50',
                 'department' => 'nullable|string|max:100',
+                'receive_new_order_emails' => 'nullable|boolean',
+                'receive_order_ready_emails' => 'nullable|boolean',
             ]);
 
             $user = User::create([
@@ -79,6 +81,8 @@ class UserController extends Controller
                 'designation' => $request->designation,
                 'role' => $request->role ?? 'user',
                 'department' => $request->department,
+                'receive_new_order_emails' => $request->has('receive_new_order_emails'),
+                'receive_order_ready_emails' => $request->has('receive_order_ready_emails'),
             ]);
 
             // If this is an AJAX request, return JSON response
@@ -168,6 +172,8 @@ class UserController extends Controller
                 'role' => 'nullable|string|max:50',
                 'department' => 'nullable|string|max:100',
                 'password' => 'nullable|string|min:8',
+                'receive_new_order_emails' => 'nullable|boolean',
+                'receive_order_ready_emails' => 'nullable|boolean',
             ]);
 
             $userData = [
@@ -178,6 +184,8 @@ class UserController extends Controller
                 'designation' => $request->designation,
                 'role' => $request->role ?? 'user',
                 'department' => $request->department,
+                'receive_new_order_emails' => $request->has('receive_new_order_emails'),
+                'receive_order_ready_emails' => $request->has('receive_order_ready_emails'),
             ];
 
             // Only update password if provided

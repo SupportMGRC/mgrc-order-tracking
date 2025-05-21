@@ -17,6 +17,8 @@ return new class extends Migration {
             $table->enum('role', ['superadmin', 'admin', 'user'])->default('user');
             $table->string('department')->nullable();
             $table->string('designation')->nullable();
+            $table->boolean('receive_new_order_emails')->default(false);
+            $table->boolean('receive_order_ready_emails')->default(false);
             $table->rememberToken();
             $table->timestamps();
         });
