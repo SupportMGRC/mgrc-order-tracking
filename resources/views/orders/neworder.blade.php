@@ -66,7 +66,7 @@
     @if ($errors->any())
     <div class="alert alert-danger alert-border-left alert-dismissible fade show" role="alert">
         <i class="ri-error-warning-line me-3 align-middle fs-16"></i><strong>Validation Error!</strong> Please check the form and try again.
-        <ul class="mb-0 my-5">
+        <ul class="mb-0 mt-2">
             @foreach ($errors->all() as $error)
                 <li>{{ $error }}</li>
             @endforeach
@@ -112,17 +112,16 @@
                                 <div>
                                     <div class="row mb-3">
                                         <div class="col-sm-12">
-                                            <label for="customer_search_input" class="form-label">Search Customer</label>
+                                            <label for="customer_name" class="form-label">Customer Name <span class="text-danger">*</span></label>
                                             <div class="dropdown customer-dropdown">
-                                                <input type="text" class="form-control" id="customer_search_input" 
-                                                    placeholder="Search or select customer" 
-                                                    data-bs-toggle="dropdown" aria-expanded="false" />
+                                                <input type="text" class="form-control search-customer @error('customer_name') is-invalid @enderror" 
+                                                    id="customer_name" name="customer_name" 
+                                                    placeholder="Type to search or enter new customer name" 
+                                                    data-bs-toggle="dropdown" aria-expanded="false" 
+                                                    autocomplete="off" 
+                                                    value="{{ old('customer_name') }}" required />
                                                 <input type="hidden" id="customer_id" name="customer_id" value="{{ old('customer_id') }}">
                                                 <div class="dropdown-menu w-100">
-                                                    <div class="p-2 px-3 pt-1 searchlist-input">
-                                                        <input type="text" class="form-control form-control-sm border search-customer" 
-                                                            placeholder="Type to search customers..." />
-                                                    </div>
                                                     <ul class="list-unstyled dropdown-menu-list mb-0" id="customer_list">
                                                         <li>
                                                             <a class="dropdown-item new-customer-option" href="#" 
@@ -146,22 +145,11 @@
                                                     </ul>
                                                 </div>
                                             </div>
-                                            <div class="form-text">Search for an existing customer or select "Enter New Customer"</div>
-                                        </div>
-                                    </div>
-
-                                    <div class="row">
-                                        <div class="col-sm-12">
-                                            <div class="mb-3">
-                                                <label for="customer_name" class="form-label">Name <span class="text-danger">*</span></label>
-                                                <input type="text" class="form-control @error('customer_name') is-invalid @enderror" 
-                                                    id="customer_name" name="customer_name" placeholder="Enter Customer name" 
-                                                    value="{{ old('customer_name') }}" required>
-                                                @error('customer_name')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
-                                                <div class="invalid-feedback">Please enter the customer name</div>
-                                            </div>
+                                            @error('customer_name')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                            <div class="invalid-feedback">Please enter the customer name</div>
+                                            <div class="form-text">Type to search existing customers or enter a new customer name</div>
                                         </div>
                                     </div>
 
@@ -321,7 +309,8 @@
                                             <label for="delivery_time" class="form-label">Delivery Time <span class="text-danger">*</span></label>
                                             <input type="text" class="form-control @error('delivery_time') is-invalid @enderror" 
                                                 id="delivery_time" name="delivery_time" 
-                                                data-provider="timepickr" data-time-basic="true" 
+                                                data-provider="timepickr" 
+                                                placeholder="Select time"
                                                 value="{{ old('delivery_time') }}" required>
                                             @error('delivery_time')
                                                 <div class="invalid-feedback">{{ $message }}</div>
@@ -370,34 +359,25 @@
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize date and time pickers
             if (typeof flatpickr !== 'undefined') {
-                // Initialize delivery date picker with today as min date
                 flatpickr("#delivery_date", {
                     dateFormat: "Y-m-d",
                     minDate: "today",
-                    allowInput: true,
-                    onClose: function(selectedDates, dateStr, instance) {
-                        validateField(instance.element);
-                    }
+                    allowInput: true
                 });
                 
-                // Initialize delivery time picker
                 flatpickr("#delivery_time", {
                     enableTime: true,
                     noCalendar: true,
-                    dateFormat: "H:i",
-                    time_24hr: true,
+                    dateFormat: "h:i K",
+                    time_24hr: false,
                     minuteIncrement: 15,
-                    allowInput: true,
-                    onClose: function(selectedDates, dateStr, instance) {
-                        validateField(instance.element);
-                    }
+                    allowInput: true
                 });
             }
             
-            // Customer search dropdown functionality
-            const customerSearchInput = document.getElementById('customer_search_input');
+            // Customer search functionality
+            const customerSearchInput = document.getElementById('customer_name');
             const customerList = document.getElementById('customer_list');
-            const searchCustomerInput = document.querySelector('.search-customer');
             
             // Initialize Bootstrap dropdown
             const dropdownElementList = [].slice.call(document.querySelectorAll('[data-bs-toggle="dropdown"]'));
@@ -405,14 +385,19 @@
                 return new bootstrap.Dropdown(dropdownToggleEl);
             });
             
-            // Filter customers in dropdown
-            searchCustomerInput.addEventListener('input', function(e) {
+            // Filter customers in dropdown as user types
+            customerSearchInput.addEventListener('input', function(e) {
                 const searchText = e.target.value.toLowerCase();
                 const customerItems = customerList.querySelectorAll('li');
-                let hasVisibleItems = false;
+                let resultsFound = false;
+                
+                // Always show "Enter New Customer" option
+                const newCustomerOption = document.querySelector('.new-customer-option');
+                if (newCustomerOption) {
+                    newCustomerOption.setAttribute('data-name', searchText);
+                }
                 
                 customerItems.forEach(function(item) {
-                    // Always show "Enter New Customer" option
                     if (item.querySelector('.new-customer-option')) {
                         item.style.display = 'block';
                         return;
@@ -423,76 +408,103 @@
                     const customerPhone = customerOption.getAttribute('data-phone') ? 
                         customerOption.getAttribute('data-phone').toLowerCase() : '';
                     
-                    if (customerName.includes(searchText) || customerPhone.includes(searchText)) {
-                        item.style.display = 'block';
-                        hasVisibleItems = true;
-                    } else {
-                        item.style.display = 'none';
-                    }
+                    const shouldDisplay = (customerName.includes(searchText) || customerPhone.includes(searchText));
+                    item.style.display = shouldDisplay ? 'block' : 'none';
+                    
+                    if (shouldDisplay) resultsFound = true;
                 });
                 
-                // Prevent dropdown from closing during search
-                e.stopPropagation();
+                // Automatically show dropdown when typing
+                if (searchText.length > 0) {
+                    const dropdownInstance = bootstrap.Dropdown.getInstance(customerSearchInput);
+                    if (!dropdownInstance._isShown()) {
+                        dropdownInstance.show();
+                    }
+                }
+                
+                // Update "Enter New Customer" option text
+                if (searchText.length > 0) {
+                    const newCustomerLink = document.querySelector('.new-customer-option');
+                    if (newCustomerLink) {
+                        newCustomerLink.innerHTML = `<i class="ri-add-line align-middle me-2"></i>Add "${searchText}" as new customer`;
+                    }
+                } else {
+                    const newCustomerLink = document.querySelector('.new-customer-option');
+                    if (newCustomerLink) {
+                        newCustomerLink.innerHTML = `<i class="ri-add-line align-middle me-2"></i>Enter New Customer`;
+                    }
+                }
+                
+                // Add no results message if needed
+                const noResultsMsg = document.getElementById('no-results-msg');
+                if (!resultsFound && searchText.length > 0) {
+                    if (!noResultsMsg) {
+                        const msgItem = document.createElement('li');
+                        msgItem.id = 'no-results-msg';
+                        msgItem.className = 'px-3 py-2 text-center text-muted small';
+                        msgItem.textContent = 'No matches found';
+                        customerList.appendChild(msgItem);
+                    }
+                } else if (noResultsMsg) {
+                    noResultsMsg.remove();
+                }
+                
+                // Validate the field since it's required
+                validateField(customerSearchInput);
             });
             
-            // Handle customer selection
+            // Handle customer selection from dropdown
             customerList.addEventListener('click', function(e) {
                 e.preventDefault();
                 const target = e.target.closest('.dropdown-item');
                 if (!target) return;
                 
-                const customerId = target.getAttribute('data-id');
-                const customerName = target.getAttribute('data-name');
+                let customerId = target.getAttribute('data-id');
+                let customerName = target.getAttribute('data-name');
                 const customerEmail = target.getAttribute('data-email');
                 const customerPhone = target.getAttribute('data-phone');
                 const customerAddress = target.getAttribute('data-address');
                 
-                // Update hidden input with customer ID
-                document.getElementById('customer_id').value = customerId;
+                // If new customer option was clicked, use the search input value as the name
+                if (target.classList.contains('new-customer-option')) {
+                    customerName = customerSearchInput.value;
+                    document.getElementById('customer_id').value = '';
+                } else {
+                    document.getElementById('customer_id').value = customerId;
+                }
                 
-                // Update search input display
-                customerSearchInput.value = customerId ? customerName : 'Enter New Customer';
+                // Update name field (which is now the same as the search field)
+                customerSearchInput.value = customerName;
                 
-                // Fill or clear customer form fields
-                document.getElementById('customer_name').value = customerName || '';
+                // If using an existing customer, populate email, phone and address fields
                 document.getElementById('customer_email').value = customerEmail || '';
                 document.getElementById('customer_phone').value = customerPhone || '';
                 document.getElementById('customer_address').value = customerAddress || '';
                 
-                // Validate fields after filling
-                if (customerName) validateField(document.getElementById('customer_name'));
+                // Validate fields
+                validateField(customerSearchInput);
                 if (customerPhone) validateField(document.getElementById('customer_phone'));
                 if (customerAddress) validateField(document.getElementById('customer_address'));
                 
-                // Close dropdown manually
+                // Close dropdown
                 const dropdownInstance = bootstrap.Dropdown.getInstance(customerSearchInput);
                 if (dropdownInstance) {
                     dropdownInstance.hide();
                 }
             });
             
-            // Prevent dropdown from closing when clicking in the search input
-            document.querySelector('.searchlist-input').addEventListener('click', function(e) {
-                e.stopPropagation();
-            });
-            
-            // Add event listeners for tab navigation buttons
+            // Tab navigation
             document.querySelector('.nexttab').addEventListener('click', function() {
-                // Validate customer tab fields before proceeding
                 const customerTab = document.getElementById('pills-bill-info');
                 const requiredFields = customerTab.querySelectorAll('[required]');
                 let errors = [];
                 
                 requiredFields.forEach(function(field) {
                     if (!validateField(field)) {
-                        // Get the field label
                         let fieldName = field.getAttribute('placeholder') || 
                                        field.previousElementSibling?.textContent || 
                                        'Field';
-                        
-                        // Remove any asterisks from the label
                         fieldName = fieldName.replace(/\*|\(.*?\)/g, '').trim();
-                        
                         errors.push(`${fieldName} is required.`);
                     }
                 });
@@ -501,7 +513,6 @@
                     const nextTabId = this.getAttribute('data-nexttab');
                     document.getElementById(nextTabId).click();
                 } else {
-                    // Show validation message with all errors
                     showValidationAlert(errors);
                 }
             });
@@ -571,7 +582,6 @@
                 `;
                 document.querySelector('.order-items').appendChild(newItem);
                 
-                // Add validation listeners to new fields
                 const newSelect = newItem.querySelector('select');
                 const newQuantity = newItem.querySelector('input[type="number"]');
                 
@@ -588,14 +598,10 @@
             document.addEventListener('click', function(e) {
                 if (e.target.closest('.delete-item')) {
                     const itemElement = e.target.closest('.order-item');
-                    // Don't allow deleting if there's only one item
                     if (document.querySelectorAll('.order-item').length > 1) {
                         itemElement.remove();
                     } else {
-                        // Show validation alert instead of basic alert
                         showValidationAlert('You need at least one product item. Cannot remove the last product.');
-                        
-                        // Highlight the product section
                         const productSection = itemElement.querySelector('select');
                         if (productSection) {
                             productSection.focus();
@@ -604,7 +610,7 @@
                 }
             });
             
-            // Function to validate a single field
+            // Field validation
             function validateField(field) {
                 if (!field.checkValidity()) {
                     field.classList.add('is-invalid');
@@ -616,19 +622,16 @@
                 }
             }
             
-            // Function to show validation alert
+            // Show validation alert
             function showValidationAlert(message) {
-                // Remove any existing validation alerts
                 const existingAlerts = document.querySelectorAll('.validation-alert');
                 existingAlerts.forEach(function(alert) {
                     alert.remove();
                 });
                 
-                // Create new alert
                 const alertDiv = document.createElement('div');
                 alertDiv.className = 'alert alert-danger alert-border-left alert-dismissible fade show validation-alert';
                 
-                // Check if the message should include a list
                 if (Array.isArray(message)) {
                     let messageHtml = `
                         <i class="ri-error-warning-line me-3 align-middle fs-16"></i>
@@ -649,7 +652,6 @@
                     `;
                 }
                 
-                // Add close button
                 const closeButton = document.createElement('button');
                 closeButton.type = 'button';
                 closeButton.className = 'btn-close';
@@ -657,11 +659,9 @@
                 closeButton.setAttribute('aria-label', 'Close');
                 alertDiv.appendChild(closeButton);
                 
-                // Insert before the card row, after existing alerts
                 const cardRow = document.querySelector('.card').closest('.row');
                 cardRow.parentNode.insertBefore(alertDiv, cardRow);
                 
-                // Scroll to the top of the alert
                 window.scrollTo({
                     top: alertDiv.offsetTop - 20,
                     behavior: 'smooth'
@@ -679,34 +679,27 @@
                 });
             });
             
-            // Form validation
+            // Form validation on submit
             const form = document.getElementById('orderForm');
             
             form.addEventListener('submit', function(event) {
                 let errors = [];
                 
-                // Validate all required fields
                 const requiredFields = form.querySelectorAll('[required]');
                 requiredFields.forEach(function(field) {
                     if (!validateField(field)) {
-                        // Get the field label
                         let fieldName = field.getAttribute('placeholder') || 
                                        field.previousElementSibling?.textContent || 
                                        'Field';
-                        
-                        // Remove any asterisks from the label
                         fieldName = fieldName.replace(/\*|\(.*?\)/g, '').trim();
-                        
                         errors.push(`${fieldName} is required.`);
                     }
                 });
                 
-                // Check if there's at least one product item
                 const productItems = document.querySelectorAll('.order-item');
                 if (productItems.length === 0) {
                     errors.push('You need at least one product item.');
                 } else {
-                    // Validate each product item has a selected type and valid quantity
                     productItems.forEach(function(item, index) {
                         const productType = item.querySelector('select');
                         const productQuantity = item.querySelector('input[type="number"]');
@@ -724,11 +717,7 @@
                 if (errors.length > 0) {
                     event.preventDefault();
                     event.stopPropagation();
-                    
-                    // Show validation alert with all errors
                     showValidationAlert(errors);
-                    
-                    // Add was-validated class to show all validation states
                     form.classList.add('was-validated');
                 }
             });

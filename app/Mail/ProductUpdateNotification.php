@@ -10,7 +10,7 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class NewOrderNotification extends Mailable
+class ProductUpdateNotification extends Mailable
 {
     use Queueable, SerializesModels;
 
@@ -20,16 +20,25 @@ class NewOrderNotification extends Mailable
      * @var \App\Models\Order
      */
     public $order;
+    
+    /**
+     * The updated products data.
+     *
+     * @var array
+     */
+    public $updatedProducts;
 
     /**
      * Create a new message instance.
      *
      * @param  \App\Models\Order  $order
+     * @param  array  $updatedProducts
      * @return void
      */
-    public function __construct(Order $order)
+    public function __construct(Order $order, array $updatedProducts)
     {
         $this->order = $order;
+        $this->updatedProducts = $updatedProducts;
     }
 
     /**
@@ -40,13 +49,7 @@ class NewOrderNotification extends Mailable
     public function envelope()
     {
         return new Envelope(
-            from: new \Illuminate\Mail\Mailables\Address(config('mail.from.address', 'support@mgrc.com'), config('mail.from.name', 'MGRC Order System')),
-            subject: '[NEW ORDER] Order #' . $this->order->id . ' - Delivery: ' . \Carbon\Carbon::parse($this->order->delivery_date)->format('d/m/Y'),
-            tags: ['order', 'new-order'],
-            metadata: [
-                'order_id' => $this->order->id,
-                'priority' => 'high',
-            ]
+            subject: "[PRODUCT UPDATED] Order #{$this->order->id} - Products/Quantities Changed",
         );
     }
 
@@ -58,7 +61,7 @@ class NewOrderNotification extends Mailable
     public function content()
     {
         return new Content(
-            view: 'emails.new-order',
+            view: 'emails.product-update',
         );
     }
 

@@ -39,11 +39,13 @@
                 </li>
 
                 <li class="menu-title"><span data-key="t-order">Order</span></li>
+                @if(Auth::user()->department == 'Medical Affairs' || Auth::user()->department == 'Business Development' || Auth::user()->role == 'superadmin' || Auth::user()->role == 'admin')
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="{{ route('neworder') }}">
                         <i class="las la-plus-circle"></i> <span data-key="t-new-order">New Order</span>
                     </a>
                 </li>
+                @endif
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="{{ route('orderhistory') }}">
                         <i class="las la-history"></i> <span data-key="t-order-history">Order History</span>

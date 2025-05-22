@@ -58,12 +58,15 @@ Route::middleware(['auth'])->group(function () {
     // Additional route with middleware for marking orders as ready
     Route::patch('/orders/{order}/mark-ready', [OrderController::class, 'markReady'])->name('orders.mark.ready')->middleware('department.permission:mark-ready');
     
+    // New route for updating individual product ready status
+    Route::patch('/orders/{order}/products/{product}/ready', [OrderController::class, 'updateProductReadyStatus'])->name('orders.product.ready');
+    
     // Visit routes
     Route::resource('visits', VisitController::class);
     
     // Legacy routes - keeping them for backward compatibility
-    Route::get('/neworder', [OrderController::class, 'newOrder'])->name('neworder');
-    Route::post('/neworder', [OrderController::class, 'storeNewOrder'])->name('neworder.store');
+    Route::get('/neworder', [OrderController::class, 'newOrder'])->name('neworder')->middleware('department.permission:view-new-order');
+    Route::post('/neworder', [OrderController::class, 'storeNewOrder'])->name('neworder.store')->middleware('department.permission:view-new-order');
     
     // Customer API route for AJAX
     Route::get('/api/customers/{id}', [CustomerController::class, 'getCustomerData'])->name('api.customers.data');
@@ -82,6 +85,8 @@ Route::middleware(['auth'])->group(function () {
     
     // Email testing route - admin only
     Route::get('/test-email', [OrderController::class, 'testEmailNotification'])->middleware('role:admin,superadmin');
+    
+    
 });
 
 

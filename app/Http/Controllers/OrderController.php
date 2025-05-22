@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Carbon;
-use App\Models\OrderStatusHistory;
+use App\Mail\ProductUpdateNotification;
 
 class OrderController extends Controller
 {
@@ -280,13 +280,51 @@ class OrderController extends Controller
             $request->session()->forget('status_filter');
         }
         
-        // Filter by date range
-        if ($request->has('date_range') && !empty($request->date_range)) {
-            $dates = explode(' to ', $request->date_range);
-            if (count($dates) == 2) {
-                $start_date = date('Y-m-d', strtotime($dates[0]));
-                $end_date = date('Y-m-d', strtotime($dates[1]));
-                $query->whereBetween('order_date', [$start_date, $end_date]);
+        // Only apply date filtering for 'all' or 'delivered' status
+        // For 'new', 'preparing', and 'ready' statuses, show all orders regardless of date
+        if (!in_array($request->status, ['new', 'preparing', 'ready'])) {
+            // Filter by date range - using predefined options
+            $dateRange = $request->get('date_range', 'today'); // Default to today if not specified
+            
+            switch ($dateRange) {
+                case 'today':
+                    $today = Carbon::today();
+                    $query->whereDate('order_date', $today);
+                    break;
+                    
+                case 'weekly':
+                    $startOfWeek = Carbon::now()->startOfWeek();
+                    $endOfWeek = Carbon::now()->endOfWeek();
+                    $query->whereBetween('order_date', [$startOfWeek, $endOfWeek]);
+                    break;
+                    
+                case 'monthly':
+                    $startOfMonth = Carbon::now()->startOfMonth();
+                    $endOfMonth = Carbon::now()->endOfMonth();
+                    $query->whereBetween('order_date', [$startOfMonth, $endOfMonth]);
+                    break;
+                    
+                case 'yearly':
+                    $startOfYear = Carbon::now()->startOfYear();
+                    $endOfYear = Carbon::now()->endOfYear();
+                    $query->whereBetween('order_date', [$startOfYear, $endOfYear]);
+                    break;
+                    
+                case 'all':
+                    // No date filtering
+                    break;
+                    
+                default:
+                    // If it's a custom date range string (for backwards compatibility)
+                    if (strpos($dateRange, ' to ') !== false) {
+                        $dates = explode(' to ', $dateRange);
+                        if (count($dates) == 2) {
+                            $start_date = date('Y-m-d', strtotime($dates[0]));
+                            $end_date = date('Y-m-d', strtotime($dates[1]));
+                            $query->whereBetween('order_date', [$start_date, $end_date]);
+                        }
+                    }
+                    break;
             }
         }
         
@@ -608,12 +646,13 @@ class OrderController extends Controller
     }
 
     /**
-     * Show page for editing batch information for each product in an order
+     * Show the form for editing batch information.
      */
     public function editBatchInfo($id)
     {
         $order = Order::with(['customer', 'products'])->findOrFail($id);
-        return view('orders.batch-edit', compact('order'));
+        $products = Product::all();
+        return view('orders.batch-edit', compact('order', 'products'));
     }
     
     /**
@@ -621,12 +660,13 @@ class OrderController extends Controller
      */
     public function updateBatchInfo(Request $request, $id)
     {
-        $order = Order::with('products')->findOrFail($id);
+        $order = Order::with(['customer', 'products'])->findOrFail($id);
         
         // Create custom validation rules
         $rules = [
             'products' => 'required|array',
             'products.*.product_id' => 'required|exists:products,id',
+            'products.*.quantity' => 'required|integer|min:1', // Make quantity required
             'products.*.patient_name' => 'nullable|string',
             'products.*.remarks' => 'nullable|string',
             'products.*.qc_document_number' => 'nullable|string',
@@ -635,22 +675,15 @@ class OrderController extends Controller
         
         // For each product, determine if batch_number is required or nullable
         foreach ($request->products as $index => $productData) {
-            // Find if the product already has a batch number in database
-            $existingProduct = $order->products->firstWhere('id', $productData['product_id']);
-            
-            if ($existingProduct && !empty($existingProduct->pivot->batch_number)) {
-                // If batch number already exists, it's optional
-                $rules['products.' . $index . '.batch_number'] = 'nullable|string';
-            } else {
-                // If no batch number exists, it's required
-                $rules['products.' . $index . '.batch_number'] = 'required|string';
-            }
+            // Make batch_number nullable for all products (no longer required)
+            $rules['products.' . $index . '.batch_number'] = 'nullable|string';
         }
         
         // Validate with the dynamic rules
         $validated = $request->validate($rules);
         
         $user = Auth::user();
+        $canEditAll = $user->role === 'admin' || $user->role === 'superadmin';
         
         // Begin transaction to ensure data consistency
         DB::beginTransaction();
@@ -659,61 +692,199 @@ class OrderController extends Controller
             $hasBatchInfo = false;
             $hasErrors = false;
             $errorMessage = '';
+            $productUpdates = [];
+            
+            // Store existing products before updating for comparison
+            $existingProducts = $order->products->keyBy('id');
+            $existingProductIds = $existingProducts->keys()->toArray();
+            $updatedProductIds = collect($request->products)->pluck('product_id')->toArray();
+            $updatedProducts = [];
+            
+            // If admin/superadmin is changing products, handle stock adjustments
+            if ($canEditAll && array_diff($existingProductIds, $updatedProductIds)) {
+                // Return stock for products being removed
+                foreach ($existingProducts as $product) {
+                    // Skip if product is not in the updated list
+                    if (!in_array($product->id, $updatedProductIds)) {
+                        $product->stock += $product->pivot->quantity;
+                        $product->save();
+                    }
+                }
+                
+                // Clear existing products
+                $order->products()->detach();
+                
+                // We will add new products below
+            }
             
             foreach ($request->products as $productData) {
-                // Get existing pivot data
-                $existingPivot = $order->products()->wherePivot('product_id', $productData['product_id'])->first()->pivot;
+                $productId = $productData['product_id'];
+                $quantity = $productData['quantity'];
                 
-                $updateData = [
-                    'patient_name' => $productData['patient_name'] ?? null,
-                    'remarks' => $productData['remarks'] ?? null,
-                    'prepared_by' => $productData['prepared_by'] ?? null,
-                ];
+                // Get the product
+                $product = Product::findOrFail($productId);
                 
-                // Only update batch number if it was submitted and user has permission
-                if (isset($productData['batch_number']) && !empty($productData['batch_number']) && 
-                    $existingPivot->batch_number !== $productData['batch_number']) {
-                    if ($user->department === 'Cell Lab' || $user->role === 'superadmin') {
+                // If admin/superadmin is changing products/quantities
+                if ($canEditAll) {
+                    // Check if product is new or quantity has changed
+                    $isNewProduct = !$existingProducts->has($productId);
+                    $existingQuantity = $isNewProduct ? 0 : $existingProducts[$productId]->pivot->quantity;
+                    $quantityDiff = $quantity - $existingQuantity;
+                    
+                    // If quantity is decreasing or product is being removed, add stock back
+                    if ($quantityDiff < 0) {
+                        $product->stock -= $quantityDiff; // Adding back (negative diff)
+                        $product->save();
+                    }
+                    // If quantity is increasing or product is new, check if there's enough stock
+                    elseif ($quantityDiff > 0) {
+                        if ($product->stock < $quantityDiff) {
+                            throw new \Exception("Not enough stock for product: {$product->name}. Available: {$product->stock}");
+                        }
+                        
+                        // Decrease stock
+                        $product->stock -= $quantityDiff;
+                        $product->save();
+                    }
+                    
+                    // Track changes for email notification if product is new or quantity changed
+                    if ($isNewProduct || $quantityDiff != 0) {
+                        $updatedProducts[] = [
+                            'id' => $product->id,
+                            'name' => $product->name,
+                            'quantity' => $quantity,
+                            'batch_number' => $productData['batch_number'] ?? null,
+                            'previous_quantity' => $existingQuantity,
+                            'is_new' => $isNewProduct
+                        ];
+                    }
+                    
+                    // Prepare data for attaching/updating in pivot table
+                    $pivotData = [
+                        'quantity' => $quantity,
+                        'patient_name' => $productData['patient_name'] ?? null,
+                        'remarks' => $productData['remarks'] ?? null,
+                        'prepared_by' => $productData['prepared_by'] ?? null,
+                    ];
+                    
+                    // Handle batch number permissions
+                    if (isset($productData['batch_number']) && (!$isNewProduct && $existingProducts->has($productId))) {
+                        $existingBatchNumber = $existingProducts[$productId]->pivot->batch_number;
+                        if (!empty($productData['batch_number']) && $existingBatchNumber !== $productData['batch_number']) {
+                            if ($user->department === 'Cell Lab' || $user->role === 'superadmin') {
+                                $pivotData['batch_number'] = $productData['batch_number'];
+                            } else {
+                                $hasErrors = true;
+                                $errorMessage = 'Only Cell Lab department can edit batch document numbers.';
+                                break;
+                            }
+                        } elseif ($existingBatchNumber) {
+                            $pivotData['batch_number'] = $existingBatchNumber;
+                        } else {
+                            $pivotData['batch_number'] = $productData['batch_number'] ?? null;
+                        }
+                    } else {
+                        $pivotData['batch_number'] = $productData['batch_number'] ?? null;
+                    }
+                    
+                    // Handle QC document number permissions
+                    if (isset($productData['qc_document_number']) && (!$isNewProduct && $existingProducts->has($productId))) {
+                        $existingQcNumber = $existingProducts[$productId]->pivot->qc_document_number;
+                        if (!empty($productData['qc_document_number']) && $existingQcNumber !== $productData['qc_document_number']) {
+                            if ($user->department === 'Quality' || $user->role === 'superadmin') {
+                                $pivotData['qc_document_number'] = $productData['qc_document_number'];
+                            } else {
+                                $hasErrors = true;
+                                $errorMessage = 'Only Quality department can edit QC document numbers.';
+                                break;
+                            }
+                        } elseif ($existingQcNumber) {
+                            $pivotData['qc_document_number'] = $existingQcNumber;
+                        } else {
+                            $pivotData['qc_document_number'] = $productData['qc_document_number'] ?? null;
+                        }
+                    } else {
+                        $pivotData['qc_document_number'] = $productData['qc_document_number'] ?? null;
+                    }
+                    
+                    // Check if product exists in order (for admin/superadmin)
+                    if ($isNewProduct || array_diff($existingProductIds, $updatedProductIds)) {
+                        // Attach new product
+                        $order->products()->attach($productId, $pivotData);
+                    } else {
+                        // Update existing product
+                        $order->products()->updateExistingPivot($productId, $pivotData);
+                    }
+                } else {
+                    // Non-admin users - use the original behavior
+                    // Get existing pivot data
+                    $existingPivot = $order->products()->wherePivot('product_id', $productId)->first();
+                    
+                    if (!$existingPivot) {
+                        $hasErrors = true;
+                        $errorMessage = 'You do not have permission to add new products to this order.';
+                        break;
+                    }
+                    
+                    $existingPivot = $existingPivot->pivot;
+                    
+                    $updateData = [
+                        'patient_name' => $productData['patient_name'] ?? null,
+                        'remarks' => $productData['remarks'] ?? null,
+                        'prepared_by' => $productData['prepared_by'] ?? null,
+                    ];
+                    
+                    // Only update batch number if it was submitted and user has permission
+                    if (isset($productData['batch_number']) && !empty($productData['batch_number']) && 
+                        $existingPivot->batch_number !== $productData['batch_number']) {
+                        if ($user->department === 'Cell Lab' || $user->role === 'superadmin') {
+                            $updateData['batch_number'] = $productData['batch_number'];
+                        } else {
+                            $hasErrors = true;
+                            $errorMessage = 'Only Cell Lab department can edit batch document numbers.';
+                            break;
+                        }
+                    } elseif ($existingPivot->batch_number) {
+                        // Keep existing batch number if present
+                        $updateData['batch_number'] = $existingPivot->batch_number;
+                    } elseif (isset($productData['batch_number'])) {
+                        // Use new batch number if provided and no existing one
                         $updateData['batch_number'] = $productData['batch_number'];
-                    } else {
-                        $hasErrors = true;
-                        $errorMessage = 'Only Cell Lab department can edit batch document numbers.';
-                        break;
                     }
-                } elseif ($existingPivot->batch_number) {
-                    // Keep existing batch number if present
-                    $updateData['batch_number'] = $existingPivot->batch_number;
-                } elseif (isset($productData['batch_number'])) {
-                    // Use new batch number if provided and no existing one
-                    $updateData['batch_number'] = $productData['batch_number'];
-                }
-                
-                // Check permissions for QC document number
-                if (isset($productData['qc_document_number']) && !empty($productData['qc_document_number']) && 
-                    $existingPivot->qc_document_number !== $productData['qc_document_number']) {
-                    if ($user->department === 'Quality' || $user->role === 'superadmin') {
+                    
+                    // Check permissions for QC document number
+                    if (isset($productData['qc_document_number']) && !empty($productData['qc_document_number']) && 
+                        $existingPivot->qc_document_number !== $productData['qc_document_number']) {
+                        if ($user->department === 'Quality' || $user->role === 'superadmin') {
+                            $updateData['qc_document_number'] = $productData['qc_document_number'];
+                        } else {
+                            $hasErrors = true;
+                            $errorMessage = 'Only Quality department can edit QC document numbers.';
+                            break;
+                        }
+                    } elseif ($existingPivot->qc_document_number) {
+                        // Keep existing QC document number if present
+                        $updateData['qc_document_number'] = $existingPivot->qc_document_number;
+                    } elseif (isset($productData['qc_document_number'])) {
+                        // Use new QC document number if provided and no existing one
                         $updateData['qc_document_number'] = $productData['qc_document_number'];
-                    } else {
-                        $hasErrors = true;
-                        $errorMessage = 'Only Quality department can edit QC document numbers.';
-                        break;
                     }
-                } elseif ($existingPivot->qc_document_number) {
-                    // Keep existing QC document number if present
-                    $updateData['qc_document_number'] = $existingPivot->qc_document_number;
-                } elseif (isset($productData['qc_document_number'])) {
-                    // Use new QC document number if provided and no existing one
-                    $updateData['qc_document_number'] = $productData['qc_document_number'];
-                }
-                
-                if (!$hasErrors) {
-                    $order->products()->updateExistingPivot($productData['product_id'], $updateData);
+                    
+                    if (!$hasErrors) {
+                        // Check if any fields changed (for non-admin users)
+                        $existingPivot = $order->products()->wherePivot('product_id', $productId)->first()->pivot;
+                        $hasChanges = false;
+                        
+                        // Check each field for changes - but we won't send notifications for these changes
+                        // Just update the data without tracking for notifications
+                        $order->products()->updateExistingPivot($productId, $updateData);
+                    }
                 }
                 
                 // Check if any batch information exists
-                if (!empty($updateData['batch_number']) || 
-                    !empty($updateData['qc_document_number']) || 
-                    !empty($updateData['prepared_by'])) {
+                if (!empty($productData['batch_number']) || 
+                    !empty($productData['qc_document_number']) || 
+                    !empty($productData['prepared_by'])) {
                     $hasBatchInfo = true;
                 }
             }
@@ -728,6 +899,21 @@ class OrderController extends Controller
                 $order->update(['status' => 'preparing']);
             }
             
+            // Send email notification if products or quantities were updated
+            if (!empty($updatedProducts)) {
+                // Filter to only include products or quantity changes (is_new or quantity diff)
+                $productsWithChanges = array_filter($updatedProducts, function($product) {
+                    return $product['is_new'] === true || 
+                           (isset($product['previous_quantity']) && $product['quantity'] != $product['previous_quantity']);
+                });
+                
+                // Only send notification if there are product additions or quantity changes
+                if (!empty($productsWithChanges)) {
+                    // Send product update email for all changed products
+                    $this->sendProductUpdateNotification($order, $productsWithChanges);
+                }
+            }
+            
             DB::commit();
             
             return redirect()->route('orderdetails', $order->id)
@@ -736,6 +922,111 @@ class OrderController extends Controller
             DB::rollBack();
             return redirect()->back()
                 ->with('error', 'Error updating batch information: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Send notification email when products or quantities are updated.
+     */
+    private function sendProductUpdateNotification(Order $order, array $updatedProducts)
+    {
+        try {
+            // Skip if no changes were made
+            if (empty($updatedProducts)) {
+                return;
+            }
+            
+            // Reload order with relations
+            $order->load(['customer', 'user']);
+            
+            // Get users who have opted in to receive new order notifications
+            // Using the same recipients list as new order emails
+            $notificationUsers = User::where('receive_new_order_emails', true)->get();
+            
+            // Check if we're in test mode
+            $testMode = config('mail_debug.test_mode', false);
+            if ($testMode) {
+                // Use test recipients only
+                $testRecipients = config('mail_debug.test_recipients', []);
+                if (!empty($testRecipients)) {
+                    Log::info('Using test recipients: ' . implode(', ', $testRecipients));
+                }
+            }
+            
+            // Create the email
+            $mail = new ProductUpdateNotification($order, $updatedProducts);
+            
+            // Track email recipients for logging
+            $sentTo = [];
+            
+            // Try to send via Laravel's mail system first
+            try {
+                // Check if we should use test SMTP
+                $useTestSmtp = config('mail_debug.use_test_smtp', false);
+                if ($useTestSmtp) {
+                    Log::info('Using test SMTP settings');
+                    // Create a custom mailer with test SMTP settings
+                    $transport = (new \Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport(
+                        config('mail_debug.test_smtp.host'), 
+                        config('mail_debug.test_smtp.port'),
+                        config('mail_debug.test_smtp.encryption') === 'tls'
+                    ))
+                    ->setUsername(config('mail_debug.test_smtp.username'))
+                    ->setPassword(config('mail_debug.test_smtp.password'));
+                    
+                    $customMailer = new \Illuminate\Mail\Mailer(
+                        'smtp',
+                        new \Symfony\Component\Mailer\Mailer($transport),
+                        app('view'),
+                        app('events')
+                    );
+                    
+                    // Send using custom mailer
+                    if ($testMode && !empty($testRecipients)) {
+                        foreach ($testRecipients as $recipient) {
+                            $customMailer->to($recipient)->send($mail);
+                            $sentTo[] = $recipient . ' (Test Recipient)';
+                        }
+                    } else {
+                        // Send to users who opted in
+                        foreach ($notificationUsers as $user) {
+                            if ($user->email) {
+                                $customMailer->to($user->email)->send($mail);
+                                $sentTo[] = $user->email . ' (' . $user->department . ')';
+                            }
+                        }
+                    }
+                } else {
+                    // Use standard Laravel mail
+                    if ($testMode && !empty($testRecipients)) {
+                        foreach ($testRecipients as $recipient) {
+                            Mail::to($recipient)->send($mail);
+                            $sentTo[] = $recipient . ' (Test Recipient)';
+                        }
+                    } else {
+                        // Send to users who opted in
+                        foreach ($notificationUsers as $user) {
+                            if ($user->email) {
+                                Mail::to($user->email)->send($mail);
+                                $sentTo[] = $user->email . ' (' . $user->department . ')';
+                            }
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                // Log error but don't interrupt the process
+                Log::error('Error sending product update notification: ' . $e->getMessage());
+            }
+            
+            // Log successful email sending
+            if (count($sentTo) > 0) {
+                Log::info('Product update notification emails sent to: ' . implode(', ', $sentTo));
+            } else {
+                Log::warning('No product update notification emails sent: No recipients found or all mail methods failed');
+            }
+        } catch (\Exception $e) {
+            // Log error but don't interrupt the process
+            Log::error('Error sending product update notification: ' . $e->getMessage());
         }
     }
 
@@ -754,7 +1045,7 @@ class OrderController extends Controller
     public function updateBatch(Request $request, $id)
     {
         $request->validate([
-            'batch_number' => 'required|string',
+            'batch_number' => 'nullable|string',
             'product_id' => 'required|exists:products,id',
             'patient_name' => 'nullable|string',
             'remarks' => 'nullable|string',
@@ -858,9 +1149,19 @@ class OrderController extends Controller
             $order = Order::findOrFail($id);
             $user = Auth::user();
             
+            // Store original status to detect changes
+            $oldStatus = $order->status;
+            
             // Check permissions for status changes
+            if ($request->status === 'preparing' && $order->status !== 'preparing') {
+                if (!($user->department === 'Quality' || $user->department === 'Cell Lab' || $user->role === 'admin' || $user->role === 'superadmin')) {
+                    DB::rollBack();
+                    return redirect()->back()->with('error', 'Only Quality, Cell Lab, Admin or Superadmin can mark orders as preparing.');
+                }
+            }
+            
             if ($request->status === 'ready' && $order->status !== 'ready') {
-                if ($user->department !== 'Quality' && $user->department !== 'Cell Lab' && $user->role !== 'superadmin') {
+                if ($user->department !== 'Quality' && $user->department !== 'Cell Lab' && $user->role !== 'admin' && $user->role !== 'superadmin') {
                     DB::rollBack();
                     return redirect()->back()->with('error', 'Only Quality or Cell Lab departments can mark orders as ready.');
                 }
@@ -888,6 +1189,18 @@ class OrderController extends Controller
             
             $order->status = $request->status;
             $order->save();
+            
+            // If the status changed to 'ready', send notifications
+            if ($oldStatus !== 'ready' && $request->status === 'ready') {
+                $order->load(['customer', 'products']);
+                $this->sendOrderReadyNotifications($order);
+            }
+            
+            // If the status changed to 'new', send new order notifications 
+            if ($oldStatus !== 'new' && $request->status === 'new') {
+                $order->load(['customer', 'products']);
+                $this->sendNewOrderNotifications($order);
+            }
             
             DB::commit();
 
@@ -974,9 +1287,176 @@ class OrderController extends Controller
     }
 
     /**
-     * Test email notifications for debugging purposes.
-     * 
-     * @return array
+     * Update product ready status
+     */
+    public function updateProductReadyStatus(Request $request, $orderId, $productId)
+    {
+        try {
+            // Log the raw request for debugging
+            Log::info('Raw request data for product ready status update', [
+                'all_request_data' => $request->all(),
+                'request_method' => $request->method(),
+                'request_url' => $request->url(),
+                'route_parameters' => $request->route()->parameters(),
+                'headers' => $request->header(),
+            ]);
+            
+            $order = Order::findOrFail($orderId);
+            
+            // Add debug logging
+            Log::info('Product ready status update request', [
+                'order_id' => $orderId,
+                'product_id' => $productId,
+                'status' => $request->status,
+                'current_order_status' => $order->status,
+                'user' => Auth::user()->name . ' (' . Auth::user()->department . ')',
+            ]);
+            
+            // Check if user has permission
+            if (!(Auth::user()->department === 'Quality' || 
+                Auth::user()->department === 'Cell Lab' || 
+                Auth::user()->role === 'admin' || 
+                Auth::user()->role === 'superadmin')) {
+                Log::warning('Permission denied for product ready status update');
+                
+                if ($request->wantsJson() || $request->ajax()) {
+                    return response()->json(['success' => false, 'message' => 'You do not have permission to perform this action.'], 403);
+                }
+                
+                return redirect()->back()->with('error', 'You do not have permission to perform this action.');
+            }
+            
+            // Validate request
+            $validator = Validator::make($request->all(), [
+                'status' => 'required|in:ready,not_ready',
+            ]);
+            
+            if ($validator->fails()) {
+                Log::warning('Validation failed for product ready status update', [
+                    'errors' => $validator->errors()->toArray(),
+                    'input' => $request->all()
+                ]);
+                
+                if ($request->wantsJson() || $request->ajax()) {
+                    return response()->json(['success' => false, 'message' => 'Validation failed: ' . implode(', ', $validator->errors()->all())], 422);
+                }
+                
+                return redirect()->back()->with('error', 'Validation failed: ' . implode(', ', $validator->errors()->all()));
+            }
+            
+            // Log before update
+            Log::info('Before updating pivot', [
+                'product_current_status' => $order->products()->where('product_id', $productId)->first()->pivot->status ?? 'not found'
+            ]);
+            
+            // Update the product's ready status
+            $updated = $order->products()->updateExistingPivot($productId, [
+                'status' => $request->status,
+            ]);
+            
+            Log::info('Pivot update result', [
+                'updated' => $updated,
+                'status_value' => $request->status
+            ]);
+            
+            // Force refresh the relationship
+            $order->load('products');
+            
+            // Check if the specific product was updated
+            $updatedProduct = $order->products()->where('product_id', $productId)->first();
+            Log::info('Updated product check', [
+                'product_id' => $productId,
+                'found' => $updatedProduct ? true : false,
+                'status' => $updatedProduct ? $updatedProduct->pivot->status : 'N/A'
+            ]);
+            
+            // Check if all products are ready after this update
+            $allProductsReady = true;
+            $readyCount = 0;
+            $totalProducts = count($order->products);
+            
+            foreach($order->products as $product) {
+                if($product->pivot->status === 'ready') {
+                    $readyCount++;
+                } else {
+                    $allProductsReady = false;
+                }
+            }
+            
+            // Log the status of products
+            Log::info('Product ready status after update', [
+                'ready_count' => $readyCount,
+                'total_products' => $totalProducts,
+                'all_ready' => $allProductsReady,
+                'products' => $order->products->map(function($p) {
+                    return [
+                        'id' => $p->id,
+                        'name' => $p->name,
+                        'status' => $p->pivot->status
+                    ];
+                })
+            ]);
+            
+            // Auto-update order status if all products are ready
+            if ($allProductsReady && $totalProducts > 0 && $order->status === 'preparing') {
+                // Update the order status to Ready
+                $order->status = 'ready';
+                $order->save();
+                
+                Log::info('Order status automatically updated to Ready', [
+                    'order_id' => $order->id,
+                    'previous_status' => 'preparing',
+                    'new_status' => 'ready'
+                ]);
+                
+                // Send email notifications
+                $this->sendOrderReadyNotifications($order);
+                
+                if ($request->wantsJson() || $request->ajax()) {
+                    return response()->json([
+                        'success' => true, 
+                        'message' => 'All products are now ready! Order status has been automatically updated to Ready.',
+                        'order_status' => 'ready',
+                        'all_ready' => true
+                    ]);
+                }
+                
+                return redirect()->route('orderdetails', $order->id)
+                    ->with('success', 'All products are now ready! Order status has been automatically updated to Ready.');
+            }
+            
+            $statusMessage = $request->status === 'ready' ? 'Product marked as ready.' : 'Product marked as not ready.';
+            
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => true, 
+                    'message' => $statusMessage,
+                    'order_status' => $order->status,
+                    'all_ready' => $allProductsReady,
+                    'ready_count' => $readyCount,
+                    'total_products' => $totalProducts
+                ]);
+            }
+            
+            return redirect()->route('orderdetails', $order->id)->with('success', $statusMessage);
+            
+        } catch (\Exception $e) {
+            Log::error('Error in updateProductReadyStatus: ' . $e->getMessage(), [
+                'order_id' => $orderId ?? null,
+                'product_id' => $productId ?? null,
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Error updating product status: ' . $e->getMessage()], 500);
+            }
+            
+            return redirect()->back()->with('error', 'Error updating product status: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * For testing email notifications
      */
     public function testEmailNotification()
     {

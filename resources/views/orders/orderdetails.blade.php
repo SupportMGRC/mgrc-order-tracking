@@ -1,6 +1,7 @@
 @extends('layouts.master')
 
 @section('content')
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <style>
     /* Order Progress Bar Styles */
     .order-progress-bar {
@@ -236,15 +237,11 @@
         @if($order->status != 'delivered')
         <div class="text-center">
             @if($order->status === 'new' && $anyBatchInfo)
-            <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#markPreparingModal">
-                <i class="ri-tools-line align-bottom me-1"></i> Mark as Preparing
-            </button>
-            @elseif($order->status === 'preparing')
-            @if(Auth::user()->department === 'Quality' || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'superadmin')
-            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#markReadyModal">
-                <i class="ri-check-double-line align-bottom me-1"></i> Mark as Ready
-            </button>
-            @endif
+                @if(Auth::user()->department === 'Quality' || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
+                <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#markPreparingModal">
+                    <i class="ri-tools-line align-bottom me-1"></i> Mark as Preparing
+                </button>
+                @endif
             @elseif($order->status === 'ready')
             @if(Auth::user()->department === 'Admin & Human Resource' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
             <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#markDeliveredModal">
@@ -253,9 +250,11 @@
             @endif
             @endif
             
+            @if(Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
             <button type="button" class="btn btn-danger ms-2" data-bs-toggle="modal" data-bs-target="#deleteOrder">
                 <i class="ri-delete-bin-line align-bottom me-1"></i> Delete Order
             </button>
+            @endif
         </div>
         @endif
     </div>
@@ -299,24 +298,6 @@
                     $firstProductBatchNumber = $firstProduct ? $firstProduct->pivot->batch_number : null;
                 @endphp
 
-                @if(!$allHaveBatchInfo)
-                <div class="alert alert-warning mb-4" role="alert">
-                    <div class="d-flex">
-                        <div class="flex-shrink-0 me-3">
-                            <i class="ri-alert-line fs-24"></i>
-                        </div>
-                        <div class="flex-grow-1">
-                            <h5 class="alert-heading">Batch Information Incomplete</h5>
-                            <p class="mb-0">Some products in this order don't have batch information assigned. 
-                                <a href="{{ route('orders.batch.edit', $order->id) }}" class="btn btn-sm btn-warning ms-3">
-                                    <i class="ri-edit-2-line"></i> Assign Batch Information
-                                </a>
-                            </p>
-                        </div>
-                    </div>
-                </div>
-                @endif
-
                 <div class="table-responsive table-card">
                     <table class="table table-nowrap align-middle table-borderless mb-0">
                         <thead class="table-light text-muted">
@@ -328,6 +309,9 @@
                                 <th scope="col">Remarks</th>
                                 <th scope="col">QC Document No.</th>
                                 <th scope="col">Prepared By</th>
+                                @if($order->status === 'preparing' && (Auth::user()->department === 'Quality' || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin'))
+                                <th scope="col">Actions</th>
+                                @endif
                             </tr>
                         </thead>
                         <tbody>
@@ -382,11 +366,49 @@
                                         <span class="text-muted">-</span>
                                     @endif
                                 </td>
+                                @if($order->status === 'preparing' && (Auth::user()->department === 'Quality' || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin'))
+                                <td>
+                                    @if($product->pivot->status === 'ready')
+                                    <button type="button" class="btn btn-sm btn-soft-success" data-bs-toggle="modal" data-bs-target="#markProductNotReadyModal{{ $product->id }}">
+                                        <i class="ri-check-line align-middle"></i> Ready
+                                    </button>
+                                    @else
+                                    <button type="button" class="btn btn-sm btn-soft-danger" data-bs-toggle="modal" data-bs-target="#markProductReadyModal{{ $product->id }}">
+                                        <i class="ri-time-line align-middle"></i> Not Ready
+                                    </button>
+                                    @endif
+                                </td>
+                                @endif
                             </tr>
                             @endforeach
                         </tbody>
                     </table>
                 </div>
+
+                @if($order->status === 'preparing' && (Auth::user()->department === 'Quality' || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin'))
+                <div class="text-center mt-4">
+                    @php
+                        // Check if all products are ready
+                        $allProductsReady = true;
+                        foreach($order->products as $product) {
+                            if($product->pivot->status !== 'ready') {
+                                $allProductsReady = false;
+                                break;
+                            }
+                        }
+                    @endphp
+                    
+                    @if($allProductsReady && count($order->products) > 0)
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#markOrderReadyModal">
+                        <i class="ri-check-double-line align-bottom me-1"></i> Mark Order as Ready
+                    </button>
+                    @else
+                    <div class="alert alert-info">
+                        <i class="ri-information-line me-2"></i> Mark all products as ready to proceed with order status change.
+                    </div>
+                    @endif
+                </div>
+                @endif
             </div>
         </div>
         <!--end card-->
@@ -529,11 +551,11 @@
 </div>
 
 <!-- Modal to Mark as Ready -->
-<div class="modal fade" id="markReadyModal" tabindex="-1" aria-labelledby="markReadyModalLabel" aria-hidden="true">
+<div class="modal fade" id="markOrderReadyModal" tabindex="-1" aria-labelledby="markOrderReadyModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header bg-soft-primary">
-                <h5 class="modal-title" id="markReadyModalLabel">Mark Order as Ready</h5>
+                <h5 class="modal-title" id="markOrderReadyModalLabel">Mark Order as Ready</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form action="{{ route('orders.mark.ready', $order->id) }}" method="POST">
@@ -543,7 +565,7 @@
                     <div class="alert alert-info mb-3">
                         <i class="ri-information-line me-2"></i> Marking as "Ready" means the order has been prepared and is ready for delivery or pickup.
                     </div>
-                    <p>Are you sure the order is ready for delivery or pickup?</p>
+                    <p>All products are ready. Do you want to change the order status to "Ready"?</p>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
@@ -553,6 +575,69 @@
         </div>
     </div>
 </div>
+
+<!-- Product Ready Modal -->
+@foreach($order->products as $product)
+<div class="modal fade" id="markProductReadyModal{{ $product->id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-soft-success">
+                <h5 class="modal-title">Mark Product as Ready</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('orders.product.ready', ['order' => $order->id, 'product' => $product->id]) }}" method="POST" class="product-ready-form">
+                @csrf
+                @method('PATCH')
+                <div class="modal-body">
+                    <div class="text-center mb-4">
+                        <div class="avatar-md mx-auto">
+                            <div class="avatar-title bg-light text-success display-6 rounded-circle">
+                                <i class="ri-checkbox-circle-line"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-center">Are you sure you want to mark <strong>{{ $product->name }}</strong> as ready?</p>
+                    <input type="hidden" name="status" value="ready">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Yes, Mark as Ready</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="markProductNotReadyModal{{ $product->id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-soft-danger">
+                <h5 class="modal-title">Mark Product as Not Ready</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('orders.product.ready', ['order' => $order->id, 'product' => $product->id]) }}" method="POST" class="product-ready-form">
+                @csrf
+                @method('PATCH')
+                <div class="modal-body">
+                    <div class="text-center mb-4">
+                        <div class="avatar-md mx-auto">
+                            <div class="avatar-title bg-light text-danger display-6 rounded-circle">
+                                <i class="ri-close-circle-line"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-center">Are you sure you want to mark <strong>{{ $product->name }}</strong> as not ready?</p>
+                    <input type="hidden" name="status" value="not_ready">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Yes, Mark as Not Ready</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endforeach
 
 <!-- Modal to Mark as Delivered -->
 <div class="modal fade" id="markDeliveredModal" tabindex="-1" aria-labelledby="markDeliveredModalLabel" aria-hidden="true">
@@ -606,6 +691,36 @@
         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
         var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl)
+        });
+
+        // Add form submission handlers for product ready forms
+        document.querySelectorAll('.product-ready-form').forEach(function(form) {
+            form.addEventListener('submit', function(e) {
+                // Log the form submission for debugging
+                console.log('Form is being submitted:', {
+                    action: form.action,
+                    method: form.method,
+                    formData: new FormData(form)
+                });
+                
+                // Check if the form has a status input
+                var statusInput = form.querySelector('input[name="status"]');
+                if (!statusInput) {
+                    console.error('Form is missing status input field!');
+                    e.preventDefault();
+                    alert('Form submission error: missing required field');
+                    return;
+                }
+                
+                console.log('status value:', statusInput.value);
+                
+                // Show loading state or disable button
+                const submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
+                }
+            });
         });
     });
 </script>

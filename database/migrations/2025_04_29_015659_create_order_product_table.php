@@ -21,6 +21,7 @@ return new class extends Migration
             $table->text('remarks')->nullable();
             $table->string('qc_document_number')->nullable();
             $table->string('prepared_by')->nullable();
+            $table->enum('status', ['not_ready', 'ready'])->default('not_ready');
             $table->timestamps();
         
             // Foreign keys

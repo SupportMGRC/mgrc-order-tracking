@@ -146,5 +146,33 @@ class UserSeeder extends Seeder
             'receive_new_order_emails' => false,
             'receive_order_ready_emails' => false,
         ]);
+
+        // Business Development Department
+        User::create([
+            'first_name' => 'Ahmad',
+            'last_name' => 'Rahman',
+            'username' => 'Ahmad',
+            'email' => 'ahmad@mgrc.com.my',
+            'password' => Hash::make('password'),
+            'role' => 'user',
+            'department' => 'Business Development',
+            'designation' => 'Business Development Manager',
+            'receive_new_order_emails' => false,
+            'receive_order_ready_emails' => false,
+        ]);
+
+        // Logistics Department
+        User::create([
+            'first_name' => 'Sarah',
+            'last_name' => 'Abdullah',
+            'username' => 'Sarah',
+            'email' => 'sarah@mgrc.com.my',
+            'password' => Hash::make('password'),
+            'role' => 'user',
+            'department' => 'Logistics',
+            'designation' => 'Logistics Coordinator',
+            'receive_new_order_emails' => false,
+            'receive_order_ready_emails' => false,
+        ]);
     }
 }

@@ -31,10 +31,12 @@
                                 <button type="button" class="btn btn-primary add-btn" data-bs-toggle="modal"
                                     id="create-btn" data-bs-target="#showModal"><i
                                         class="ri-add-line align-bottom me-1"></i> Create Order</button>
+                                @if(Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
                                 <button type="button" class="btn btn-secondary"><i
                                         class="ri-file-download-line align-bottom me-1"></i> Import</button>
                                 <button class="btn btn-soft-danger" id="remove-actions" onClick="deleteMultiple()"><i
                                         class="ri-delete-bin-2-line"></i></button>
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -42,53 +44,45 @@
                 <div class="card-body border border-dashed border-end-0 border-start-0">
                     <form action="{{ route('orderhistory') }}" method="GET">
                         <div class="row g-3">
-                            <div class="col-xxl-5 col-sm-6">
+                            <div class="col-xl-8 col-md-6">
                                 <div class="search-box">
                                     <input type="text" class="form-control" name="search"
-                                        placeholder="Search for order ID, customer, order status or something..."
+                                        placeholder="Search for order ID, customer, order status..."
                                         value="{{ request('search') }}">
                                     <i class="ri-search-line search-icon"></i>
                                 </div>
                             </div>
-                            <!--end col-->
-                            <div class="col-xxl-2 col-sm-6">
-                                <div>
-                                    <input type="text" class="form-control" data-provider="flatpickr"
-                                        data-date-format="d M, Y" data-range-date="true" name="date_range"
-                                        id="demo-datepicker" placeholder="Select date" value="{{ request('date_range') }}">
-                                </div>
-                            </div>
-                            <!--end col-->
-                            <div class="col-xxl-2 col-sm-4">
-                                <div>
-                                    <select class="form-control" data-choices data-choices-search-false name="status"
-                                        id="idStatus">
-                                        <option value="all"
-                                            {{ request('status') == 'all' || !request('status') ? 'selected' : '' }}>All
+                            <div class="col-xl-4 col-md-6">
+                                <div class="d-flex gap-2">
+                                    <select class="form-select w-50" name="date_range" id="dateRangeSelect" 
+                                            {{ in_array(request('status'), ['new', 'preparing', 'ready']) ? 'disabled' : '' }}>
+                                        <option value="today" {{ request('date_range') == 'today' || !request('date_range') ? 'selected' : '' }}>
+                                            Today
                                         </option>
-                                        <option value="new" {{ request('status') == 'new' ? 'selected' : '' }}>New
+                                        <option value="weekly" {{ request('date_range') == 'weekly' ? 'selected' : '' }}>
+                                            This Week
                                         </option>
-                                        <option value="preparing" {{ request('status') == 'preparing' ? 'selected' : '' }}>
-                                            Preparing</option>
-                                        <option value="ready" {{ request('status') == 'ready' ? 'selected' : '' }}>Ready
+                                        <option value="monthly" {{ request('date_range') == 'monthly' ? 'selected' : '' }}>
+                                            This Month
                                         </option>
-                                        <option value="delivered" {{ request('status') == 'delivered' ? 'selected' : '' }}>
-                                            Delivered</option>
+                                        <option value="yearly" {{ request('date_range') == 'yearly' ? 'selected' : '' }}>
+                                            This Year
+                                        </option>
+                                        <option value="all" {{ request('date_range') == 'all' ? 'selected' : '' }}>
+                                            All Time
+                                        </option>
                                     </select>
-                                </div>
-                            </div>
-                            <!--end col-->
-                            <div class="col-xxl-1 col-sm-4">
-                                <div>
-                                    <button type="submit" class="btn btn-primary w-100">
-                                        <i class="ri-equalizer-fill me-1 align-bottom"></i>
-                                        Filter
+                                    <button type="submit" class="btn btn-primary" 
+                                            {{ in_array(request('status'), ['new', 'preparing', 'ready']) ? 'disabled' : '' }}>
+                                        <i class="ri-equalizer-fill align-bottom me-1"></i> Filter
                                     </button>
+                                    <!-- Hidden input to preserve the status parameter -->
+                                    @if(request('status') && request('status') != 'all')
+                                    <input type="hidden" name="status" value="{{ request('status') }}">
+                                    @endif
                                 </div>
                             </div>
-                            <!--end col-->
                         </div>
-                        <!--end row-->
                     </form>
                 </div>
                 <div class="card-body pt-0">
@@ -99,20 +93,20 @@
                                     <ul class="nav nav-tabs nav-tabs-custom nav-primary gap-1" role="tablist">
                                         <li class="nav-item">
                                             <a class="nav-link {{ request('status') == 'all' || !request('status') ? 'active' : '' }} py-3 All"
-                                                href="{{ route('orderhistory', ['status' => 'all']) }}" role="tab">
+                                                href="{{ route('orderhistory', ['status' => 'all', 'date_range' => request('date_range', 'today'), 'search' => request('search')]) }}" role="tab">
                                                 <i class="ri-shopping-bag-3-line me-1 align-bottom"></i> All Orders
                                             </a>
                                         </li>
                                         <li class="nav-item">
                                             <a class="nav-link {{ request('status') == 'new' ? 'active' : '' }} py-3 Pending"
-                                                href="{{ route('orderhistory', ['status' => 'new']) }}" role="tab">
+                                                href="{{ route('orderhistory', ['status' => 'new', 'search' => request('search')]) }}" role="tab">
                                                 <i class="ri-add-circle-line me-1 align-bottom"></i> New
                                                 <span class="badge bg-danger align-middle ms-1">{{ $newCount }}</span>
                                             </a>
                                         </li>
                                         <li class="nav-item">
                                             <a class="nav-link {{ request('status') == 'preparing' ? 'active' : '' }} py-3 Inprogress"
-                                                href="{{ route('orderhistory', ['status' => 'preparing']) }}"
+                                                href="{{ route('orderhistory', ['status' => 'preparing', 'search' => request('search')]) }}"
                                                 role="tab">
                                                 <i class="ri-loader-4-line me-1 align-bottom"></i> Preparing
                                                 <span
@@ -121,14 +115,14 @@
                                         </li>
                                         <li class="nav-item">
                                             <a class="nav-link {{ request('status') == 'ready' ? 'active' : '' }} py-3 Ready"
-                                                href="{{ route('orderhistory', ['status' => 'ready']) }}" role="tab">
+                                                href="{{ route('orderhistory', ['status' => 'ready', 'search' => request('search')]) }}" role="tab">
                                                 <i class="ri-checkbox-circle-line me-1 align-bottom"></i> Ready
                                                 <span class="badge bg-info align-middle ms-1">{{ $readyCount }}</span>
                                             </a>
                                         </li>
                                         <li class="nav-item">
                                             <a class="nav-link {{ request('status') == 'delivered' ? 'active' : '' }} py-3 Delivered"
-                                                href="{{ route('orderhistory', ['status' => 'delivered']) }}"
+                                                href="{{ route('orderhistory', ['status' => 'delivered', 'date_range' => request('date_range', 'today'), 'search' => request('search')]) }}"
                                                 role="tab">
                                                 <i class="ri-truck-line me-1 align-bottom"></i> Delivered
                                                 <span
@@ -235,11 +229,13 @@
                                                 </li> --}}
                                                 <li class="list-inline-item" data-bs-toggle="tooltip"
                                                     data-bs-trigger="hover" data-bs-placement="top" title="Remove">
+                                                    @if(Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
                                                     <a class="text-danger d-inline-block remove-item-btn"
                                                         data-bs-toggle="modal" href="#deleteOrder"
                                                         data-order-id="{{ $order->id }}">
                                                         <i class="ri-delete-bin-5-fill fs-16"></i>
                                                     </a>
+                                                    @endif
                                                 </li>
                                             </ul>
                                         </td>
@@ -447,13 +443,8 @@
                 });
             });
 
-            // Initialize Flatpickr for date picker
+            // Initialize Flatpickr for date picker in the modal form
             if (typeof flatpickr !== 'undefined') {
-                flatpickr("#demo-datepicker", {
-                    mode: "range",
-                    dateFormat: "d M, Y",
-                });
-                
                 flatpickr("#date-field", {
                     dateFormat: "Y-m-d",
                 });

@@ -40,7 +40,7 @@ class CheckDepartmentPermissions
                 
             case 'mark-ready':
                 // Only Quality and Cell Lab departments can mark orders as ready
-                if ($user->department !== 'Quality' && $user->department !== 'Cell Lab' && $user->role !== 'superadmin') {
+                if ($user->department !== 'Quality' && $user->department !== 'Cell Lab' && $user->role !== 'admin' && $user->role !== 'superadmin') {
                     return redirect()->back()->with('error', 'Only Quality or Cell Lab departments can mark orders as ready.');
                 }
                 break;
@@ -49,6 +49,13 @@ class CheckDepartmentPermissions
                 // Only Admin department can mark orders as delivered
                 if ($user->department !== 'Admin & Human Resource' && $user->role !== 'admin' && $user->role !== 'superadmin') {
                     return redirect()->back()->with('error', 'Only Admin department can mark orders as delivered.');
+                }
+                break;
+                
+            case 'view-new-order':
+                // Only Medical Affairs and Business Development departments can view the new order page
+                if ($user->department !== 'Medical Affairs' && $user->department !== 'Business Development' && $user->role !== 'superadmin' && $user->role !== 'admin') {
+                    return redirect()->route('home')->with('error', 'Only Medical Affairs, Business Development departments, and Administrators can access the new order page.');
                 }
                 break;
         }

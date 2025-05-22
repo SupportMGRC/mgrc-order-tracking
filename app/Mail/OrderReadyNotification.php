@@ -41,7 +41,7 @@ class OrderReadyNotification extends Mailable
     {
         return new Envelope(
             from: new \Illuminate\Mail\Mailables\Address(config('mail.from.address', 'support@mgrc.com'), config('mail.from.name', 'MGRC Order System')),
-            subject: '[ACTION REQUIRED] Order #' . $this->order->id . ' Ready for Delivery',
+            subject: '[ORDER READY] Order #' . $this->order->id . ' Ready for Delivery',
             tags: ['order', 'order-ready'],
             metadata: [
                 'order_id' => $this->order->id,

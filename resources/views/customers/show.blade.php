@@ -206,9 +206,11 @@
                 <div class="d-flex align-items-center">
                     <h5 class="card-title mb-0 flex-grow-1">Order History</h5>
                     <div class="flex-shrink-0">
+                        @if(Auth::user()->department == 'Medical Affairs' || Auth::user()->department == 'Business Development' || Auth::user()->role == 'superadmin' || Auth::user()->role == 'admin')
                         <a href="{{ route('neworder') }}?customer_id={{ $customer->id }}" class="btn btn-success">
                             <i class="ri-add-line me-1 align-bottom"></i> New Order
                         </a>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -271,9 +273,11 @@
                                         <lord-icon src="https://cdn.lordicon.com/msoeawqm.json" trigger="loop" colors="primary:#405189,secondary:#0ab39c" style="width:72px;height:72px"></lord-icon>
                                         <h5 class="mt-4">No Orders Found</h5>
                                         <p class="text-muted mb-4">This customer hasn't placed any orders yet.</p>
+                                        @if(Auth::user()->department == 'Medical Affairs' || Auth::user()->department == 'Business Development' || Auth::user()->role == 'superadmin' || Auth::user()->role == 'admin')
                                         <a href="{{ route('neworder') }}?customer_id={{ $customer->id }}" class="btn btn-success">
                                             <i class="ri-add-line me-1 align-bottom"></i> Create First Order
                                         </a>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>

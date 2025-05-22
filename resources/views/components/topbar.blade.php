@@ -2,6 +2,14 @@
     <div class="layout-width">
         <div class="navbar-header">
             <div class="d-flex">
+                <!-- Time Display -->
+                <div class="d-flex align-items-center ms-1 me-3">
+                    <div id="current-time" class="fs-15 fw-medium text-primary">
+                        <i class="ri-time-line align-middle me-1"></i>
+                        <span class="time-display"></span>
+                    </div>
+                </div>
+                
                 <!-- LOGO -->
                 <div class="navbar-brand-box horizontal-logo">
                     <a href="index.html" class="logo logo-dark">
@@ -736,3 +744,18 @@
         </div><!-- /.modal-content -->
     </div><!-- /.modal-dialog -->
 </div><!-- /.modal -->
+
+<!-- Time Display Script -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        function updateTime() {
+            const now = new Date();
+            const timeElement = document.getElementById('current-time');
+            timeElement.textContent = now.toLocaleTimeString();
+        }
+        
+        // Update time immediately and then every second
+        updateTime();
+        setInterval(updateTime, 1000);
+    });
+</script>
