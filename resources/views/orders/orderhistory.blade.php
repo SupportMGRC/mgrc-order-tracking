@@ -26,7 +26,7 @@
                         <div class="col-sm">
                             <h5 class="card-title mb-0">Order History</h5>
                         </div>
-                        <div class="col-sm-auto">
+                        {{-- <div class="col-sm-auto">
                             <div class="d-flex gap-1 flex-wrap">
                                 <button type="button" class="btn btn-primary add-btn" data-bs-toggle="modal"
                                     id="create-btn" data-bs-target="#showModal"><i
@@ -38,7 +38,7 @@
                                         class="ri-delete-bin-2-line"></i></button>
                                 @endif
                             </div>
-                        </div>
+                        </div> --}}
                     </div>
                 </div>
                 <div class="card-body border border-dashed border-end-0 border-start-0">
@@ -135,114 +135,101 @@
                         </div>
                     </div>
 
-                    <div class="table-responsive table-card mb-1">
-                        <table class="table table-nowrap align-middle" id="orderTable">
-                            <thead class="text-muted table-light">
-                                <tr class="text-uppercase">
-                                    <th scope="col" style="width: 25px;">
+                    <div class="table-responsive table-card mb-2">
+                        <table class="table table-nowrap mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    {{-- <th scope="col">
                                         <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="checkAll"
-                                                value="option">
+                                            <input class="form-check-input" type="checkbox" value="" id="checkAll">
+                                            <label class="form-check-label" for="checkAll"></label>
                                         </div>
-                                    </th>
-                                    <th class="sort" data-sort="id">Order ID</th>
-                                    <th class="sort" data-sort="customer_name">Customer</th>
-                                    <th class="sort" data-sort="product_name">Product</th>
-                                    <th class="sort" data-sort="placed_by">Placed By</th>
-                                    <th class="sort" data-sort="delivered_by">Delivered By</th>
-                                    <th class="sort" data-sort="date">Order Date</th>
-                                    <th class="sort" data-sort="delivery_time">Delivery Time</th>
-                                    <th class="sort" data-sort="status">Status</th>
-                                    <th class="sort" data-sort="city">Action</th>
+                                    </th> --}}
+                                    <th scope="col">Order ID</th>
+                                    <th scope="col">Customer</th>
+                                    <th scope="col">Product</th>
+                                    <th scope="col">Placed By</th>
+                                    <th scope="col">Delivered By</th>
+                                    <th scope="col">Order Date</th>
+                                    <th scope="col">Delivery Time</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Action</th>
                                 </tr>
                             </thead>
-                            <tbody class="list form-check-all">
+                            <tbody>
                                 @forelse($orders as $order)
                                     <tr>
-                                        <th scope="row">
+                                        {{-- <td>
                                             <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" name="checkAll"
-                                                    value="option1">
+                                                <input class="form-check-input" type="checkbox" value="" id="cardtableCheck{{ $order->id }}">
+                                                <label class="form-check-label" for="cardtableCheck{{ $order->id }}"></label>
                                             </div>
-                                        </th>
-                                        <td class="id"><a href="{{ route('orderdetails', $order->id) }}"
-                                                class="fw-medium link-primary">#{{ $order->id }}</a></td>
-                                        <td class="customer_name">{{ $order->customer->name }}</td>
-                                        <td class="product_name">
+                                        </td> --}}
+                                        <td><a href="{{ route('orderdetails', $order->id) }}" class="fw-semibold">#{{ $order->id }}</a></td>
+                                        <td>{{ $order->customer->name }}</td>
+                                        <td>
                                             @if ($order->products->isNotEmpty())
-                                                {{ $order->products->first()->name }}
-                                                @if ($order->products->count() > 1)
-                                                    +{{ $order->products->count() - 1 }} more
-                                                @endif
+                                                <ul class="list-unstyled mb-0">
+                                                    @foreach($order->products as $product)
+                                                        <li>{{ $product->name }}</li>
+                                                    @endforeach
+                                                </ul>
                                             @else
                                                 No products
                                             @endif
                                         </td>
-                                        <td class="placed_by">{{ $order->order_placed_by ?? 'N/A' }}</td>
-                                        <td class="delivered_by">{{ $order->delivered_by ?? 'N/A' }}</td>
-                                        <td class="date">
+                                        <td>{{ $order->order_placed_by ?? 'N/A' }}</td>
+                                        <td>{{ $order->delivered_by ?? 'N/A' }}</td>
+                                        <td>
                                             @if($order->order_date)
-                                                {{ $order->order_date->format('d M, Y') }},
-                                                <small class="text-muted">
-                                                    {{ $order->order_time ? $order->order_time->format('h:i A') : 'N/A' }}
-                                                </small>
+                                                {{ $order->order_date->format('d M, Y') }}
+                                                @if($order->order_time)
+                                                    <br><small class="text-muted">{{ $order->order_time->format('h:i A') }}</small>
+                                                @endif
                                             @else
                                                 <span class="text-muted">N/A</span>
                                             @endif
                                         </td>
-                                        <td class="delivery_time">
+                                        <td>
                                             @if ($order->delivery_date && $order->delivery_time)
-                                                {{ $order->delivery_date->format('d M, Y') }},
-                                                <small class="text-muted">{{ $order->delivery_time->format('h:i A') }}</small>
+                                                {{ $order->delivery_date->format('d M, Y') }}
+                                                <br><small class="text-muted">{{ $order->delivery_time->format('h:i A') }}</small>
                                             @else
                                                 <span class="text-muted">Not scheduled</span>
                                             @endif
                                         </td>
-                                        <td class="status">
+                                        <td>
                                             @php
                                                 $statusClass =
                                                     [
-                                                        'new' => 'badge-soft-danger',
-                                                        'preparing' => 'badge-soft-warning',
-                                                        'ready' => 'badge-soft-info',
-                                                        'delivered' => 'badge-soft-success',
-                                                    ][$order->status] ?? 'badge-soft-warning';
+                                                        'new' => 'bg-danger',
+                                                        'preparing' => 'bg-warning',
+                                                        'ready' => 'bg-info',
+                                                        'delivered' => 'bg-success',
+                                                    ][$order->status] ?? 'bg-warning';
                                             @endphp
-                                            <span
-                                                class="badge {{ $statusClass }} text-uppercase">{{ ucfirst($order->status) }}</span>
+                                            <span class="badge {{ $statusClass }}">{{ ucfirst($order->status) }}</span>
                                         </td>
                                         <td>
                                             <ul class="list-inline hstack gap-2 mb-0">
-                                                <li class="list-inline-item" data-bs-toggle="tooltip"
-                                                    data-bs-trigger="hover" data-bs-placement="top" title="View">
-                                                    <a href="{{ route('orderdetails', $order->id) }}"
-                                                        class="text-primary d-inline-block">
+                                                <li class="list-inline-item" data-bs-toggle="tooltip" data-bs-trigger="hover" data-bs-placement="top" title="View Details">
+                                                    <a href="{{ route('orderdetails', $order->id) }}" class="text-info d-inline-block">
                                                         <i class="ri-eye-fill fs-16"></i>
                                                     </a>
                                                 </li>
-                                                {{-- <li class="list-inline-item edit" data-bs-toggle="tooltip"
-                                                    data-bs-trigger="hover" data-bs-placement="top" title="Edit">
-                                                    <a href="{{ route('orders.edit', $order->id) }}"
-                                                        class="text-primary d-inline-block edit-item-btn">
-                                                        <i class="ri-pencil-fill fs-16"></i>
-                                                    </a>
-                                                </li> --}}
-                                                <li class="list-inline-item" data-bs-toggle="tooltip"
-                                                    data-bs-trigger="hover" data-bs-placement="top" title="Remove">
-                                                    @if(Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
-                                                    <a class="text-danger d-inline-block remove-item-btn"
-                                                        data-bs-toggle="modal" href="#deleteOrder"
-                                                        data-order-id="{{ $order->id }}">
+                                                @if(Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
+                                                <li class="list-inline-item" data-bs-toggle="tooltip" data-bs-trigger="hover" data-bs-placement="top" title="Delete">
+                                                    <a href="javascript:void(0);" class="text-danger d-inline-block remove-item-btn" data-bs-toggle="modal" data-bs-target="#deleteOrder" data-order-id="{{ $order->id }}">
                                                         <i class="ri-delete-bin-5-fill fs-16"></i>
                                                     </a>
-                                                    @endif
                                                 </li>
+                                                @endif
                                             </ul>
                                         </td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="9" class="text-center">No orders found</td>
+                                        <td colspan="10" class="text-center">No orders found</td>
                                     </tr>
                                 @endforelse
                             </tbody>

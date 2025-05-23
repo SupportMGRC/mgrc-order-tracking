@@ -343,6 +343,66 @@ class OrderController extends Controller
             });
         }
         
+        // Apply sorting if provided
+        if ($request->has('sort_by') && !empty($request->sort_by)) {
+            $sortBy = $request->sort_by;
+            $sortOrder = $request->get('sort_order', 'asc');
+            
+            // Handle sorting based on column
+            switch ($sortBy) {
+                case 'id':
+                    $query->orderBy('id', $sortOrder);
+                    break;
+                    
+                case 'customer_name':
+                    $query->join('customers', 'orders.customer_id', '=', 'customers.id')
+                          ->orderBy('customers.name', $sortOrder)
+                          ->select('orders.*');
+                    break;
+                    
+                case 'product_name':
+                    // Sort by first product name - more complex sorting
+                    $query->leftJoin('order_product', 'orders.id', '=', 'order_product.order_id')
+                          ->leftJoin('products', 'order_product.product_id', '=', 'products.id')
+                          ->orderBy('products.name', $sortOrder)
+                          ->select('orders.*')
+                          ->groupBy('orders.id');
+                    break;
+                    
+                case 'placed_by':
+                    $query->orderBy('order_placed_by', $sortOrder);
+                    break;
+                    
+                case 'delivered_by':
+                    $query->orderBy('delivered_by', $sortOrder);
+                    break;
+                
+                case 'order_date':
+                    // Sort by both date and time
+                    $query->orderBy('order_date', $sortOrder)
+                          ->orderBy('order_time', $sortOrder);
+                    break;
+                    
+                case 'delivery_time':
+                    // Sort by both delivery date and time
+                    $query->orderBy('delivery_date', $sortOrder)
+                          ->orderBy('delivery_time', $sortOrder);
+                    break;
+                    
+                case 'status':
+                    $query->orderBy('status', $sortOrder);
+                    break;
+                    
+                default:
+                    // Default to latest order by date and time if no valid sort provided
+                    $query->latest('order_date')->latest('order_time');
+                    break;
+            }
+        } else {
+            // Default sorting by latest order date and time
+            $query->latest('order_date')->latest('order_time');
+        }
+        
         $orders = $query->paginate(10)->withQueryString();
             
         $newCount = Order::where('status', 'new')->count();
