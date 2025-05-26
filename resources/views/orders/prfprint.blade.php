@@ -100,9 +100,9 @@
                             <table class="w-100 mb-3">
                                 <tr>
                                     <td width="20%" class="small-text">Delivery Date</td>
-                                    <td width="30%" class="small-text border-bottom border-dark">{{ $order->delivery_date ? $order->delivery_date->format('d/m/Y') : 'N/A' }}</td>
+                                    <td width="30%" class="small-text border-bottom border-dark">{{ $order->pickup_delivery_date ? $order->pickup_delivery_date->format('d/m/Y') : 'N/A' }}</td>
                                     <td width="10%" class="small-text text-center">Time</td>
-                                    <td width="40%" class="small-text border-bottom border-dark">{{ $order->delivery_time ? date('H:i', strtotime($order->delivery_time)) : 'N/A' }}</td>
+                                    <td width="40%" class="small-text border-bottom border-dark">{{ $order->pickup_delivery_date ? date('H:i', strtotime($order->pickup_delivery_date)) : 'N/A' }}</td>
                                 </tr>
                             </table>
                             

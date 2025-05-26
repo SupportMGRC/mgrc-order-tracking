@@ -163,7 +163,7 @@
         <p>Please arrange for delivery as soon as possible. You can view the full order details by clicking the button below:</p>
         
         <div style="text-align: center;">
-            <a href="{{ url('/orders/details/' . $order->id) }}" class="button">View Order Details</a>
+            <a href="{{ route('orderdetails', $order->id) }}" class="button">View Order Details</a>
         </div>
         
         <p>Thank you,<br>MGRC Order System</p>

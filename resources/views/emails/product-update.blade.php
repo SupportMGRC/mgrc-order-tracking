@@ -178,6 +178,10 @@
         
         <p>Please check the order in the system for complete details.</p>
         
+        <div style="text-align: center;">
+            <a href="{{ route('orderdetails', $order->id) }}" class="button">View Order Details</a>
+        </div>
+        
         <p>Thank you,<br>MGRC Order Tracking System</p>
         
         <div class="footer">

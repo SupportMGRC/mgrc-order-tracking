@@ -248,7 +248,7 @@
         
         @if($order->status != 'delivered')
         <div class="text-center">
-            @if($order->status === 'new' && $anyBatchInfo)
+            @if($order->status === 'new')
                 @if(Auth::user()->department === 'Quality' || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
                 <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#markPreparingModal">
                     <i class="ri-tools-line align-bottom me-1"></i> Mark as Preparing
