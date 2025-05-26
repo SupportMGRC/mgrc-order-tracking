@@ -152,6 +152,7 @@
                                     <th scope="col">Delivered By</th>
                                     <th scope="col">Order Date</th>
                                     <th scope="col">Delivery Time</th>
+                                    <th scope="col">Type</th>
                                     <th scope="col">Status</th>
                                     <th scope="col">Action</th>
                                 </tr>
@@ -191,11 +192,22 @@
                                             @endif
                                         </td>
                                         <td>
-                                            @if ($order->delivery_date && $order->delivery_time)
-                                                {{ $order->delivery_date->format('d M, Y') }}
-                                                <br><small class="text-muted">{{ $order->delivery_time->format('h:i A') }}</small>
+                                            @if ($order->pickup_delivery_date && $order->pickup_delivery_time)
+                                                {{ $order->pickup_delivery_date->format('d M, Y') }}
+                                                <br><small class="text-muted">{{ $order->pickup_delivery_time->format('h:i A') }}</small>
                                             @else
                                                 <span class="text-muted">Not scheduled</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            @if($order->delivery_type === 'delivery')
+                                                <div class="text-success">
+                                                    <i class="ri-truck-line align-bottom me-1"></i> Delivery
+                                                </div>
+                                            @else
+                                                <div class="text-primary">
+                                                    <i class="ri-user-location-line align-bottom me-1"></i> Self Collect
+                                                </div>
                                             @endif
                                         </td>
                                         <td>
@@ -319,6 +331,24 @@
                                             <input type="datetime-local" id="delivery-time-field" name="delivery_time" class="form-control"
                                                 data-provider="flatpickr" data-date-format="Y-m-d H:i"
                                                 data-enable-time="true" placeholder="Select delivery date and time" />
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label class="form-label d-block">Delivery Type <span class="text-danger">*</span></label>
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="delivery_type" 
+                                                    id="delivery_type_delivery" value="delivery" checked required>
+                                                <label class="form-check-label" for="delivery_type_delivery">
+                                                    <i class="ri-truck-line me-1"></i>Delivery
+                                                </label>
+                                            </div>
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="delivery_type" 
+                                                    id="delivery_type_self" value="self_collect" required>
+                                                <label class="form-check-label" for="delivery_type_self">
+                                                    <i class="ri-user-location-line me-1"></i>Self Collect
+                                                </label>
+                                            </div>
                                         </div>
 
                                         <div class="row gy-4 mb-3">

@@ -219,6 +219,17 @@
                             <i class="ri-truck-line"></i>
                         </div>
                         <span class="order-track-text">Delivered</span>
+                            <div class="mt-2 text-center">
+                                <div class="text-{{ $order->delivery_type === 'delivery' ? 'success' : 'primary' }} fw-medium">
+                                    <i class="ri-{{ $order->delivery_type === 'delivery' ? 'truck-line' : 'user-location-line' }} align-bottom me-1"></i>
+                                    {{ $order->delivery_type === 'delivery' ? 'Delivery' : 'Self Collect' }}
+                                </div>
+                                <small class="text-muted d-block mt-1">
+                                    {{ $order->pickup_delivery_date ? $order->pickup_delivery_date->format('d M, Y') : '' }}
+                                    <br>
+                                    {{ $order->pickup_delivery_time ? $order->pickup_delivery_time->format('h:i A') : '' }}
+                                </small>
+                            </div>
                     </div>
                 </div>
             </div>
@@ -322,12 +333,6 @@
                                     <div class="d-flex">
                                         <div class="flex-grow-1">
                                             <h5 class="fs-16"><a href="#" class="link-primary">{{ $product->name }}</a></h5>
-                                            @if($product->color)
-                                                <p class="text-muted mb-0">Color: <span class="fw-medium">{{ $product->color }}</span></p>
-                                            @endif
-                                            @if($product->size)
-                                                <p class="text-muted mb-0">Size: <span class="fw-medium">{{ $product->size }}</span></p>
-                                            @endif
                                         </div>
                                     </div>
                                 </td>
@@ -461,6 +466,7 @@
                     <li><i class="ri-mail-line me-2 align-middle text-muted fs-16"></i>{{ $order->customer->email ?? 'N/A' }}
                     </li>
                     <li><i class="ri-phone-line me-2 align-middle text-muted fs-16"></i>{{ $order->customer->phoneNo ?? 'N/A' }}</li>
+                    
                     @if($order->order_placed_by)
                     <li><i class="ri-user-received-2-line me-2 align-middle text-muted fs-16"></i>Placed by: {{ $order->order_placed_by }}</li>
                     @endif
@@ -660,6 +666,23 @@
                         <input type="text" class="form-control" id="dispatcher" name="dispatcher" required 
                                placeholder="Enter name of person who delivered or received the order">
                         <small class="text-muted">This records who delivered or received the order, not who placed it.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label d-block">Delivery Type <span class="text-danger">*</span></label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="delivery_type" id="delivery_type_delivery" 
+                                value="delivery" {{ $order->delivery_type === 'delivery' ? 'checked' : '' }} required>
+                            <label class="form-check-label" for="delivery_type_delivery">
+                                <i class="ri-truck-line me-1"></i>Delivery
+                            </label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="delivery_type" id="delivery_type_self" 
+                                value="self_collect" {{ $order->delivery_type === 'self_collect' ? 'checked' : '' }} required>
+                            <label class="form-check-label" for="delivery_type_self">
+                                <i class="ri-user-location-line me-1"></i>Self Collect
+                            </label>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label for="delivery_datetime" class="form-label">Delivery Date & Time</label>

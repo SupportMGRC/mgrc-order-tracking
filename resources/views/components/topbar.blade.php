@@ -3,12 +3,12 @@
         <div class="navbar-header">
             <div class="d-flex">
                 <!-- Time Display -->
-                <div class="d-flex align-items-center ms-1 me-3">
+                {{-- <div class="d-flex align-items-center ms-1 me-3">
                     <div id="current-time" class="fs-15 fw-medium text-primary">
                         <i class="ri-time-line align-middle me-1"></i>
                         <span class="time-display"></span>
                     </div>
-                </div>
+                </div> --}}
                 
                 <!-- LOGO -->
                 <div class="navbar-brand-box horizontal-logo">
@@ -865,21 +865,21 @@
         updateTime();
         setInterval(updateTime, 1000);
 
-        // Show Edit Profile modal if there are validation errors
-        @if($errors->has('first_name') || $errors->has('last_name') || $errors->has('email') || $errors->has('username'))
+        // Show Edit Profile modal if there are profile-specific validation errors
+        @if(session('profile_errors'))
             new bootstrap.Modal(document.getElementById('editProfileModal')).show();
         @endif
 
-        // Show Change Password modal if there are validation errors
-        @if($errors->has('current_password') || $errors->has('new_password'))
+        // Show Change Password modal if there are password-specific validation errors
+        @if(session('password_errors'))
             new bootstrap.Modal(document.getElementById('changePasswordModal')).show();
         @endif
 
         // Show success message in the appropriate modal
         @if(session('success'))
-            @if(session()->has('password_updated'))
+            @if(session('password_updated'))
                 new bootstrap.Modal(document.getElementById('changePasswordModal')).show();
-            @else
+            @elseif(session('profile_updated'))
                 new bootstrap.Modal(document.getElementById('editProfileModal')).show();
             @endif
         @endif

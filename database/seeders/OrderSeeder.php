@@ -33,6 +33,9 @@ class OrderSeeder extends Seeder
                     if ($status === 'delivered') {
                         $deliveredBy = $this->getRandomPersonName();
                     }
+
+                    // Randomly assign delivery type
+                    $deliveryType = rand(0, 1) === 1 ? 'delivery' : 'self_collect';
                     
                     Order::create([
                         'customer_id' => $customer->id,
@@ -42,8 +45,9 @@ class OrderSeeder extends Seeder
                         'order_date' => $date->toDateString(),
                         'order_time' => $date->format('H:i:s'),
                         'status' => $status,
-                        'delivery_date' => $delivery->toDateString(),
-                        'delivery_time' => $delivery->format('H:i:s'),
+                        'delivery_type' => $deliveryType,
+                        'pickup_delivery_date' => $delivery->toDateString(),
+                        'pickup_delivery_time' => $delivery->format('H:i:s'),
                         'remarks' => $this->getRandomRemark(),
                     ]);
                 }

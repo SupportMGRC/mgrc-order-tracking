@@ -291,31 +291,64 @@
                                 <input type="hidden" name="order_placed_by" value="{{ Auth::user()->username }}">
                                 
                                 <div class="row mb-3">
+                                    <div class="col-lg-12">
+                                        <div class="mb-3">
+                                            <label class="form-label d-block">Delivery Type <span class="text-danger">*</span></label>
+                                            <div class="form-check-inline">
+                                                <input class="form-check-input" 
+                                                    type="radio" 
+                                                    name="delivery_type" 
+                                                    id="delivery_type_delivery" 
+                                                    value="delivery" 
+                                                    {{ old('delivery_type', 'delivery') == 'delivery' ? 'checked' : '' }}>
+                                                <label class="form-check-label" for="delivery_type_delivery">
+                                                    <i class="ri-truck-line me-1"></i>Delivery
+                                                </label>
+                                            </div>
+                                            <div class="form-check-inline ms-3">
+                                                <input class="form-check-input" 
+                                                    type="radio" 
+                                                    name="delivery_type" 
+                                                    id="delivery_type_self" 
+                                                    value="self_collect"
+                                                    {{ old('delivery_type') == 'self_collect' ? 'checked' : '' }}>
+                                                <label class="form-check-label" for="delivery_type_self">
+                                                    <i class="ri-user-location-line me-1"></i>Self Collect
+                                                </label>
+                                            </div>
+                                            @error('delivery_type')
+                                                <div class="text-danger small mt-1">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
                                     <div class="col-lg-6">
                                         <div class="mb-3">
-                                            <label for="delivery_date" class="form-label">Delivery Date <span class="text-danger">*</span></label>
-                                            <input type="text" class="form-control @error('delivery_date') is-invalid @enderror" 
-                                                id="delivery_date" name="delivery_date" 
+                                            <label for="pickup_delivery_date" class="form-label"><span id="date_label">Delivery</span> Date <span class="text-danger">*</span></label>
+                                            <input type="text" class="form-control @error('pickup_delivery_date') is-invalid @enderror" 
+                                                id="pickup_delivery_date" name="pickup_delivery_date" 
                                                 data-provider="flatpickr" data-date-format="Y-m-d" 
-                                                value="{{ old('delivery_date') }}" required>
-                                            @error('delivery_date')
+                                                value="{{ old('pickup_delivery_date') }}" required>
+                                            @error('pickup_delivery_date')
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
-                                            <div class="invalid-feedback">Please select a delivery date</div>
+                                            <div class="invalid-feedback">Please select a date</div>
                                         </div>
                                     </div>
                                     <div class="col-lg-6">
                                         <div class="mb-3">
-                                            <label for="delivery_time" class="form-label">Delivery Time <span class="text-danger">*</span></label>
-                                            <input type="text" class="form-control @error('delivery_time') is-invalid @enderror" 
-                                                id="delivery_time" name="delivery_time" 
+                                            <label for="pickup_delivery_time" class="form-label"><span id="time_label">Delivery</span> Time <span class="text-danger">*</span></label>
+                                            <input type="text" class="form-control @error('pickup_delivery_time') is-invalid @enderror" 
+                                                id="pickup_delivery_time" name="pickup_delivery_time" 
                                                 data-provider="timepickr" 
                                                 placeholder="Select time"
-                                                value="{{ old('delivery_time') }}" required>
-                                            @error('delivery_time')
+                                                value="{{ old('pickup_delivery_time') }}" required>
+                                            @error('pickup_delivery_time')
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
-                                            <div class="invalid-feedback">Please select a delivery time</div>
+                                            <div class="invalid-feedback">Please select a time</div>
                                         </div>
                                     </div>
                                 </div>
@@ -359,13 +392,13 @@
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize date and time pickers
             if (typeof flatpickr !== 'undefined') {
-                flatpickr("#delivery_date", {
+                flatpickr("#pickup_delivery_date", {
                     dateFormat: "Y-m-d",
                     minDate: "today",
                     allowInput: true
                 });
                 
-                flatpickr("#delivery_time", {
+                flatpickr("#pickup_delivery_time", {
                     enableTime: true,
                     noCalendar: true,
                     dateFormat: "h:i K",
@@ -681,6 +714,19 @@
             
             // Form validation on submit
             const form = document.getElementById('orderForm');
+            
+            // Handle delivery type changes
+            const deliveryTypeInputs = document.querySelectorAll('input[name="delivery_type"]');
+            const dateLabel = document.getElementById('date_label');
+            const timeLabel = document.getElementById('time_label');
+            
+            deliveryTypeInputs.forEach(function(input) {
+                input.addEventListener('change', function() {
+                    const isDelivery = this.value === 'delivery';
+                    dateLabel.textContent = isDelivery ? 'Delivery' : 'Self Collect';
+                    timeLabel.textContent = isDelivery ? 'Delivery' : 'Self Collect';
+                });
+            });
             
             form.addEventListener('submit', function(event) {
                 let errors = [];

@@ -20,8 +20,9 @@ return new class extends Migration
             $table->date('order_date');
             $table->time('order_time')->nullable();
             $table->enum('status', ['new', 'preparing', 'ready', 'delivered'])->default('new');
-            $table->date('delivery_date')->nullable();
-            $table->time('delivery_time')->nullable();
+            $table->enum('delivery_type', ['delivery', 'self_collect'])->default('delivery');
+            $table->date('pickup_delivery_date')->nullable();
+            $table->time('pickup_delivery_time')->nullable();
             $table->text('remarks')->nullable();
             $table->timestamps();
         

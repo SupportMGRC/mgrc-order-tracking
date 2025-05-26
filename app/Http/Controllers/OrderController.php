@@ -60,7 +60,9 @@ class OrderController extends Controller
                 'products.*.batch_number' => 'nullable|string',
                 'products.*.patient_name' => 'nullable|string',
                 'products.*.remarks' => 'nullable|string',
-                'delivery_time' => 'nullable|date',
+                'delivery_type' => 'required|in:delivery,self_collect',
+                'pickup_delivery_date' => 'required|date',
+                'pickup_delivery_time' => 'required|date_format:H:i',
                 'status' => 'required|in:new,preparing,ready,delivered',
                 'remarks' => 'nullable|string',
             ]);
@@ -73,8 +75,9 @@ class OrderController extends Controller
                 'order_date' => $request->order_date,
                 'order_time' => Carbon::parse($request->order_time ?? now())->toTimeString(),
                 'status' => $request->status,
-                'delivery_date' => $request->delivery_time ? Carbon::parse($request->delivery_time)->toDateString() : null,
-                'delivery_time' => $request->delivery_time ? Carbon::parse($request->delivery_time)->toTimeString() : null,
+                'delivery_type' => $request->delivery_type,
+                'pickup_delivery_date' => $request->pickup_delivery_date,
+                'pickup_delivery_time' => Carbon::parse($request->pickup_delivery_time)->toTimeString(),
                 'remarks' => $request->remarks,
             ]);
             $order->save();
@@ -150,8 +153,9 @@ class OrderController extends Controller
                 'order_date' => 'required|date',
                 'order_time' => 'nullable|date_format:H:i',
                 'status' => 'required|in:new,preparing,ready,delivered',
-                'delivery_date' => 'nullable|date',
-                'delivery_time' => 'nullable|date_format:H:i',
+                'delivery_type' => 'required|in:delivery,self_collect',
+                'pickup_delivery_date' => 'required|date',
+                'pickup_delivery_time' => 'required|date_format:H:i',
                 'remarks' => 'nullable|string',
                 'products' => 'nullable|array',
                 'products.*.id' => 'nullable|exists:products,id',
@@ -172,8 +176,9 @@ class OrderController extends Controller
                 'order_date' => $request->order_date,
                 'order_time' => $request->order_time,
                 'status' => $request->status,
-                'delivery_date' => $request->delivery_date,
-                'delivery_time' => $request->delivery_time,
+                'delivery_type' => $request->delivery_type,
+                'pickup_delivery_date' => $request->pickup_delivery_date,
+                'pickup_delivery_time' => $request->pickup_delivery_time,
                 'remarks' => $request->remarks,
             ]);
             
@@ -443,8 +448,9 @@ class OrderController extends Controller
             'customer_phone' => 'required|string|max:20',
             'customer_address' => 'required|string',
             'order_placed_by' => 'nullable|string|max:255',
-            'delivery_date' => 'required|date',
-            'delivery_time' => 'required',
+            'pickup_delivery_date' => 'required|date',
+            'pickup_delivery_time' => 'required',
+            'delivery_type' => 'required|in:delivery,self_collect',
             'remarks' => 'nullable|string',
             'products' => 'required|array|min:1',
             'products.*.type' => 'required|string',
@@ -455,8 +461,8 @@ class OrderController extends Controller
             'customer_name.required' => 'The customer name is required.',
             'customer_phone.required' => 'The customer phone number is required.',
             'customer_address.required' => 'The customer address is required.',
-            'delivery_date.required' => 'The delivery date is required.',
-            'delivery_time.required' => 'The delivery time is required.',
+            'pickup_delivery_date.required' => 'The delivery date is required.',
+            'pickup_delivery_time.required' => 'The delivery time is required.',
             'products.required' => 'At least one product is required.',
             'products.min' => 'You need at least one product item.',
             'products.*.type.required' => 'The product type is required for all products.',
@@ -507,8 +513,9 @@ class OrderController extends Controller
             $order->order_date = now()->toDateString();
             $order->order_time = now()->toTimeString();
             $order->status = 'new';
-            $order->delivery_date = $request->delivery_date;
-            $order->delivery_time = $request->delivery_time ? Carbon::parse($request->delivery_time)->toTimeString() : null;
+            $order->pickup_delivery_date = $request->pickup_delivery_date;
+            $order->pickup_delivery_time = $request->pickup_delivery_time ? Carbon::parse($request->pickup_delivery_time)->toTimeString() : null;
+            $order->delivery_type = $request->delivery_type;
             $order->remarks = $request->remarks;
             $order->save();
             
@@ -1163,10 +1170,12 @@ class OrderController extends Controller
             
             DB::commit();
             
-            return redirect()->back()->with('success', 'Batch information updated successfully!');
+            return redirect()->route('orderdetails', $order->id)
+                ->with('success', 'Batch information updated successfully!');
         } catch (\Exception $e) {
             DB::rollBack();
-            return redirect()->back()->with('error', 'Error updating batch information: ' . $e->getMessage());
+            return redirect()->back()
+                ->with('error', 'Error updating batch information: ' . $e->getMessage());
         }
     }
 
@@ -1178,6 +1187,7 @@ class OrderController extends Controller
         $request->validate([
             'dispatcher' => 'required|string',
             'delivery_datetime' => 'required|string',
+            'delivery_type' => 'required|in:delivery,self_collect',
         ]);
 
         // Parse the datetime
@@ -1185,12 +1195,14 @@ class OrderController extends Controller
         
         $order = Order::findOrFail($id);
         $order->status = 'delivered';
-        $order->delivery_date = $dateTime->toDateString();
-        $order->delivery_time = $dateTime->toTimeString();
+        $order->delivery_type = $request->delivery_type;
+        $order->pickup_delivery_date = $dateTime->toDateString();
+        $order->pickup_delivery_time = $dateTime->toTimeString();
         $order->delivered_by = $request->dispatcher;
         $order->save();
 
-        return redirect()->back()->with('success', 'Order marked as delivered successfully!');
+        $actionType = $request->delivery_type === 'delivery' ? 'delivered' : 'collected';
+        return redirect()->back()->with('success', "Order marked as {$actionType} successfully!");
     }
 
     /**
@@ -1237,13 +1249,15 @@ class OrderController extends Controller
                 $request->validate([
                     'dispatcher' => 'required|string',
                     'delivery_datetime' => 'required|string',
+                    'delivery_type' => 'required|in:delivery,self_collect',
                 ]);
 
                 // Parse the datetime
                 $dateTime = Carbon::createFromFormat('d.m.Y H:i', $request->delivery_datetime);
                 
-                $order->delivery_date = $dateTime->toDateString();
-                $order->delivery_time = $dateTime->toTimeString();
+                $order->delivery_type = $request->delivery_type;
+                $order->pickup_delivery_date = $dateTime->toDateString();
+                $order->pickup_delivery_time = $dateTime->toTimeString();
                 $order->delivered_by = $request->dispatcher;
             }
             

@@ -22,8 +22,9 @@ class Order extends Model
         'order_date',
         'order_time',
         'status',
-        'delivery_date',
-        'delivery_time',
+        'delivery_type',
+        'pickup_delivery_date',
+        'pickup_delivery_time',
         'remarks',
     ];
 
@@ -35,8 +36,8 @@ class Order extends Model
     protected $casts = [
         'order_date' => 'date',
         'order_time' => 'datetime',
-        'delivery_date' => 'date',
-        'delivery_time' => 'datetime',
+        'pickup_delivery_date' => 'date',
+        'pickup_delivery_time' => 'datetime',
     ];
 
     /**

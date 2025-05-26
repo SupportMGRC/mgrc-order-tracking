@@ -19,16 +19,25 @@ class ProfileController extends Controller
     {
         $user = auth()->user();
 
-        $validated = $request->validate([
-            'first_name' => ['required', 'string', 'max:255'],
-            'last_name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
-            'username' => ['required', 'string', 'max:255', Rule::unique('users')->ignore($user->id)],
-        ]);
+        try {
+            $validated = $request->validate([
+                'first_name' => ['required', 'string', 'max:255'],
+                'last_name' => ['required', 'string', 'max:255'],
+                'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
+                'username' => ['required', 'string', 'max:255', Rule::unique('users')->ignore($user->id)],
+            ]);
 
-        $user->update($validated);
+            $user->update($validated);
 
-        return redirect()->back()->with('success', 'Profile updated successfully.');
+            return redirect()->back()
+                ->with('success', 'Profile updated successfully.')
+                ->with('profile_updated', true);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()->back()
+                ->withErrors($e->errors())
+                ->withInput()
+                ->with('profile_errors', true);
+        }
     }
 
     /**
@@ -39,22 +48,34 @@ class ProfileController extends Controller
      */
     public function updatePassword(Request $request)
     {
-        $validated = $request->validate([
-            'current_password' => ['required', 'string'],
-            'new_password' => ['required', 'string', 'min:8', 'confirmed'],
-        ]);
+        try {
+            $validated = $request->validate([
+                'current_password' => ['required', 'string'],
+                'new_password' => ['required', 'string', 'min:8', 'confirmed'],
+            ]);
 
-        $user = auth()->user();
+            $user = auth()->user();
 
-        // Check if the current password matches
-        if (!Hash::check($validated['current_password'], $user->password)) {
-            return redirect()->back()->withErrors(['current_password' => 'The provided password does not match your current password.']);
+            // Check if the current password matches
+            if (!Hash::check($validated['current_password'], $user->password)) {
+                return redirect()->back()
+                    ->withErrors(['current_password' => 'The provided password does not match your current password.'])
+                    ->withInput()
+                    ->with('password_errors', true);
+            }
+
+            $user->update([
+                'password' => Hash::make($validated['new_password']),
+            ]);
+
+            return redirect()->back()
+                ->with('success', 'Password changed successfully.')
+                ->with('password_updated', true);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()->back()
+                ->withErrors($e->errors())
+                ->withInput()
+                ->with('password_errors', true);
         }
-
-        $user->update([
-            'password' => Hash::make($validated['new_password']),
-        ]);
-
-        return redirect()->back()->with('success', 'Password changed successfully.');
     }
 } 
