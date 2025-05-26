@@ -11,7 +11,7 @@
     <!-- CSRF Token -->
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <!-- App favicon -->
-    <link rel="shortcut icon" href="{{ asset('assets/images/favicon.ico') }}">
+    <link rel="shortcut icon" href="{{ asset('assets/images/mgrc/MGRC-logo-only.png') }}">
 
     <!-- Layout config Js -->
     <script src="{{ asset('assets/js/layout.js') }}"></script>
@@ -140,11 +140,15 @@
     <!-- input flag init -->
     <script src="{{ asset('assets/js/pages/flag-input.init.js') }}"></script>
 
- 
-
+    <!-- ApexCharts js -->
+    <script src="{{ asset('assets/libs/apexcharts/apexcharts.min.js') }}"></script>
+    <!-- Chart JS -->
+    <script src="{{ asset('assets/js/pages/dashboard-analytics.init.js') }}"></script>
 
     <!-- App js -->
     <script src="{{ asset('assets/js/app.js') }}"></script>
+    
+    @yield('script')
 </body>
 
 </html>

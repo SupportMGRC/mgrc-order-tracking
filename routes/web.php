@@ -9,6 +9,7 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\VisitController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\PRFController;
+use App\Http\Controllers\ProfileController;
 
 /*
 |--------------------------------------------------------------------------
@@ -86,7 +87,9 @@ Route::middleware(['auth'])->group(function () {
     // Email testing route - admin only
     Route::get('/test-email', [OrderController::class, 'testEmailNotification'])->middleware('role:admin,superadmin');
     
-    
+    // Profile Routes
+    Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
 });
 
 

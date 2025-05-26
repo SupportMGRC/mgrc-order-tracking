@@ -63,8 +63,8 @@
                                 @endforeach
                             </select>
                         </div>
-                        <button type="submit" class="btn btn-link text-muted p-0">
-                            <i class="ri-search-line fs-16"></i>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="ri-equalizer-fill me-1"></i> Filter
                         </button>
                     </form>
                 </div>

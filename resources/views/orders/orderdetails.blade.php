@@ -121,6 +121,7 @@
             <div class="page-title-right">
                 <ol class="breadcrumb m-0">
                     <li class="breadcrumb-item"><a href="{{ route('orderhistory') }}">Order</a></li>
+                    <li class="breadcrumb-item"><a href="{{ route('orderhistory') }}">Order History</a></li>
                     <li class="breadcrumb-item active">Order Details</li>
                 </ol>
             </div>
