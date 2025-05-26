@@ -125,6 +125,9 @@
             <p><strong>Order ID:</strong> #{{ $order->id }}</p>
             <p><strong>Customer:</strong> {{ $order->customer->name }}</p>
             <p><strong>Order Date:</strong> {{ \Carbon\Carbon::parse($order->order_date)->format('F j, Y') }}</p>
+            <p><strong>Delivery Type:</strong> <span style="color: {{ $order->delivery_type === 'delivery' ? '#28a745' : '#007bff' }}">
+                <i>{{ $order->delivery_type === 'delivery' ? '🚚 Delivery' : '🏃 Self Collect' }}</i>
+            </span></p>
             <p><strong>Status:</strong> <span class="status-badge">READY FOR DELIVERY</span></p>
             
             @if($order->delivery_date)

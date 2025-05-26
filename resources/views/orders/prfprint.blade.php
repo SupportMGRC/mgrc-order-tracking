@@ -83,6 +83,22 @@
                             
                             <table class="w-100 mb-3">
                                 <tr>
+                                    <td width="20%" class="small-text">Delivery Type</td>
+                                    <td width="80%" class="small-text">
+                                        <span class="me-4">
+                                            <input type="checkbox" disabled {{ $order->delivery_type === 'delivery' ? 'checked' : '' }}>
+                                            <span class="ms-1">Delivery</span>
+                                        </span>
+                                        <span>
+                                            <input type="checkbox" disabled {{ $order->delivery_type === 'self_collect' ? 'checked' : '' }}>
+                                            <span class="ms-1">Self Collect</span>
+                                        </span>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <table class="w-100 mb-3">
+                                <tr>
                                     <td width="20%" class="small-text">Delivery Date</td>
                                     <td width="30%" class="small-text border-bottom border-dark">{{ $order->delivery_date ? $order->delivery_date->format('d/m/Y') : 'N/A' }}</td>
                                     <td width="10%" class="small-text text-center">Time</td>
