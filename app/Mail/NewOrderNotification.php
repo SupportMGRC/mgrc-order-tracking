@@ -41,7 +41,7 @@ class NewOrderNotification extends Mailable
     {
         return new Envelope(
             from: new \Illuminate\Mail\Mailables\Address(config('mail.from.address', 'support@mgrc.com'), config('mail.from.name', 'MGRC Order System')),
-            subject: '[NEW ORDER] Order #' . $this->order->id . ' - Delivery: ' . \Carbon\Carbon::parse($this->order->delivery_date)->format('d/m/Y'),
+            subject: '[NEW ORDER] Order #' . $this->order->id . ' - Delivery: ' . \Carbon\Carbon::parse($this->order->pickup_delivery_date)->format('d/m/Y'),
             tags: ['order', 'new-order'],
             metadata: [
                 'order_id' => $this->order->id,

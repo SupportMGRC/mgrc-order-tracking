@@ -130,8 +130,8 @@
             </span></p>
             <p><strong>Status:</strong> <span class="status-badge">READY FOR DELIVERY</span></p>
             
-            @if($order->delivery_date)
-            <p><strong>Expected Delivery:</strong> {{ \Carbon\Carbon::parse($order->delivery_date)->format('F j, Y') }}</p>
+            @if($order->pickup_delivery_date)
+            <p><strong>Expected Delivery/Pickup:</strong> {{ \Carbon\Carbon::parse($order->pickup_delivery_date)->format('F j, Y') }}</p>
             @endif
         </div>
             

@@ -107,7 +107,7 @@
             <p><strong>Delivery Type:</strong> <span style="color: {{ $order->delivery_type === 'delivery' ? '#28a745' : '#007bff' }}">
                 <i>{{ $order->delivery_type === 'delivery' ? '🚚 Delivery' : '🏃 Self Collect' }}</i>
             </span></p>
-            <p><strong>Delivery Date:</strong> {{ \Carbon\Carbon::parse($order->delivery_date)->format('F j, Y') }}</p>
+            <p><strong>Delivery/Pickup Date:</strong> {{ \Carbon\Carbon::parse($order->pickup_delivery_date)->format('F j, Y') }}</p>
             <p><strong>Delivery Time:</strong> {{ \Carbon\Carbon::parse($order->delivery_time)->format('g:i A') }}</p>
             <p><strong>Status:</strong> <span class="status-badge">Pending Production</span></p>
             <p><strong>Order Placed By:</strong> {{ $order->order_placed_by }}</p>
