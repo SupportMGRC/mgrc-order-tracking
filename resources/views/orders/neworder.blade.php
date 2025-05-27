@@ -292,33 +292,43 @@
                                 
                                 <div class="row mb-3">
                                     <div class="col-lg-12">
-                                        <div class="mb-3">
-                                            <label class="form-label d-block">Delivery Type <span class="text-danger">*</span></label>
-                                            <div class="form-check-inline">
-                                                <input class="form-check-input" 
-                                                    type="radio" 
-                                                    name="delivery_type" 
-                                                    id="delivery_type_delivery" 
-                                                    value="delivery" 
-                                                    {{ old('delivery_type', 'delivery') == 'delivery' ? 'checked' : '' }}>
-                                                <label class="form-check-label" for="delivery_type_delivery">
-                                                    <i class="ri-truck-line me-1"></i>Delivery
-                                                </label>
+                                        <div class="mb-3 d-flex align-items-end gap-4">
+                                            <div>
+                                                <label class="form-label d-block">Delivery Type <span class="text-danger">*</span></label>
+                                                <div class="form-check-inline">
+                                                    <input class="form-check-input" 
+                                                        type="radio" 
+                                                        name="delivery_type" 
+                                                        id="delivery_type_delivery" 
+                                                        value="delivery" 
+                                                        {{ old('delivery_type', 'delivery') == 'delivery' ? 'checked' : '' }}>
+                                                    <label class="form-check-label" for="delivery_type_delivery">
+                                                        <i class="ri-truck-line me-1"></i>Delivery
+                                                    </label>
+                                                </div>
+                                                <div class="form-check-inline ms-3">
+                                                    <input class="form-check-input" 
+                                                        type="radio" 
+                                                        name="delivery_type" 
+                                                        id="delivery_type_self" 
+                                                        value="self_collect"
+                                                        {{ old('delivery_type') == 'self_collect' ? 'checked' : '' }}>
+                                                    <label class="form-check-label" for="delivery_type_self">
+                                                        <i class="ri-user-location-line me-1"></i>Self Collect
+                                                    </label>
+                                                </div>
+                                                @error('delivery_type')
+                                                    <div class="text-danger small mt-1">{{ $message }}</div>
+                                                @enderror
                                             </div>
-                                            <div class="form-check-inline ms-3">
-                                                <input class="form-check-input" 
-                                                    type="radio" 
-                                                    name="delivery_type" 
-                                                    id="delivery_type_self" 
-                                                    value="self_collect"
-                                                    {{ old('delivery_type') == 'self_collect' ? 'checked' : '' }}>
-                                                <label class="form-check-label" for="delivery_type_self">
-                                                    <i class="ri-user-location-line me-1"></i>Self Collect
-                                                </label>
+                                            <div style="min-width:220px;">
+                                                <label for="item_ready_at" class="form-label">Item Ready Time <span class="text-danger">*</span></label>
+                                                <input type="text" class="form-control @error('item_ready_at') is-invalid @enderror" id="item_ready_at" name="item_ready_at" placeholder="e.g. 02:30 PM" data-provider="flatpickr" data-enable-time="true" data-no-calendar="true" data-date-format="h:i K" value="{{ old('item_ready_at') }}" required>
+                                                @error('item_ready_at')
+                                                    <div class="invalid-feedback">{{ $message }}</div>
+                                                @enderror
+                                                <div class="invalid-feedback">Please select the item ready time</div>
                                             </div>
-                                            @error('delivery_type')
-                                                <div class="text-danger small mt-1">{{ $message }}</div>
-                                            @enderror
                                         </div>
                                     </div>
                                 </div>
@@ -405,6 +415,14 @@
                     time_24hr: false,
                     minuteIncrement: 15,
                     allowInput: true
+                });
+                flatpickr("#item_ready_at", {
+                    enableTime: true,
+                    noCalendar: true,
+                    dateFormat: "h:i K",
+                    time_24hr: false,
+                    allowInput: true,
+                    altInput: false
                 });
             }
             

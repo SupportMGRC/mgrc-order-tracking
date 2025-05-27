@@ -457,6 +457,7 @@ class OrderController extends Controller
             'products.*.quantity' => 'required|integer|min:1',
             'products.*.patient_name' => 'nullable|string',
             'products.*.remarks' => 'nullable|string',
+            'item_ready_at' => 'required|date_format:g:i A',
         ], [
             'customer_name.required' => 'The customer name is required.',
             'customer_phone.required' => 'The customer phone number is required.',
@@ -468,6 +469,7 @@ class OrderController extends Controller
             'products.*.type.required' => 'The product type is required for all products.',
             'products.*.quantity.required' => 'The product quantity is required for all products.',
             'products.*.quantity.min' => 'The product quantity must be at least 1.',
+            'item_ready_at.required' => 'The item ready time is required.',
         ]);
 
         if ($validator->fails()) {
@@ -517,6 +519,9 @@ class OrderController extends Controller
             $order->pickup_delivery_time = $request->pickup_delivery_time ? Carbon::parse($request->pickup_delivery_time)->toTimeString() : null;
             $order->delivery_type = $request->delivery_type;
             $order->remarks = $request->remarks;
+            if ($request->filled('item_ready_at')) {
+                $order->item_ready_at = \Carbon\Carbon::createFromFormat('g:i A', $request->item_ready_at)->format('H:i:s');
+            }
             $order->save();
             
             // Attach products to order
@@ -1237,6 +1242,10 @@ class OrderController extends Controller
                     DB::rollBack();
                     return redirect()->back()->with('error', 'Only Quality or Cell Lab departments can mark orders as ready.');
                 }
+                // Set item_ready_at if not already set
+                if (!$order->item_ready_at) {
+                    $order->item_ready_at = now()->toDateString();
+                }
             }
             
             if ($request->status === 'delivered' && $order->status !== 'delivered') {
@@ -1309,6 +1318,10 @@ class OrderController extends Controller
             
             // Update the status to Ready
             $order->status = 'ready';
+            // Set item_ready_at if not already set
+            if (!$order->item_ready_at) {
+                $order->item_ready_at = now()->toDateString();
+            }
             $order->save();
             
             // Send email notifications to users who opted in

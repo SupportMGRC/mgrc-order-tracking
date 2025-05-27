@@ -30,21 +30,18 @@
                     
                     <div class="prf-document" id="printSection">
                         <!-- PRF Header -->
-                        <div class="prf-header">
-                            <div class="row align-items-center">
-                                <div class="col-sm-2 col-3">
-                                    <img src="{{ asset('assets/images/mgrc/MGRC-logo-only.png') }}" alt="MGRC Logo" class="img-fluid" style="max-height: 55px;">
-                                </div>
-                                <div class="col-sm-7 col-9 ms-sm-4 ms-2 text-center">
-                                    <h4 class="m-0 fw-bold">Malaysian Genomics Research<br class="d-sm-inline d-md-none">Centre</h4>
-                                </div>
+                        <div class="prf-header d-flex" style="height: 70px; border: 1px solid black;">
+                            <!-- Left Section (Logo + Text) -->
+                            <div class="d-flex p-1" style="width: 155px; border-right: 1px solid black;">
+                                <img src="{{ asset('assets/images/mgrc/logo_title_mgrc.png') }}" alt="MGRC Logo" class="img-fluid" style="height: 100%;">
                             </div>
-                            
-                            <div class="text-center border border-dark mt-3 mb-2">
-                                <h6 class="my-1 fw-bold">PRODUCT REQUEST FORM</h6>
+
+                            <!-- Right Section (Title) -->
+                            <div class="flex-grow-1 d-flex align-items-center justify-content-center pe-5">
+                                <h5 class="fw-bold m-0">PRODUCT REQUEST FORM</h5>
                             </div>
                         </div>
-                        
+
                         <!-- Customer Details Section -->
                         <div class="prf-section mb-4">
                             <div class="fw-bold small-text">A: Customer Details</div>
@@ -60,8 +57,8 @@
                                 <tr>
                                     <td width="20%" class="small-text">Email</td>
                                     <td width="30%" class="small-text border-bottom border-dark">{{ $order->customer->email ?? 'N/A' }}</td>
-                                    <td width="20%" class="small-text ps-2">Phone Number</td>
-                                    <td width="30%" class="small-text border-bottom border-dark">{{ $order->customer->phone ?? $order->customer->phoneNo ?? 'N/A' }}</td>
+                                    <td width="10%" class="small-text text-center">Phone <br>Number</td>
+                                    <td width="40%" class="small-text border-bottom border-dark">{{ $order->customer->phone ?? $order->customer->phoneNo ?? 'N/A' }}</td>
                                 </tr>
                             </table>
                             
@@ -76,8 +73,8 @@
                                 <tr>
                                     <td width="20%" class="small-text">Order Date</td>
                                     <td width="30%" class="small-text border-bottom border-dark">{{ $order->order_date ? $order->order_date->format('d/m/Y') : 'N/A' }}</td>
-                                    <td width="10%" class="small-text text-center">Time</td>
-                                    <td width="40%" class="small-text border-bottom border-dark">{{ $order->order_time ? $order->order_time->format('H:i') : 'N/A' }}</td>
+                                    <td width="10%" class="small-text text-center">Order<br>Time</td>
+                                    <td width="40%" class="small-text border-bottom border-dark">{{ $order->order_time ? $order->order_time->format('h:i A') : 'N/A' }}</td>
                                 </tr>
                             </table>
                             
@@ -101,8 +98,10 @@
                                 <tr>
                                     <td width="20%" class="small-text">Delivery Date</td>
                                     <td width="30%" class="small-text border-bottom border-dark">{{ $order->pickup_delivery_date ? $order->pickup_delivery_date->format('d/m/Y') : 'N/A' }}</td>
-                                    <td width="10%" class="small-text text-center">Time</td>
-                                    <td width="40%" class="small-text border-bottom border-dark">{{ $order->pickup_delivery_date ? date('H:i', strtotime($order->pickup_delivery_date)) : 'N/A' }}</td>
+                                    <td width="10%" class="small-text text-center">Delivery<br>Time</td>
+                                    <td width="40%" class="small-text border-bottom border-dark">
+                                        {{ $order->pickup_delivery_time ? $order->pickup_delivery_time->format('h:i A') : 'N/A' }}
+                                    </td>
                                 </tr>
                             </table>
                             
@@ -122,7 +121,7 @@
                                             <tr>
                                                 <th width="10%" class="small-text py-1">No</th>
                                                 <th width="65%" class="small-text py-1">Product Name</th>
-                                                <th width="25%" class="small-text py-1">Quantity</th>
+                                                <th width="25%" class="small-text py-1 text-center">Quantity</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -143,16 +142,23 @@
                                 </div>
                             </div>
                             
-                            <table class="w-100">
+                            <table class="w-100 mb-3">
                                 <tr>
                                     <td width="20%" class="small-text">Requested by</td>
-                                    <td width="30%" class="small-text border-bottom border-dark">{{ $order->order_placed_by ?? $order->user->name ?? 'N/A' }}</td>
-                                    <td width="50%"></td>
+                                    <td width="30%" class="small-text border-bottom border-dark">
+                                        {{ $order->order_placed_by ?? $order->user->name ?? 'N/A' }}
+                                    </td>
+                                    <td width="10%" class="small-text text-center">Ready<br>Time</td>
+                                    <td width="40%" class="small-text border-bottom border-dark">
+                                        {{ $order->item_ready_at ? $order->item_ready_at->format('h:i A') : 'N/A' }}
+                                    </td>
                                 </tr>
                                 <tr>
                                     <td width="20%" class="small-text">Date</td>
-                                    <td width="30%" class="small-text border-bottom border-dark">{{ $order->order_date ? $order->order_date->format('d/m/Y') : 'N/A' }}</td>
-                                    <td width="50%"></td>
+                                    <td width="30%" class="small-text border-bottom border-dark">
+                                        {{ $order->order_date ? $order->order_date->format('d/m/Y') : 'N/A' }}
+                                    </td>
+                                    <td colspan="2"></td>
                                 </tr>
                             </table>
                         </div>
@@ -166,11 +172,11 @@
                                 <table class="w-100 table-bordered mb-3">
                                     <thead>
                                         <tr>
-                                            <th width="10%" class="small-text py-1">No</th>
+                                            <th width="10%" class="small-text py-1 ">No</th>
                                             <th width="30%" class="small-text py-1">Product Name</th>
-                                            <th width="20%" class="small-text py-1">Batch Number</th>
-                                            <th width="20%" class="small-text py-1">QC Document No</th>
-                                            <th width="20%" class="small-text py-1">Remarks</th>
+                                            <th width="20%" class="small-text py-1 text-center">Batch Number</th>
+                                            <th width="20%" class="small-text py-1 text-center">QC Document No</th>
+                                            <th width="20%" class="small-text py-1 text-center">Remarks</th>
                                         </tr>
                                     </thead>
                                     <tbody>

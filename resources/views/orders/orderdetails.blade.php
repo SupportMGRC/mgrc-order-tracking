@@ -149,8 +149,14 @@
         <div class="d-sm-flex align-items-center justify-content-between">
             <h5 class="card-title flex-grow-1 mb-0">Order Status</h5>
             
-            <!-- Current Status Badge -->
-            <div class="ms-2">
+            <div class="ms-2 d-flex align-items-center gap-3">
+                <!-- Item Ready Time Badge -->
+                <span class="badge fs-13 bg-light text-dark px-3 py-2">
+                    <i class="ri-time-line align-middle me-1"></i>
+                    Ready Time: {{ $order->item_ready_at ? $order->item_ready_at->format('h:i A') : 'N/A' }}
+                </span>
+
+                <!-- Current Status Badge -->
                 <span class="badge fs-13 bg-{{ 
                     $order->status == 'new' ? 'info' : 
                     ($order->status == 'preparing' ? 'warning' : 

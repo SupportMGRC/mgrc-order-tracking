@@ -151,6 +151,7 @@
                                     <th scope="col">Placed By</th>
                                     <th scope="col">Delivered By</th>
                                     <th scope="col">Order Date</th>
+                                    <th scope="col">Ready Time</th>
                                     <th scope="col">Delivery Time</th>
                                     <th scope="col">Type</th>
                                     <th scope="col">Status</th>
@@ -189,6 +190,13 @@
                                                 @endif
                                             @else
                                                 <span class="text-muted">N/A</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            @if($order->item_ready_at)
+                                                {{ $order->item_ready_at->format('h:i A') }}
+                                            @else
+                                                <span class="text-muted">-</span>
                                             @endif
                                         </td>
                                         <td>
