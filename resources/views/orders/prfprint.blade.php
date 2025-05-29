@@ -28,19 +28,20 @@
                         </button>
                     </div>
                     
-                    <div class="prf-document" id="printSection">
+                    <div class="prf-document" id="printSection" style="position: relative;">
                         <!-- PRF Header -->
-                        <div class="prf-header d-flex" style="height: 70px; border: 1px solid black;">
+                        <div class="prf-header d-flex" style="height: 70px; border: 1px solid black; position: relative;">
                             <!-- Left Section (Logo + Text) -->
                             <div class="d-flex p-1" style="width: 155px; border-right: 1px solid black;">
                                 <img src="{{ asset('assets/images/mgrc/logo_title_mgrc.png') }}" alt="MGRC Logo" class="img-fluid" style="height: 100%;">
                             </div>
-
                             <!-- Right Section (Title) -->
                             <div class="flex-grow-1 d-flex align-items-center justify-content-center pe-5">
                                 <h5 class="fw-bold m-0">PRODUCT REQUEST FORM</h5>
                             </div>
                         </div>
+                        <!-- Controlled Copy Stamp Overlay (always on top) -->
+                        <img src="{{ asset('assets/images/mgrc/controlledcopy.png') }}" alt="Controlled Copy" class="controlled-copy-stamp">
 
                         <!-- Customer Details Section -->
                         <div class="prf-section mb-4">
@@ -119,7 +120,7 @@
                                     <table class="w-100 table-bordered mb-3">
                                         <thead>
                                             <tr>
-                                                <th width="10%" class="small-text py-1">No</th>
+                                                <th width="10%" class="small-text py-1 text-center">No</th>
                                                 <th width="65%" class="small-text py-1">Product Name</th>
                                                 <th width="25%" class="small-text py-1 text-center">Quantity</th>
                                             </tr>
@@ -172,11 +173,11 @@
                                 <table class="w-100 table-bordered mb-3">
                                     <thead>
                                         <tr>
-                                            <th width="10%" class="small-text py-1 ">No</th>
+                                            <th width="10%" class="small-text py-1 text-center">No</th>
                                             <th width="30%" class="small-text py-1">Product Name</th>
                                             <th width="20%" class="small-text py-1 text-center">Batch Number</th>
                                             <th width="20%" class="small-text py-1 text-center">QC Document No</th>
-                                            <th width="20%" class="small-text py-1 text-center">Remarks</th>
+                                            {{-- <th width="20%" class="small-text py-1 text-center">Remarks</th> --}}
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -186,7 +187,7 @@
                                             <td class="small-text py-1">{{ $product->name }}</td>
                                             <td class="text-center small-text py-1">{{ $product->pivot->batch_number ?? 'N/A' }}</td>
                                             <td class="text-center small-text py-1">{{ $product->pivot->qc_document_number ?? 'N/A' }}</td>
-                                            <td class="text-center small-text py-1">{{ $product->pivot->remarks ?? 'N/A' }}</td>
+                                            {{-- <td class="text-center small-text py-1">{{ $product->pivot->remarks ?? 'N/A' }}</td> --}}
                                         </tr>
                                         @endforeach
                                         @if(count($order->products) == 0)
@@ -217,7 +218,7 @@
                                 </tr>
                             </table>
                             
-                            <table class="w-100 mb-5">
+                            <table class="w-100 mb-0">
                                 <tr>
                                     <td width="20%" class="small-text">Date</td>
                                     <td width="30%" class="small-text border-bottom border-dark"></td>
@@ -226,7 +227,7 @@
                                 </tr>
                             </table>
                             
-                            <table class="w-100 doc-footer mt-5">
+                            <table class="w-100 doc-footer mt-4 mb-0">
                                 <tr class="border-top border-dark">
                                     <td width="25%" class="xsmall-text pt-1 pb-0">Document No : LSD/CL/SRL/F03</td>
                                     {{-- <td width="25%" class="xsmall-text py-1">: LSD/CL/SRL/F03</td> --}}
@@ -236,7 +237,7 @@
                                     {{-- <td width="25%" class="xsmall-text py-1">: 0</td> --}}
                                 </tr>
                                 <tr>
-                                    <td width="25%" class="xsmall-text py-0">Date : 16/06/2023</td>
+                                    <td width="25%" class="xsmall-text py-0">Date : 03/06/2025</td>
                                     {{-- <td width="25%" class="xsmall-text py-1">: 16/06/2023</td> --}}
                                 </tr>
                             </table>
@@ -289,6 +290,15 @@
             padding: 0 !important;
             border: none !important;
         }
+        
+        .controlled-copy-stamp {
+            opacity: 1 !important;
+            display: block !important;
+        }
+        
+        .prf-header img {
+            filter: grayscale(100%) contrast(200%);
+        }
     }
     
     .prf-document {
@@ -307,9 +317,9 @@
         margin-bottom: 8px;
     }
     
-    .prf-section {
+    /* .prf-section {
         margin-bottom: 10px;
-    }
+    } */
     
     .small-text {
         font-size: 0.8rem;
@@ -474,6 +484,16 @@
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
         }
+    }
+    
+    .controlled-copy-stamp {
+        position: absolute;
+        top: -30px;
+        right: -5px;
+        width: 260px;
+        opacity: 1;
+        z-index: 9999;
+        pointer-events: none;
     }
 </style>
 
