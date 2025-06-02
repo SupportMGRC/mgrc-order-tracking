@@ -278,7 +278,12 @@
             </button>
             @endif
             @endif
-            @if(Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
+            @if(
+                Auth::user()->role === 'admin' || 
+                Auth::user()->role === 'superadmin' || 
+                Auth::user()->id == $order->order_placed_by ||
+                Auth::user()->name == $order->order_placed_by
+            )
             <button type="button" class="btn btn-danger ms-2" data-bs-toggle="modal" data-bs-target="#cancelOrderModal">
                 <i class="ri-close-circle-line align-bottom me-1"></i> Cancel Order
             </button>
