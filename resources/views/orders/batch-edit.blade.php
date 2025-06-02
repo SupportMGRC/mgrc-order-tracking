@@ -83,7 +83,7 @@
                             </thead>
                             <tbody id="product-rows">
                                 @php
-                                    $canEditBatch = Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'superadmin';
+                                    $canEditBatch = Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'superadmin' || Auth::user()->department === 'Quality';
                                     $canEditQc = Auth::user()->department === 'Quality' || Auth::user()->role === 'superadmin';
                                     $canEditAll = Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin';
                                 @endphp

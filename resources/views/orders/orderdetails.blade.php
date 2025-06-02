@@ -160,12 +160,14 @@
                 <span class="badge fs-13 bg-{{ 
                     $order->status == 'new' ? 'info' : 
                     ($order->status == 'preparing' ? 'warning' : 
-                    ($order->status == 'ready' ? 'primary' : 'success')) 
+                    ($order->status == 'ready' ? 'primary' : 
+                    ($order->status == 'delivered' ? 'success' : ($order->status == 'cancel' ? 'secondary' : 'secondary')))) 
                 }} px-3 py-2">
                     <i class="ri-{{ 
                         $order->status == 'new' ? 'shopping-bag-3-line' : 
                         ($order->status == 'preparing' ? 'tools-line' : 
-                        ($order->status == 'ready' ? 'check-double-line' : 'truck-line')) 
+                        ($order->status == 'ready' ? 'check-double-line' : 
+                        ($order->status == 'delivered' ? 'truck-line' : 'close-circle-line'))) 
                     }} align-middle me-1"></i>
                     Current Status: {{ ucfirst($order->status) }}
                 </span>
@@ -181,15 +183,18 @@
                 <div class="progress-bar {{ 
                     $order->status == 'new' ? 'bg-info' : 
                     ($order->status == 'preparing' ? 'bg-warning' : 
-                    ($order->status == 'ready' ? 'bg-primary' : 'bg-success')) 
+                    ($order->status == 'ready' ? 'bg-primary' : 
+                    ($order->status == 'delivered' ? 'bg-success' : ($order->status == 'cancel' ? 'bg-secondary' : 'bg-secondary')))) 
                 }}" role="progressbar" style="width: {{ 
                     $order->status == 'new' ? '0%' : 
                     ($order->status == 'preparing' ? '33%' : 
-                    ($order->status == 'ready' ? '67%' : '100%')) 
+                    ($order->status == 'ready' ? '67%' : 
+                    ($order->status == 'delivered' ? '100%' : ($order->status == 'cancel' ? '100%' : '100%')))) 
                 }};" aria-valuenow="{{ 
                     $order->status == 'new' ? '0' : 
                     ($order->status == 'preparing' ? '33' : 
-                    ($order->status == 'ready' ? '67' : '100')) 
+                    ($order->status == 'ready' ? '67' : 
+                    ($order->status == 'delivered' ? '100' : ($order->status == 'cancel' ? '100' : '100')))) 
                 }}" aria-valuemin="0" aria-valuemax="100"></div>
             </div>
             <div class="position-relative mt-2">
@@ -237,6 +242,12 @@
                                 </small>
                             </div>
                     </div>
+                    <div class="order-track-step {{ $order->status == 'cancel' ? 'active' : '' }}" data-bs-toggle="tooltip" data-bs-placement="top" title="Order has been canceled">
+                        <div class="order-track-icon">
+                            <i class="ri-close-circle-line"></i>
+                        </div>
+                        <span class="order-track-text">Canceled</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -252,7 +263,7 @@
             }
         @endphp
         
-        @if($order->status != 'delivered')
+        @if($order->status != 'delivered' && $order->status != 'cancel')
         <div class="text-center">
             @if($order->status === 'new')
                 @if(Auth::user()->department === 'Quality' || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
@@ -267,10 +278,9 @@
             </button>
             @endif
             @endif
-            
             @if(Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
-            <button type="button" class="btn btn-danger ms-2" data-bs-toggle="modal" data-bs-target="#deleteOrder">
-                <i class="ri-delete-bin-line align-bottom me-1"></i> Delete Order
+            <button type="button" class="btn btn-danger ms-2" data-bs-toggle="modal" data-bs-target="#cancelOrderModal">
+                <i class="ri-close-circle-line align-bottom me-1"></i> Cancel Order
             </button>
             @endif
         </div>
@@ -700,6 +710,32 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-success">Confirm Delivery</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal to Cancel Order -->
+<div class="modal fade" id="cancelOrderModal" tabindex="-1" aria-labelledby="cancelOrderModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-soft-secondary">
+                <h5 class="modal-title" id="cancelOrderModalLabel">Cancel Order</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('orders.update.status', $order->id) }}" method="POST">
+                @csrf
+                @method('PATCH')
+                <div class="modal-body">
+                    <div class="alert alert-warning mb-3">
+                        <i class="ri-information-line me-2"></i> Are you sure you want to cancel this order? This action cannot be undone.
+                    </div>
+                    <input type="hidden" name="status" value="cancel">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">No, Keep Order</button>
+                    <button type="submit" class="btn btn-secondary">Yes, Cancel Order</button>
                 </div>
             </form>
         </div>

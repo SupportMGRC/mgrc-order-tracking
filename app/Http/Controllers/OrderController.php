@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Carbon;
 use App\Mail\ProductUpdateNotification;
+use App\Mail\OrderCanceledNotification;
 
 class OrderController extends Controller
 {
@@ -63,7 +64,7 @@ class OrderController extends Controller
                 'delivery_type' => 'required|in:delivery,self_collect',
                 'pickup_delivery_date' => 'required|date',
                 'pickup_delivery_time' => 'required|date_format:H:i',
-                'status' => 'required|in:new,preparing,ready,delivered',
+                'status' => 'required|in:new,preparing,ready,delivered,cancel',
                 'remarks' => 'nullable|string',
             ]);
 
@@ -152,7 +153,7 @@ class OrderController extends Controller
                 'order_placed_by' => 'nullable|string|max:255',
                 'order_date' => 'required|date',
                 'order_time' => 'nullable|date_format:H:i',
-                'status' => 'required|in:new,preparing,ready,delivered',
+                'status' => 'required|in:new,preparing,ready,delivered,cancel',
                 'delivery_type' => 'required|in:delivery,self_collect',
                 'pickup_delivery_date' => 'required|date',
                 'pickup_delivery_time' => 'required|date_format:H:i',
@@ -1216,7 +1217,7 @@ class OrderController extends Controller
     public function updateStatus(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|in:new,preparing,ready,delivered',
+            'status' => 'required|in:new,preparing,ready,delivered,cancel',
         ]);
 
         // Begin transaction
@@ -1284,6 +1285,12 @@ class OrderController extends Controller
                 $order->load(['customer', 'products']);
                 $this->sendNewOrderNotifications($order);
             }
+
+            // If the status changed to 'cancel', send cancel notifications
+            if ($oldStatus !== 'cancel' && $request->status === 'cancel') {
+                $order->load(['customer', 'products']);
+                $this->sendOrderCanceledNotification($order);
+            }
             
             DB::commit();
 
@@ -1292,6 +1299,102 @@ class OrderController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()->with('error', 'Error updating order status: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Send notification email when order is canceled.
+     */
+    private function sendOrderCanceledNotification(Order $order)
+    {
+        try {
+            $order->load(['customer', 'products']);
+            $notificationUsers = User::where('receive_new_order_emails', true)->get();
+            $testMode = config('mail_debug.test_mode', false);
+            $testRecipients = config('mail_debug.test_recipients', []);
+            $mail = new OrderCanceledNotification($order);
+            $sentTo = [];
+            try {
+                $useTestSmtp = config('mail_debug.use_test_smtp', false);
+                if ($useTestSmtp) {
+                    $transport = (new \Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport(
+                        config('mail_debug.test_smtp.host'), 
+                        config('mail_debug.test_smtp.port'),
+                        config('mail_debug.test_smtp.encryption') === 'tls'
+                    ))
+                    ->setUsername(config('mail_debug.test_smtp.username'))
+                    ->setPassword(config('mail_debug.test_smtp.password'));
+                    $customMailer = new \Illuminate\Mail\Mailer(
+                        'smtp',
+                        new \Symfony\Component\Mailer\Mailer($transport),
+                        app('view'),
+                        app('events')
+                    );
+                    if ($testMode && !empty($testRecipients)) {
+                        foreach ($testRecipients as $recipient) {
+                            $customMailer->to($recipient)->send($mail);
+                            $sentTo[] = $recipient . ' (Test Recipient)';
+                        }
+                    } else {
+                        foreach ($notificationUsers as $user) {
+                            if ($user->email) {
+                                $customMailer->to($user->email)->send($mail);
+                                $sentTo[] = $user->email . ' (' . $user->department . ')';
+                            }
+                        }
+                    }
+                } else {
+                    if ($testMode && !empty($testRecipients)) {
+                        foreach ($testRecipients as $recipient) {
+                            \Mail::to($recipient)->send($mail);
+                            $sentTo[] = $recipient . ' (Test Recipient)';
+                        }
+                    } else {
+                        foreach ($notificationUsers as $user) {
+                            if ($user->email) {
+                                \Mail::to($user->email)->send($mail);
+                                $sentTo[] = $user->email . ' (' . $user->department . ')';
+                            }
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                // Fallback to PHP mail()
+                $subject = '[CANCELED] Order #' . $order->id . ' has been canceled';
+                $htmlContent = view('emails.order-canceled', ['order' => $order])->render();
+                $headers = "MIME-Version: 1.0\r\n";
+                $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+                $headers .= "From: MGRC Order System <support@mgrc.com.my>\r\n";
+                $headers .= "X-Priority: 1\r\n";
+                if ($testMode && !empty($testRecipients)) {
+                    foreach ($testRecipients as $recipient) {
+                        $sent = mail($recipient, $subject, $htmlContent, $headers);
+                        if ($sent) {
+                            $sentTo[] = $recipient . ' (Test Recipient - via PHP mail)';
+                        }
+                    }
+                } else {
+                    foreach ($notificationUsers as $user) {
+                        if ($user->email) {
+                            $sent = mail($user->email, $subject, $htmlContent, $headers);
+                            if ($sent) {
+                                $sentTo[] = $user->email . ' (' . $user->department . ' - via PHP mail)';
+                            }
+                        }
+                    }
+                }
+            }
+            if (count($sentTo) > 0) {
+                \Log::info('Order #' . $order->id . ' cancel notification emails sent to: ' . implode(', ', $sentTo));
+            } else {
+                \Log::warning('No cancel notification emails sent for Order #' . $order->id . ': No recipients found or all mail methods failed');
+            }
+        } catch (\Exception $e) {
+            \Log::error('Failed to send order cancel notification email for Order #' . $order->id . ': ' . $e->getMessage(), [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
         }
     }
 
