@@ -17,7 +17,7 @@ class OrderSeeder extends Seeder
         
         // Only proceed if we have customers
         if ($customers->count() > 0) {
-            $statuses = ['new', 'preparing', 'ready', 'delivered'];
+            $statuses = ['new', 'preparing', 'ready', 'delivered', 'cancel'];
             
             // Create a few orders for each customer
             foreach ($customers as $customer) {

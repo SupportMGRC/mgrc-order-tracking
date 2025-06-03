@@ -27,6 +27,8 @@ class Order extends Model
         'pickup_delivery_time',
         'remarks',
         'item_ready_at',
+        'delivery_address',
+        'order_photo',
     ];
 
     /**

@@ -129,6 +129,12 @@
                                                     class="badge bg-success align-middle ms-1">{{ $deliveredCount }}</span>
                                             </a>
                                         </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link {{ request('status') == 'cancel' ? 'active' : '' }} py-3 text-muted"
+                                                href="{{ route('orderhistory', ['status' => 'cancel', 'date_range' => request('date_range', 'today'), 'search' => request('search')]) }}" role="tab">
+                                                <i class="ri-close-circle-line me-1 align-bottom"></i> Canceled
+                                            </a>
+                                        </li>
                                     </ul>
                                 </div>
                             </div>
@@ -154,6 +160,7 @@
                                     <th scope="col">Ready Time</th>
                                     <th scope="col">Delivery Time</th>
                                     <th scope="col">Type</th>
+                                    <th scope="col">Delivery Address</th>
                                     <th scope="col">Status</th>
                                     <th scope="col">Action</th>
                                 </tr>
@@ -219,6 +226,9 @@
                                             @endif
                                         </td>
                                         <td>
+                                            {{ $order->delivery_address ?? 'N/A' }}
+                                        </td>
+                                        <td>
                                             @php
                                                 $statusClass =
                                                     [
@@ -226,6 +236,7 @@
                                                         'preparing' => 'bg-warning',
                                                         'ready' => 'bg-info',
                                                         'delivered' => 'bg-success',
+                                                        'cancel' => 'bg-secondary',
                                                     ][$order->status] ?? 'bg-warning';
                                             @endphp
                                             <span class="badge {{ $statusClass }}">{{ ucfirst($order->status) }}</span>
@@ -397,6 +408,7 @@
                                                 <option value="preparing">Preparing</option>
                                                 <option value="ready">Ready</option>
                                                 <option value="delivered">Delivered</option>
+                                                <option value="cancel" {{ request('status') == 'cancel' ? 'selected' : '' }}>Canceled</option>
                                             </select>
                                         </div>
                                     </div>

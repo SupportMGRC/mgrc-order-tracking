@@ -160,12 +160,14 @@
                 <span class="badge fs-13 bg-{{ 
                     $order->status == 'new' ? 'info' : 
                     ($order->status == 'preparing' ? 'warning' : 
-                    ($order->status == 'ready' ? 'primary' : 'success')) 
+                    ($order->status == 'ready' ? 'primary' : 
+                    ($order->status == 'delivered' ? 'success' : ($order->status == 'cancel' ? 'secondary' : 'secondary')))) 
                 }} px-3 py-2">
                     <i class="ri-{{ 
                         $order->status == 'new' ? 'shopping-bag-3-line' : 
                         ($order->status == 'preparing' ? 'tools-line' : 
-                        ($order->status == 'ready' ? 'check-double-line' : 'truck-line')) 
+                        ($order->status == 'ready' ? 'check-double-line' : 
+                        ($order->status == 'delivered' ? 'truck-line' : 'close-circle-line'))) 
                     }} align-middle me-1"></i>
                     Current Status: {{ ucfirst($order->status) }}
                 </span>
@@ -181,15 +183,18 @@
                 <div class="progress-bar {{ 
                     $order->status == 'new' ? 'bg-info' : 
                     ($order->status == 'preparing' ? 'bg-warning' : 
-                    ($order->status == 'ready' ? 'bg-primary' : 'bg-success')) 
+                    ($order->status == 'ready' ? 'bg-primary' : 
+                    ($order->status == 'delivered' ? 'bg-success' : ($order->status == 'cancel' ? 'bg-secondary' : 'bg-secondary')))) 
                 }}" role="progressbar" style="width: {{ 
                     $order->status == 'new' ? '0%' : 
                     ($order->status == 'preparing' ? '33%' : 
-                    ($order->status == 'ready' ? '67%' : '100%')) 
+                    ($order->status == 'ready' ? '67%' : 
+                    ($order->status == 'delivered' ? '100%' : ($order->status == 'cancel' ? '100%' : '100%')))) 
                 }};" aria-valuenow="{{ 
                     $order->status == 'new' ? '0' : 
                     ($order->status == 'preparing' ? '33' : 
-                    ($order->status == 'ready' ? '67' : '100')) 
+                    ($order->status == 'ready' ? '67' : 
+                    ($order->status == 'delivered' ? '100' : ($order->status == 'cancel' ? '100' : '100')))) 
                 }}" aria-valuemin="0" aria-valuemax="100"></div>
             </div>
             <div class="position-relative mt-2">
@@ -237,6 +242,12 @@
                                 </small>
                             </div>
                     </div>
+                    <div class="order-track-step {{ $order->status == 'cancel' ? 'active' : '' }}" data-bs-toggle="tooltip" data-bs-placement="top" title="Order has been canceled">
+                        <div class="order-track-icon">
+                            <i class="ri-close-circle-line"></i>
+                        </div>
+                        <span class="order-track-text">Canceled</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -252,7 +263,7 @@
             }
         @endphp
         
-        @if($order->status != 'delivered')
+        @if($order->status != 'delivered' && $order->status != 'cancel')
         <div class="text-center">
             @if($order->status === 'new')
                 @if(Auth::user()->department === 'Quality' || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
@@ -267,16 +278,189 @@
             </button>
             @endif
             @endif
-            
-            @if(Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
-            <button type="button" class="btn btn-danger ms-2" data-bs-toggle="modal" data-bs-target="#deleteOrder">
-                <i class="ri-delete-bin-line align-bottom me-1"></i> Delete Order
+            @if(
+                Auth::user()->role === 'admin' || 
+                Auth::user()->role === 'superadmin' || 
+                Auth::user()->id == $order->order_placed_by ||
+                Auth::user()->name == $order->order_placed_by
+            )
+            <button type="button" class="btn btn-danger ms-2" data-bs-toggle="modal" data-bs-target="#cancelOrderModal">
+                <i class="ri-close-circle-line align-bottom me-1"></i> Cancel Order
             </button>
             @endif
         </div>
         @endif
     </div>
 </div>
+
+@if($order->status === 'preparing')
+    @php
+        // Check if all products are ready
+        $allProductsReady = true;
+        $totalProducts = count($order->products);
+        foreach($order->products as $product) {
+            if($product->pivot->status !== 'ready') {
+                $allProductsReady = false;
+                break;
+            }
+        }
+    @endphp
+
+    @if($allProductsReady && $totalProducts > 0)
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0"><i class="ri-image-line align-middle me-1 text-muted"></i> Order Photo</h5>
+        </div>
+        <div class="card-body">
+            @if($order->order_photo)
+                <div class="mb-3">
+                    <img src="{{ asset('storage/order_photos/' . $order->order_photo) }}" alt="Order Photo" class="img-fluid rounded shadow-sm" style="max-width: 300px; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewOrderPhotoModal">
+                </div>
+                <div class="d-flex gap-2 mb-2">
+                    <!-- Edit button shows upload form -->
+                    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#editPhotoForm">Edit</button>
+                    <!-- Delete button shows modal -->
+                    <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deletePhotoModal">Delete</button>
+                </div>
+                <div class="collapse" id="editPhotoForm">
+                    <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data">
+                        @csrf
+                        <div class="mb-3">
+                            <label for="order_photo_edit" class="form-label">Replace Photo <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control" id="order_photo_edit" name="order_photo" accept="image/*" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm"><i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload New Photo</button>
+                    </form>
+                </div>
+                <!-- Modal for viewing order photo -->
+                <div class="modal fade" id="viewOrderPhotoModal" tabindex="-1" aria-labelledby="viewOrderPhotoModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="viewOrderPhotoModalLabel">Order Photo</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body text-center">
+                                <img src="{{ asset('storage/order_photos/' . $order->order_photo) }}" alt="Order Photo" class="img-fluid rounded shadow">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Modal for deleting order photo -->
+                <div class="modal fade" id="deletePhotoModal" tabindex="-1" aria-labelledby="deletePhotoModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header bg-soft-danger">
+                                <h5 class="modal-title" id="deletePhotoModalLabel">Delete Order Photo</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <form action="{{ route('orders.delete.photo', $order->id) }}" method="POST">
+                                @csrf
+                                @method('DELETE')
+                                <div class="modal-body">
+                                    <p>Are you sure you want to delete this photo? This action cannot be undone.</p>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="submit" class="btn btn-danger">Delete Photo</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            @else
+                <div class="alert alert-info mb-3">
+                    <i class="ri-information-line me-2"></i> All products are ready! Please upload a photo of the completed order.
+                </div>
+                <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data">
+                    @csrf
+                    <div class="mb-3">
+                        <label for="order_photo" class="form-label">Upload Photo <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" id="order_photo" name="order_photo" accept="image/*" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo</button>
+                </form>
+            @endif
+        </div>
+    </div>
+    @endif
+@endif
+
+@if($order->status === 'ready')
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="card-title mb-0"><i class="ri-image-line align-middle me-1 text-muted"></i> Order Photo</h5>
+    </div>
+    <div class="card-body">
+        @if($order->order_photo)
+            <div class="mb-3">
+                <img src="{{ asset('storage/order_photos/' . $order->order_photo) }}" alt="Order Photo" class="img-fluid rounded shadow-sm" style="max-width: 300px; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewOrderPhotoModal">
+            </div>
+            <div class="d-flex gap-2 mb-2">
+                <!-- Edit button shows upload form -->
+                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#editPhotoForm">Edit</button>
+                <!-- Delete button shows modal -->
+                <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deletePhotoModal">Delete</button>
+            </div>
+            <div class="collapse" id="editPhotoForm">
+                <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data">
+                    @csrf
+                    <div class="mb-3">
+                        <label for="order_photo_edit" class="form-label">Replace Photo <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" id="order_photo_edit" name="order_photo" accept="image/*" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload New Photo</button>
+                </form>
+            </div>
+            <!-- Modal for viewing order photo -->
+            <div class="modal fade" id="viewOrderPhotoModal" tabindex="-1" aria-labelledby="viewOrderPhotoModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="viewOrderPhotoModalLabel">Order Photo</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body text-center">
+                            <img src="{{ asset('storage/order_photos/' . $order->order_photo) }}" alt="Order Photo" class="img-fluid rounded shadow">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Modal for deleting order photo -->
+            <div class="modal fade" id="deletePhotoModal" tabindex="-1" aria-labelledby="deletePhotoModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-soft-danger">
+                            <h5 class="modal-title" id="deletePhotoModalLabel">Delete Order Photo</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <form action="{{ route('orders.delete.photo', $order->id) }}" method="POST">
+                            @csrf
+                            @method('DELETE')
+                            <div class="modal-body">
+                                <p>Are you sure you want to delete this photo? This action cannot be undone.</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-danger">Delete Photo</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        @else
+            <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data">
+                @csrf
+                <div class="mb-3">
+                    <label for="order_photo" class="form-label">Upload Photo <span class="text-danger">*</span></label>
+                    <input type="file" class="form-control" id="order_photo" name="order_photo" accept="image/*" required>
+                </div>
+                <button type="submit" class="btn btn-primary"><i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo</button>
+            </form>
+        @endif
+    </div>
+</div>
+@endif
 
 <div class="row">
     <div class="col-xl-9">
@@ -288,6 +472,9 @@
                         <a href="{{ route('orders.prf', $order->id) }}" class="btn btn-primary btn-sm me-2">
                             <i class="ri-file-list-3-line align-middle me-1"></i> PRF
                         </a>
+                        <button type="button" class="btn btn-info btn-sm me-2" data-bs-toggle="modal" data-bs-target="#updateDeliveryDateTimeModal">
+                            <i class="ri-calendar-2-line align-middle me-1"></i> Update Delivery Schedule
+                        </button>
                         <a href="{{ route('orders.batch.edit', $order->id) }}" class="btn btn-success btn-sm">
                             <i class="ri-settings-3-line align-middle me-1"></i> Manage All Batches
                         </a>
@@ -410,11 +597,11 @@
                         }
                     @endphp
                     
-                    @if($allProductsReady && count($order->products) > 0)
+                    @if($allProductsReady && count($order->products) > 0 && (Auth::user()->department === 'Medical Affair' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin'))
                     <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#markOrderReadyModal">
                         <i class="ri-check-double-line align-bottom me-1"></i> Mark Order as Ready
                     </button>
-                    @else
+                    @elseif(!$allProductsReady || count($order->products) == 0)
                     <div class="alert alert-info">
                         <i class="ri-information-line me-2"></i> Mark all products as ready to proceed with order status change.
                     </div>
@@ -483,22 +670,17 @@
             </div>
         </div>
         <!--end card-->
+        <!--end card-->
         <div class="card">
             <div class="card-header">
-                <h5 class="card-title mb-0"><i class="ri-map-pin-line align-middle me-1 text-muted"></i> Shipping Address
-                </h5>
+                <h5 class="card-title mb-0"><i class="ri-map-pin-user-line align-middle me-1 text-muted"></i> Delivery Address</h5>
             </div>
             <div class="card-body">
                 <ul class="list-unstyled vstack gap-2 mb-0">
-                    <li class="fw-medium fs-15">{{ $order->customer->name }}</li>
-                    {{-- <li>{{ $order->customer->phone ?? 'N/A' }}</li> --}}
-                    <li>{{ $order->customer->shipping_address ?? $order->customer->address ?? 'N/A' }}</li>
-                    {{-- <li>{{ $order->customer->shipping_city ?? $order->customer->city ?? 'N/A' }} - {{ $order->customer->shipping_zip_code ?? $order->customer->zip_code ?? 'N/A' }}</li> --}}
-                    {{-- <li>{{ $order->customer->shipping_country ?? $order->customer->country ?? 'N/A' }}</li> --}}
+                    <li class="fw-medium fs-15">{{ $order->delivery_address ?? 'N/A' }}</li>
                 </ul>
             </div>
         </div>
-        <!--end card-->
     </div>
     <!--end col-->
 </div>
@@ -706,51 +888,132 @@
     </div>
 </div>
 
+<!-- Modal to Cancel Order -->
+<div class="modal fade" id="cancelOrderModal" tabindex="-1" aria-labelledby="cancelOrderModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-soft-secondary">
+                <h5 class="modal-title" id="cancelOrderModalLabel">Cancel Order</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('orders.update.status', $order->id) }}" method="POST">
+                @csrf
+                @method('PATCH')
+                <div class="modal-body">
+                    <div class="alert alert-warning mb-3">
+                        <i class="ri-information-line me-2"></i> Are you sure you want to cancel this order? This action cannot be undone.
+                    </div>
+                    <input type="hidden" name="status" value="cancel">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">No, Keep Order</button>
+                    <button type="submit" class="btn btn-secondary">Yes, Cancel Order</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Updating Delivery Date/Time -->
+<div class="modal fade" id="updateDeliveryDateTimeModal" tabindex="-1" aria-labelledby="updateDeliveryDateTimeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-soft-info">
+                <h5 class="modal-title" id="updateDeliveryDateTimeModalLabel">Update Delivery Schedule</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('orders.delivery.datetime.update', $order->id) }}" method="POST" id="deliveryDateTimeForm">
+                @csrf
+                @method('PATCH')
+                <div class="modal-body">
+                    <div class="alert alert-info mb-3">
+                        <i class="ri-information-line me-2"></i> Update the delivery date and time for this order.
+                    </div>
+                    <div class="row">
+                        <div class="col-lg-12">
+                            <div class="mb-3">
+                                <label for="pickup_delivery_date" class="form-label">{{ $order->delivery_type === 'delivery' ? 'Delivery' : 'Self Collect' }} Date <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control @error('pickup_delivery_date') is-invalid @enderror" 
+                                    id="pickup_delivery_date" name="pickup_delivery_date" 
+                                    data-provider="flatpickr" data-date-format="Y-m-d" 
+                                    data-mindate="today"
+                                    value="{{ $order->pickup_delivery_date }}" required>
+                                @error('pickup_delivery_date')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <div class="invalid-feedback">Please select a date</div>
+                            </div>
+                        </div>
+                        <div class="col-lg-12">
+                            <div class="mb-3">
+                                <label for="pickup_delivery_time_display" class="form-label">{{ $order->delivery_type === 'delivery' ? 'Delivery' : 'Self Collect' }} Time <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control @error('pickup_delivery_time') is-invalid @enderror" 
+                                    id="pickup_delivery_time_display" 
+                                    data-provider="timepickr" 
+                                    placeholder="Select time"
+                                    value="{{ \Carbon\Carbon::parse($order->pickup_delivery_time)->format('h:i A') }}" required>
+                                <input type="hidden" name="pickup_delivery_time" id="pickup_delivery_time" 
+                                    value="{{ \Carbon\Carbon::parse($order->pickup_delivery_time)->format('H:i') }}">
+                                @error('pickup_delivery_time')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <div class="invalid-feedback">Please select a time</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="ri-save-line align-bottom me-1"></i> Update Schedule
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        // Initialize Flatpickr for delivery datetime picker
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize date and time pickers
         if (typeof flatpickr !== 'undefined') {
-            flatpickr("#delivery_datetime", {
+            flatpickr("#pickup_delivery_date", {
+                dateFormat: "Y-m-d",
+                minDate: "today",
+                allowInput: true
+            });
+            
+            // Initialize time picker with AM/PM format
+            const timePicker = flatpickr("#pickup_delivery_time_display", {
                 enableTime: true,
-                dateFormat: "d.m.Y H:i",
-                defaultDate: new Date()
+                noCalendar: true,
+                dateFormat: "h:i K",
+                time_24hr: false,
+                minuteIncrement: 15,
+                allowInput: true,
+                onChange: function(selectedDates, dateStr, instance) {
+                    // Convert 12-hour format to 24-hour format for the hidden input
+                    const date = selectedDates[0];
+                    if (date) {
+                        const hours = date.getHours().toString().padStart(2, '0');
+                        const minutes = date.getMinutes().toString().padStart(2, '0');
+                        document.getElementById('pickup_delivery_time').value = `${hours}:${minutes}`;
+                    }
+                }
             });
         }
-        
-        // Initialize tooltips
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl)
-        });
 
-        // Add form submission handlers for product ready forms
-        document.querySelectorAll('.product-ready-form').forEach(function(form) {
-            form.addEventListener('submit', function(e) {
-                // Log the form submission for debugging
-                console.log('Form is being submitted:', {
-                    action: form.action,
-                    method: form.method,
-                    formData: new FormData(form)
-                });
-                
-                // Check if the form has a status input
-                var statusInput = form.querySelector('input[name="status"]');
-                if (!statusInput) {
-                    console.error('Form is missing status input field!');
-                    e.preventDefault();
-                    alert('Form submission error: missing required field');
-                    return;
-                }
-                
-                console.log('status value:', statusInput.value);
-                
-                // Show loading state or disable button
-                const submitBtn = form.querySelector('button[type="submit"]');
-                if (submitBtn) {
-                    submitBtn.disabled = true;
-                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
-                }
-            });
+        // Form validation
+        document.getElementById('deliveryDateTimeForm').addEventListener('submit', function(e) {
+            const timeDisplay = document.getElementById('pickup_delivery_time_display');
+            const timeHidden = document.getElementById('pickup_delivery_time');
+            
+            if (!timeDisplay.value) {
+                timeDisplay.classList.add('is-invalid');
+                e.preventDefault();
+            } else {
+                timeDisplay.classList.remove('is-invalid');
+            }
         });
     });
 </script>

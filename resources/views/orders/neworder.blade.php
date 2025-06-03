@@ -288,8 +288,20 @@
                                     </button>
                                 </div>
 
-                                <input type="hidden" name="order_placed_by" value="{{ Auth::user()->username }}">
-                                
+                                <div class="row mb-3">
+                                    <div class="col-12">
+                                        <div class="mb-3">
+                                            <label for="delivery_address" class="form-label">Delivery Address <span class="text-danger" id="delivery_address_required">*</span></label>
+                                            <textarea class="form-control @error('delivery_address') is-invalid @enderror" id="delivery_address" name="delivery_address" placeholder="Enter delivery address" rows="2" required>{{ old('delivery_address') }}</textarea>
+                                            @error('delivery_address')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                            <div class="invalid-feedback">Please enter the delivery address</div>
+                                            <div class="form-text">Required for Delivery. Optional for Self Collect.</div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div class="row mb-3">
                                     <div class="col-lg-12">
                                         <div class="mb-3 d-flex align-items-end gap-4">
@@ -737,12 +749,22 @@
             const deliveryTypeInputs = document.querySelectorAll('input[name="delivery_type"]');
             const dateLabel = document.getElementById('date_label');
             const timeLabel = document.getElementById('time_label');
+            const deliveryAddress = document.getElementById('delivery_address');
+            const deliveryAddressRequired = document.getElementById('delivery_address_required');
             
             deliveryTypeInputs.forEach(function(input) {
                 input.addEventListener('change', function() {
                     const isDelivery = this.value === 'delivery';
                     dateLabel.textContent = isDelivery ? 'Delivery' : 'Self Collect';
                     timeLabel.textContent = isDelivery ? 'Delivery' : 'Self Collect';
+                    if (isDelivery) {
+                        deliveryAddress.setAttribute('required', 'required');
+                        deliveryAddressRequired.style.display = '';
+                    } else {
+                        deliveryAddress.removeAttribute('required');
+                        deliveryAddressRequired.style.display = 'none';
+                        deliveryAddress.classList.remove('is-invalid');
+                    }
                 });
             });
             
