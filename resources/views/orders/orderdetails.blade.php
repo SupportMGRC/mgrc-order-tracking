@@ -508,7 +508,7 @@
                         <thead class="table-light text-muted">
                             <tr>
                                 <th scope="col">Product Details</th>
-                                <th scope="col">Quantity</th>
+                                <th scope="col">Unit #</th>
                                 <th scope="col">Batch Number</th>
                                 <th scope="col">Patient Name</th>
                                 <th scope="col">Remarks</th>
@@ -520,7 +520,14 @@
                             </tr>
                         </thead>
                         <tbody>
+                            @php
+                                $unitCounter = [];
+                            @endphp
                             @foreach($order->products as $product)
+                            @php
+                                // Keep track of units for each product
+                                $unitCounter[$product->id] = isset($unitCounter[$product->id]) ? $unitCounter[$product->id] + 1 : 1;
+                            @endphp
                             <tr>
                                 <td>
                                     <div class="d-flex">
@@ -529,7 +536,7 @@
                                         </div>
                                     </div>
                                 </td>
-                                <td>{{ $product->pivot->quantity }}</td>
+                                <td>{{ $unitCounter[$product->id] }}</td>
                                 <td>
                                     @if($product->pivot->batch_number)
                                         <span class="badge bg-primary">{{ $product->pivot->batch_number }}</span>
@@ -568,11 +575,11 @@
                                 @if($order->status === 'preparing' && (Auth::user()->department === 'Quality' || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin'))
                                 <td>
                                     @if($product->pivot->status === 'ready')
-                                    <button type="button" class="btn btn-sm btn-soft-success" data-bs-toggle="modal" data-bs-target="#markProductNotReadyModal{{ $product->id }}">
+                                    <button type="button" class="btn btn-sm btn-soft-success" data-bs-toggle="modal" data-bs-target="#markProductNotReadyModal{{ $product->pivot->id }}">
                                         <i class="ri-check-line align-middle"></i> Ready
                                     </button>
                                     @else
-                                    <button type="button" class="btn btn-sm btn-soft-danger" data-bs-toggle="modal" data-bs-target="#markProductReadyModal{{ $product->id }}">
+                                    <button type="button" class="btn btn-sm btn-soft-danger" data-bs-toggle="modal" data-bs-target="#markProductReadyModal{{ $product->pivot->id }}">
                                         <i class="ri-time-line align-middle"></i> Not Ready
                                     </button>
                                     @endif
@@ -773,7 +780,7 @@
 
 <!-- Product Ready Modal -->
 @foreach($order->products as $product)
-<div class="modal fade" id="markProductReadyModal{{ $product->id }}" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="markProductReadyModal{{ $product->pivot->id }}" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header bg-soft-success">
@@ -803,7 +810,7 @@
     </div>
 </div>
 
-<div class="modal fade" id="markProductNotReadyModal{{ $product->id }}" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="markProductNotReadyModal{{ $product->pivot->id }}" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header bg-soft-danger">

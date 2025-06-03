@@ -23,6 +23,29 @@ use Illuminate\Support\Facades\Cache;
 class OrderController extends Controller
 {
     /**
+     * Global email throttling to prevent duplicate emails
+     * 
+     * @param string $type - Type of email (new_order, ready_order, etc.)
+     * @param int $orderId - Order ID
+     * @param string $recipientEmail - Recipient email address
+     * @param int $throttleMinutes - Minutes to throttle (default 5)
+     * @return bool - True if email should be sent, false if throttled
+     */
+    private function shouldSendEmail($type, $orderId, $recipientEmail, $throttleMinutes = 5)
+    {
+        $cacheKey = "email_throttle_{$type}_{$orderId}_" . md5($recipientEmail);
+        
+        if (Cache::has($cacheKey)) {
+            Log::info("Email throttled: {$type} for Order #{$orderId} to {$recipientEmail} (already sent within last {$throttleMinutes} minutes)");
+            return false;
+        }
+        
+        // Set the throttle cache
+        Cache::put($cacheKey, true, $throttleMinutes * 60); // Convert minutes to seconds
+        return true;
+    }
+
+    /**
      * Display a listing of the resource.
      */
     public function index()
@@ -110,10 +133,9 @@ class OrderController extends Controller
 
             // Attach products to the order
             foreach ($request->products as $productData) {
-                // Get product
                 $product = Product::findOrFail($productData['id']);
                 
-                // Check if there's enough stock
+                // Check if enough stock
                 if ($product->stock < $productData['quantity']) {
                     throw new \Exception("Not enough stock for product: {$product->name}. Available: {$product->stock}");
                 }
@@ -122,13 +144,15 @@ class OrderController extends Controller
                 $product->stock -= $productData['quantity'];
                 $product->save();
                 
-                // Attach product to order with all data
-                $order->products()->attach($product->id, [
-                    'quantity' => $productData['quantity'],
-                    'batch_number' => $productData['batch_number'] ?? null,
-                    'patient_name' => $productData['patient_name'] ?? null,
-                    'remarks' => $productData['remarks'] ?? null,
-                ]);
+                // Create separate records for each unit
+                for ($i = 0; $i < $productData['quantity']; $i++) {
+                    $order->products()->attach($product->id, [
+                        'quantity' => 1,
+                        'batch_number' => $productData['batch_number'] ?? null,
+                        'patient_name' => $productData['patient_name'] ?? null,
+                        'remarks' => $productData['remarks'] ?? null,
+                    ]);
+                }
             }
             
             DB::commit();
@@ -233,13 +257,15 @@ class OrderController extends Controller
                     $product->stock -= $productData['quantity'];
                     $product->save();
                     
-                    // Attach to order
-                    $order->products()->attach($product->id, [
-                        'quantity' => $productData['quantity'],
-                        'batch_number' => $productData['batch_number'] ?? null,
-                        'patient_name' => $productData['patient_name'] ?? null,
-                        'remarks' => $productData['remarks'] ?? null,
-                    ]);
+                    // Create separate records for each unit
+                    for ($i = 0; $i < $productData['quantity']; $i++) {
+                        $order->products()->attach($product->id, [
+                            'quantity' => 1,
+                            'batch_number' => $productData['batch_number'] ?? null,
+                            'patient_name' => $productData['patient_name'] ?? null,
+                            'remarks' => $productData['remarks'] ?? null,
+                        ]);
+                    }
                 }
             }
             
@@ -569,12 +595,14 @@ class OrderController extends Controller
                 $productModel->stock -= $product['quantity'];
                 $productModel->save();
                 
-                // Attach to order with patient name
-                $order->products()->attach($productModel->id, [
-                    'quantity' => $product['quantity'],
-                    'patient_name' => isset($product['patient_name']) ? $product['patient_name'] : null,
-                    'remarks' => isset($product['remarks']) ? $product['remarks'] : null,
-                ]);
+                // Create separate records for each unit
+                for ($i = 0; $i < $product['quantity']; $i++) {
+                    $order->products()->attach($productModel->id, [
+                        'quantity' => 1,
+                        'patient_name' => isset($product['patient_name']) ? $product['patient_name'] : null,
+                        'remarks' => isset($product['remarks']) ? $product['remarks'] : null,
+                    ]);
+                }
             }
             
             DB::commit();
@@ -601,13 +629,6 @@ class OrderController extends Controller
      */
     private function sendNewOrderNotifications(Order $order)
     {
-        // Check for duplicate email sending (prevent sending same email for same order within 5 minutes)
-        $cacheKey = 'new_order_email_sent_' . $order->id;
-        if (Cache::has($cacheKey)) {
-            Log::info('Skipping duplicate new order email notification for Order #' . $order->id . ' (already sent within last 5 minutes)');
-            return;
-        }
-        
         try {
             // Load order relationships for the email
             $order->load(['customer', 'products']);
@@ -628,61 +649,68 @@ class OrderController extends Controller
             $sentTo = [];
             $emailSendSuccess = false;
             
-            // Try to send via Laravel's mail system first
-            try {
-                // Check if we should use test SMTP
-                $useTestSmtp = config('mail_debug.use_test_smtp', false);
-                if ($useTestSmtp) {
-                    Log::info('Using test SMTP settings for product update notification');
-                    // Create a custom mailer with test SMTP settings
-                    $transport = (new \Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport(
-                        config('mail_debug.test_smtp.host'), 
-                        config('mail_debug.test_smtp.port'),
-                        config('mail_debug.test_smtp.encryption') === 'tls'
-                    ))
-                    ->setUsername(config('mail_debug.test_smtp.username'))
-                    ->setPassword(config('mail_debug.test_smtp.password'));
-                    
-                    $customMailer = new \Illuminate\Mail\Mailer(
-                        'smtp',
-                        new \Symfony\Component\Mailer\Mailer($transport),
-                        app('view'),
-                        app('events')
-                    );
-                    
-                    // Send using custom mailer to users who opted in
-                    foreach ($notificationUsers as $user) {
-                        if ($user->email) {
+            // Send to users who opted in, with individual throttling
+            foreach ($notificationUsers as $user) {
+                if ($user->email && $this->shouldSendEmail('new_order', $order->id, $user->email)) {
+                    try {
+                        // Check if we should use test SMTP
+                        $useTestSmtp = config('mail_debug.use_test_smtp', false);
+                        if ($useTestSmtp) {
+                            Log::info('Using test SMTP settings for new order notification');
+                            // Create a custom mailer with test SMTP settings
+                            $transport = (new \Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport(
+                                config('mail_debug.test_smtp.host'), 
+                                config('mail_debug.test_smtp.port'),
+                                config('mail_debug.test_smtp.encryption') === 'tls'
+                            ))
+                            ->setUsername(config('mail_debug.test_smtp.username'))
+                            ->setPassword(config('mail_debug.test_smtp.password'));
+                            
+                            $customMailer = new \Illuminate\Mail\Mailer(
+                                'smtp',
+                                new \Symfony\Component\Mailer\Mailer($transport),
+                                app('view'),
+                                app('events')
+                            );
+                            
                             $customMailer->to($user->email)->send($mail);
-                            $sentTo[] = $user->email . ' (' . $user->department . ')';
-                        }
-                    }
-                } else {
-                    // Use standard Laravel mail to users who opted in
-                    foreach ($notificationUsers as $user) {
-                        if ($user->email) {
+                        } else {
+                            // Use standard Laravel mail
                             Mail::to($user->email)->send($mail);
-                            $sentTo[] = $user->email . ' (' . $user->department . ')';
+                        }
+                        
+                        $sentTo[] = $user->email . ' (' . $user->department . ')';
+                        $emailSendSuccess = true;
+                    } catch (\Exception $e) {
+                        Log::warning('Laravel mail failed for new order notification to ' . $user->email . ': ' . $e->getMessage());
+                        
+                        // Check if fallback is enabled
+                        $usePhpMailFallback = config('mail_debug.use_php_mail_fallback', true);
+                        if ($usePhpMailFallback) {
+                            // Fallback to PHP mail()
+                            Log::info('Attempting PHP mail() fallback for new order notification to ' . $user->email);
+                            $subject = '[NEW ORDER] Order #' . $order->id . ' - Delivery: ' . \Carbon\Carbon::parse($order->pickup_delivery_date)->format('d/m/Y');
+                            $htmlContent = view('emails.new-order', ['order' => $order])->render();
+                            $headers = "MIME-Version: 1.0\r\n";
+                            $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+                            $headers .= "From: MGRC Order System <support@mgrc.com.my>\r\n";
+                            $headers .= "X-Priority: 1\r\n";
+                            
+                            $sent = @mail($user->email, $subject, $htmlContent, $headers);
+                            if ($sent) {
+                                $sentTo[] = $user->email . ' (' . $user->department . ' - via PHP mail)';
+                                $emailSendSuccess = true;
+                            }
                         }
                     }
                 }
-                $emailSendSuccess = true;
-                Log::info('Laravel mail system successfully sent product update emails');
-            } catch (\Exception $e) {
-                // Log error but don't interrupt the process
-                Log::error('Error sending product update notification: ' . $e->getMessage());
-            }
-            
-            // If email was sent successfully, cache the fact that we sent it (prevent duplicates for 5 minutes)
-            if ($emailSendSuccess && count($sentTo) > 0) {
-                Cache::put($cacheKey, true, 300); // 5 minutes = 300 seconds
             }
             
             // Log successful email sending
             if (count($sentTo) > 0) {
                 Log::info('Order #' . $order->id . ' notification emails sent to: ' . implode(', ', $sentTo));
             } else {
-                Log::warning('No notification emails sent for Order #' . $order->id . ': No recipients found or all mail methods failed');
+                Log::warning('No notification emails sent for Order #' . $order->id . ': No recipients found or all emails throttled');
             }
         } catch (\Exception $e) {
             // Log detailed error but don't stop the process
@@ -700,6 +728,21 @@ class OrderController extends Controller
     public function editBatchInfo($id)
     {
         $order = Order::with(['customer', 'products'])->findOrFail($id);
+        
+        // Debug logging to see what products and pivot data we have
+        \Log::info('Loading batch edit form', [
+            'order_id' => $order->id,
+            'products_count' => $order->products->count(),
+            'products_data' => $order->products->map(function($product) {
+                return [
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'pivot_id' => $product->pivot->id ?? 'NULL',
+                    'pivot_data' => $product->pivot ? $product->pivot->toArray() : 'NULL'
+                ];
+            })
+        ]);
+        
         $products = Product::all();
         return view('orders.batch-edit', compact('order', 'products'));
     }
@@ -709,52 +752,62 @@ class OrderController extends Controller
      */
     public function updateBatchInfo(Request $request, $id)
     {
+        // Add debugging logs
+        \Log::info('Batch Info Update Request', [
+            'request_data' => $request->all(),
+            'order_id' => $id
+        ]);
+        
         $order = Order::with(['customer', 'products'])->findOrFail($id);
         
-        // Create custom validation rules - remove quantity validation since it can't be edited
+        // Create custom validation rules
         $rules = [
             'products' => 'required|array',
-            'products.*.product_id' => 'required|exists:products,id',
+            'products.*.pivot_id' => 'required|exists:order_product,id',
             'products.*.patient_name' => 'nullable|string',
             'products.*.remarks' => 'nullable|string',
             'products.*.qc_document_number' => 'nullable|string',
             'products.*.prepared_by' => 'nullable|string',
+            'products.*.batch_number' => 'nullable|string',
         ];
         
-        // For each product, determine if batch_number is required or nullable
-        foreach ($request->products as $index => $productData) {
-            $rules['products.' . $index . '.batch_number'] = 'nullable|string';
-        }
-        
-        // Validate with the dynamic rules
-        $validated = $request->validate($rules);
-        
-        $user = Auth::user();
-        
-        // Begin transaction to ensure data consistency
-        DB::beginTransaction();
-        
         try {
+            // Log validation attempt
+            \Log::info('Validating batch info data');
+            
+            // Validate with the rules
+            $validated = $request->validate($rules);
+            
+            \Log::info('Validation passed', ['validated_data' => $validated]);
+            
+            $user = Auth::user();
+            
+            // Begin transaction to ensure data consistency
+            DB::beginTransaction();
+            
             $hasBatchInfo = false;
             $hasErrors = false;
             $errorMessage = '';
             
-            // Store existing products for comparison
-            $existingProducts = $order->products->keyBy('id');
-            
             foreach ($request->products as $productData) {
-                $productId = $productData['product_id'];
+                // Log each product data being processed
+                \Log::info('Processing product data', ['product_data' => $productData]);
                 
-                // Get existing pivot data
-                $existingPivot = $order->products()->wherePivot('product_id', $productId)->first();
+                // Find the pivot record directly
+                $pivotRecord = DB::table('order_product')
+                    ->where('id', $productData['pivot_id'])
+                    ->where('order_id', $order->id)
+                    ->first();
                 
-                if (!$existingPivot) {
+                if (!$pivotRecord) {
                     $hasErrors = true;
-                    $errorMessage = 'Invalid product ID or product not found in order.';
+                    $errorMessage = 'Invalid product record.';
+                    \Log::error('Pivot record not found', [
+                        'pivot_id' => $productData['pivot_id'],
+                        'order_id' => $order->id
+                    ]);
                     break;
                 }
-                
-                $existingPivot = $existingPivot->pivot;
                 
                 $updateData = [
                     'patient_name' => $productData['patient_name'] ?? null,
@@ -764,38 +817,54 @@ class OrderController extends Controller
                 
                 // Handle batch number permissions
                 if (isset($productData['batch_number']) && !empty($productData['batch_number']) && 
-                    $existingPivot->batch_number !== $productData['batch_number']) {
+                    $pivotRecord->batch_number !== $productData['batch_number']) {
                     if ($user->department === 'Cell Lab' || $user->department === 'Quality' || $user->role === 'superadmin') {
                         $updateData['batch_number'] = $productData['batch_number'];
                     } else {
                         $hasErrors = true;
                         $errorMessage = 'Only Cell Lab and Quality departments can edit batch numbers.';
+                        \Log::warning('Unauthorized batch number update attempt', [
+                            'user' => $user->toArray(),
+                            'product_data' => $productData
+                        ]);
                         break;
                     }
-                } elseif ($existingPivot->batch_number) {
-                    $updateData['batch_number'] = $existingPivot->batch_number;
+                } elseif ($pivotRecord->batch_number) {
+                    $updateData['batch_number'] = $pivotRecord->batch_number;
                 } else {
                     $updateData['batch_number'] = $productData['batch_number'] ?? null;
                 }
                 
                 // Handle QC document number permissions
                 if (isset($productData['qc_document_number']) && !empty($productData['qc_document_number']) && 
-                    $existingPivot->qc_document_number !== $productData['qc_document_number']) {
+                    $pivotRecord->qc_document_number !== $productData['qc_document_number']) {
                     if ($user->department === 'Quality' || $user->role === 'superadmin') {
                         $updateData['qc_document_number'] = $productData['qc_document_number'];
                     } else {
                         $hasErrors = true;
                         $errorMessage = 'Only Quality department can edit QC document numbers.';
+                        \Log::warning('Unauthorized QC document number update attempt', [
+                            'user' => $user->toArray(),
+                            'product_data' => $productData
+                        ]);
                         break;
                     }
-                } elseif ($existingPivot->qc_document_number) {
-                    $updateData['qc_document_number'] = $existingPivot->qc_document_number;
+                } elseif ($pivotRecord->qc_document_number) {
+                    $updateData['qc_document_number'] = $pivotRecord->qc_document_number;
                 } else {
                     $updateData['qc_document_number'] = $productData['qc_document_number'] ?? null;
                 }
                 
-                // Update the pivot table
-                $order->products()->updateExistingPivot($productId, $updateData);
+                // Log update attempt
+                \Log::info('Updating pivot record', [
+                    'pivot_id' => $productData['pivot_id'],
+                    'update_data' => $updateData
+                ]);
+                
+                // Update the pivot record directly
+                DB::table('order_product')
+                    ->where('id', $productData['pivot_id'])
+                    ->update($updateData);
                 
                 // Check if any batch information exists
                 if (!empty($updateData['batch_number']) || 
@@ -807,20 +876,27 @@ class OrderController extends Controller
             
             if ($hasErrors) {
                 DB::rollBack();
+                \Log::error('Batch info update failed', ['error_message' => $errorMessage]);
                 return redirect()->back()->with('error', $errorMessage);
             }
             
             // Update order status to "preparing" if it's still "new" and batch information exists
             if ($order->status === 'new' && $hasBatchInfo) {
                 $order->update(['status' => 'preparing']);
+                \Log::info('Updated order status to preparing', ['order_id' => $order->id]);
             }
             
             DB::commit();
+            \Log::info('Batch info update completed successfully', ['order_id' => $order->id]);
             
             return redirect()->route('orderdetails', $order->id)
                 ->with('success', 'Batch information updated successfully!');
         } catch (\Exception $e) {
             DB::rollBack();
+            \Log::error('Exception during batch info update', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return redirect()->back()
                 ->with('error', 'Error updating batch information: ' . $e->getMessage());
         }
@@ -1050,40 +1126,33 @@ class OrderController extends Controller
             $sentTo = [];
             $emailSendSuccess = false;
             
-            try {
-                // Send to users who opted in
-                foreach ($notificationUsers as $user) {
-                    if ($user->email) {
+            // Send to users who opted in, with individual throttling
+            foreach ($notificationUsers as $user) {
+                if ($user->email && $this->shouldSendEmail('cancel_order', $order->id, $user->email)) {
+                    try {
                         \Mail::to($user->email)->send($mail);
                         $sentTo[] = $user->email . ' (' . $user->department . ')';
-                    }
-                }
-                $emailSendSuccess = true;
-                Log::info('Laravel mail system successfully sent cancellation emails');
-            } catch (\Exception $e) {
-                Log::warning('Laravel mail failed for cancellation notification: ' . $e->getMessage());
-                
-                // Check if fallback is enabled
-                $usePhpMailFallback = config('mail_debug.use_php_mail_fallback', true);
-                if (!$usePhpMailFallback) {
-                    throw $e;
-                }
-                
-                // Fallback to PHP mail()
-                Log::info('Attempting PHP mail() fallback for cancellation notification');
-                $subject = '[CANCELED] Order #' . $order->id . ' has been canceled';
-                $htmlContent = view('emails.order-canceled', ['order' => $order])->render();
-                $headers = "MIME-Version: 1.0\r\n";
-                $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-                $headers .= "From: MGRC Order System <support@mgrc.com.my>\r\n";
-                $headers .= "X-Priority: 1\r\n";
-                
-                foreach ($notificationUsers as $user) {
-                    if ($user->email) {
-                        $sent = @mail($user->email, $subject, $htmlContent, $headers);
-                        if ($sent) {
-                            $sentTo[] = $user->email . ' (' . $user->department . ' - via PHP mail)';
-                            $emailSendSuccess = true;
+                        $emailSendSuccess = true;
+                    } catch (\Exception $e) {
+                        Log::warning('Laravel mail failed for cancellation notification to ' . $user->email . ': ' . $e->getMessage());
+                        
+                        // Check if fallback is enabled
+                        $usePhpMailFallback = config('mail_debug.use_php_mail_fallback', true);
+                        if ($usePhpMailFallback) {
+                            // Fallback to PHP mail()
+                            Log::info('Attempting PHP mail() fallback for cancellation notification to ' . $user->email);
+                            $subject = '[CANCELED] Order #' . $order->id . ' has been canceled';
+                            $htmlContent = view('emails.order-canceled', ['order' => $order])->render();
+                            $headers = "MIME-Version: 1.0\r\n";
+                            $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+                            $headers .= "From: MGRC Order System <support@mgrc.com.my>\r\n";
+                            $headers .= "X-Priority: 1\r\n";
+                            
+                            $sent = @mail($user->email, $subject, $htmlContent, $headers);
+                            if ($sent) {
+                                $sentTo[] = $user->email . ' (' . $user->department . ' - via PHP mail)';
+                                $emailSendSuccess = true;
+                            }
                         }
                     }
                 }
@@ -1092,7 +1161,7 @@ class OrderController extends Controller
             if (count($sentTo) > 0) {
                 \Log::info('Order #' . $order->id . ' cancel notification emails sent to: ' . implode(', ', $sentTo));
             } else {
-                \Log::warning('No cancel notification emails sent for Order #' . $order->id . ': No recipients found or all mail methods failed');
+                \Log::warning('No cancel notification emails sent for Order #' . $order->id . ': No recipients found or all emails throttled');
             }
         } catch (\Exception $e) {
             \Log::error('Failed to send order cancel notification email for Order #' . $order->id . ': ' . $e->getMessage(), [
@@ -1165,16 +1234,29 @@ class OrderController extends Controller
             // Create the email notification
             $mail = new OrderReadyNotification($order);
             
-            // Send to all users who opted in
+            // Track email recipients for logging
+            $sentTo = [];
+            $emailSendSuccess = false;
+            
+            // Send to all users who opted in, with individual throttling
             foreach ($notificationUsers as $user) {
-                if ($user->email) {
+                if ($user->email && $this->shouldSendEmail('ready_order', $order->id, $user->email)) {
                     try {
                         Mail::to($user->email)->send($mail);
+                        $sentTo[] = $user->email . ' (' . $user->department . ')';
+                        $emailSendSuccess = true;
                         Log::info('Order ready notification sent to: ' . $user->email);
                     } catch (\Exception $e) {
                         Log::error('Failed to send order ready email to ' . $user->email . ': ' . $e->getMessage());
                     }
                 }
+            }
+            
+            // Log successful email sending
+            if (count($sentTo) > 0) {
+                Log::info('Order #' . $order->id . ' ready notification emails sent to: ' . implode(', ', $sentTo));
+            } else {
+                Log::warning('No ready notification emails sent for Order #' . $order->id . ': No recipients found or all emails throttled');
             }
         } catch (\Exception $e) {
             Log::error('Error sending order ready notifications: ' . $e->getMessage());
@@ -1323,10 +1405,18 @@ class OrderController extends Controller
     }
 
     /**
-     * For testing email notifications
+     * For testing email notifications - DISABLED to prevent duplicate emails
      */
     public function testEmailNotification()
     {
+        // DISABLED: This function was causing duplicate emails by bypassing caching mechanisms
+        // To re-enable, remove this early return and ensure proper caching is implemented
+        return [
+            'status' => 'disabled',
+            'message' => 'Email testing has been disabled to prevent duplicate emails. Use the actual order system to test emails.',
+            'note' => 'All email notifications now go through proper caching mechanisms to prevent duplicates.'
+        ];
+        
         $results = [
             'status' => 'testing',
             'laravel_mail' => [],
@@ -1510,13 +1600,29 @@ class OrderController extends Controller
         $order->save();
 
         // Send email to the user who placed the order with a Mark as Ready button
-        $user = $order->user; // The user who placed the order
-        if ($user && $user->email) {
-            $markReadyUrl = route('orders.mark.ready', $order->id);
-            \Mail::to($user->email)->send(new OrderPhotoUploadedNotification($order, $markReadyUrl));
-        }
+        $this->sendOrderPhotoUploadedNotification($order);
 
         return redirect()->back()->with('success', 'Order photo uploaded successfully!');
+    }
+
+    /**
+     * Send notification email when order photo is uploaded.
+     */
+    private function sendOrderPhotoUploadedNotification(Order $order)
+    {
+        try {
+            $user = $order->user; // The user who placed the order
+            if ($user && $user->email && $this->shouldSendEmail('photo_uploaded', $order->id, $user->email)) {
+                $markReadyUrl = route('orders.mark.ready', $order->id);
+                \Mail::to($user->email)->send(new OrderPhotoUploadedNotification($order, $markReadyUrl));
+                
+                Log::info('Order photo upload notification sent to: ' . $user->email . ' for Order #' . $order->id);
+            } else {
+                Log::warning('No user or email found for Order #' . $order->id . ' photo upload notification, or email was throttled');
+            }
+        } catch (\Exception $e) {
+            Log::error('Failed to send order photo upload notification for Order #' . $order->id . ': ' . $e->getMessage());
+        }
     }
 
     /**
@@ -1654,27 +1760,25 @@ class OrderController extends Controller
             $sentTo = [];
             $emailSendSuccess = false;
             
-            // Try to send via Laravel's mail system first
-            try {
-                // Send to users who opted in
-                foreach ($notificationUsers as $user) {
-                    if ($user->email) {
+            // Send to users who opted in, with individual throttling
+            foreach ($notificationUsers as $user) {
+                if ($user->email && $this->shouldSendEmail('product_update', $order->id, $user->email)) {
+                    try {
                         Mail::to($user->email)->send($mail);
                         $sentTo[] = $user->email . ' (' . $user->department . ')';
+                        $emailSendSuccess = true;
+                    } catch (\Exception $e) {
+                        // Log error but don't interrupt the process
+                        Log::error('Error sending product update notification to ' . $user->email . ': ' . $e->getMessage());
                     }
                 }
-                $emailSendSuccess = true;
-                Log::info('Laravel mail system successfully sent product update emails');
-            } catch (\Exception $e) {
-                // Log error but don't interrupt the process
-                Log::error('Error sending product update notification: ' . $e->getMessage());
             }
             
             // Log successful email sending
             if (count($sentTo) > 0) {
                 Log::info('Product update notification emails sent to: ' . implode(', ', $sentTo));
             } else {
-                Log::warning('No product update notification emails sent: No recipients found or all mail methods failed');
+                Log::warning('No product update notification emails sent: No recipients found or all emails throttled');
             }
         } catch (\Exception $e) {
             // Log error but don't interrupt the process

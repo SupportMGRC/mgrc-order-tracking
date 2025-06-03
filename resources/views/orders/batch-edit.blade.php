@@ -29,6 +29,17 @@
 </div>
 @endif
 
+@if ($errors->any())
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <ul class="mb-0">
+        @foreach ($errors->all() as $error)
+            <li>{{ $error }}</li>
+        @endforeach
+    </ul>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+@endif
+
 <div class="row">
     <!-- Batch Information Card -->
     <div class="col-xl-12">
@@ -46,7 +57,7 @@
                         </div>
                         <div class="flex-grow-1">
                             <h5 class="alert-heading">Assign Batch Information</h5>
-                            <p class="mb-0">Please assign batch details for each product in this order.</p>
+                            <p class="mb-0">Please assign batch details for each product unit in this order.</p>
                         </div>
                     </div>
                 </div>
@@ -58,7 +69,7 @@
                             <thead class="table-light">
                                 <tr>
                                     <th scope="col">Product</th>
-                                    <th scope="col">Quantity</th>
+                                    <th scope="col">Unit #</th>
                                     <th scope="col">Batch Number</th>
                                     <th scope="col">Patient Name</th>
                                     <th scope="col">Remarks</th>
@@ -70,21 +81,25 @@
                                 @php
                                     $canEditBatch = Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'superadmin' || Auth::user()->department === 'Quality';
                                     $canEditQc = Auth::user()->department === 'Quality' || Auth::user()->role === 'superadmin';
+                                    $unitCounter = [];
                                 @endphp
 
                                 @foreach($order->products as $index => $product)
+                                @php
+                                    // Keep track of units for each product
+                                    $unitCounter[$product->id] = isset($unitCounter[$product->id]) ? $unitCounter[$product->id] + 1 : 1;
+                                @endphp
                                 <tr class="product-row">
                                     <td>
                                         <div class="d-flex align-items-center">
                                             <div class="flex-grow-1">
                                                 <h5 class="fs-15 mb-1">{{ $product->name }}</h5>
-                                                <input type="hidden" name="products[{{ $index }}][product_id]" value="{{ $product->id }}">
+                                                <input type="hidden" name="products[{{ $index }}][pivot_id]" value="{{ $product->pivot->id }}">
                                             </div>
                                         </div>
                                     </td>
                                     <td>
-                                        <span class="fw-medium">{{ $product->pivot->quantity }}</span>
-                                        <input type="hidden" name="products[{{ $index }}][quantity]" value="{{ $product->pivot->quantity }}">
+                                        <span class="fw-medium">{{ $unitCounter[$product->id] }}</span>
                                     </td>
                                     <td>
                                         <div class="input-group">
@@ -97,6 +112,9 @@
                                                     value="{{ $product->pivot->batch_number ?? '' }}"
                                                     placeholder="Enter batch number"
                                                     {{ !$canEditBatch ? 'disabled' : '' }}>
+                                                @if(!$canEditBatch)
+                                                    <input type="hidden" name="products[{{ $index }}][batch_number]" value="{{ $product->pivot->batch_number ?? '' }}">
+                                                @endif
                                             @endif
                                         </div>
                                     </td>
@@ -117,6 +135,9 @@
                                             value="{{ $product->pivot->qc_document_number ?? '' }}"
                                             {{ !$canEditQc ? 'disabled' : '' }}
                                             placeholder="Enter QC document number">
+                                        @if(!$canEditQc)
+                                            <input type="hidden" name="products[{{ $index }}][qc_document_number]" value="{{ $product->pivot->qc_document_number ?? '' }}">
+                                        @endif
                                     </td>
                                     <td>
                                         <input type="text" class="form-control prepared-by" id="prepared_by_{{ $index }}" 
