@@ -90,6 +90,15 @@ Route::middleware(['auth'])->group(function () {
     // Profile Routes
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
+
+    Route::post('/orders/{order}/upload-photo', [OrderController::class, 'uploadOrderPhoto'])->name('orders.upload.photo');
+
+    Route::delete('/orders/{order}/delete-photo', [OrderController::class, 'deleteOrderPhoto'])->name('orders.delete.photo');
+
+    Route::get('/orders/{order}/mark-ready-link', [OrderController::class, 'markReadyLink'])->name('orders.mark.ready');
+
+    // Order delivery date/time update route
+    Route::patch('/orders/{id}/delivery-datetime', [OrderController::class, 'updateDeliveryDateTime'])->name('orders.delivery.datetime.update');
 });
 
 

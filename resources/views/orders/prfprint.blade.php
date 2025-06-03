@@ -97,6 +97,13 @@
                             
                             <table class="w-100 mb-3">
                                 <tr>
+                                    <td width="20%" class="small-text">Delivery Address</td>
+                                    <td width="80%" class="small-text border-bottom border-dark">{{ $order->delivery_address ?? 'N/A' }}</td>
+                                </tr>
+                            </table>
+                            
+                            <table class="w-100 mb-3">
+                                <tr>
                                     <td width="20%" class="small-text">Delivery Date</td>
                                     <td width="30%" class="small-text border-bottom border-dark">{{ $order->pickup_delivery_date ? $order->pickup_delivery_date->format('d/m/Y') : 'N/A' }}</td>
                                     <td width="10%" class="small-text text-center">Delivery<br>Time</td>

@@ -160,6 +160,7 @@
                                     <th scope="col">Ready Time</th>
                                     <th scope="col">Delivery Time</th>
                                     <th scope="col">Type</th>
+                                    <th scope="col">Delivery Address</th>
                                     <th scope="col">Status</th>
                                     <th scope="col">Action</th>
                                 </tr>
@@ -223,6 +224,9 @@
                                                     <i class="ri-user-location-line align-bottom me-1"></i> Self Collect
                                                 </div>
                                             @endif
+                                        </td>
+                                        <td>
+                                            {{ $order->delivery_address ?? 'N/A' }}
                                         </td>
                                         <td>
                                             @php

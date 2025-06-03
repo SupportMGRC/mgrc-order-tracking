@@ -109,6 +109,7 @@
             </span></p>
             <p><strong>Delivery/Pickup Date:</strong> {{ \Carbon\Carbon::parse($order->pickup_delivery_date)->format('F j, Y') }}</p>
             <p><strong>Delivery Time:</strong> {{ \Carbon\Carbon::parse($order->delivery_time)->format('g:i A') }}</p>
+            <p><strong>Delivery Address:</strong> {{ $order->delivery_address ?? 'N/A' }}</p>
             <p><strong>Status:</strong> <span class="status-badge">Pending Production</span></p>
             <p><strong>Order Placed By:</strong> {{ $order->order_placed_by }}</p>
         </div>
