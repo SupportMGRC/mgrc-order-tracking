@@ -29,12 +29,11 @@ return [
     // Set to true to use the test SMTP settings above instead of .env settings
     'use_test_smtp' => false,
     
-    // Default recipients for testing (will only be used if test_mode is true)
+    // Default recipients for testing (REMOVED - causing duplicate emails)
     'test_recipients' => [
-        'cell_lab_test@example.com',
-        'quality_test@example.com',
+        // Remove all test recipients to prevent duplicate emails
     ],
     
-    // Set to true to send to test recipients only
+    // Set to true to send to test recipients only (DISABLED)
     'test_mode' => false,
 ]; 

@@ -77,10 +77,23 @@
 
     <div class="row">
         <div class="col-12">
+            <!-- Info box showing who will be recorded as placing the order -->
+            <div class="alert alert-info alert-border-left d-flex align-items-center" role="alert">
+                <i class="ri-information-line me-3 align-middle fs-16"></i>
+                <div>
+                    <strong>Order Tracking:</strong> This order will be recorded as placed by <strong>{{ Auth::user()->username }}</strong>
+                </div>
+            </div>
             <div class="card">
                 <div class="card-body checkout-tab">
                     <form action="{{ route('neworder.store') }}" method="POST" id="orderForm" novalidate>
                         @csrf
+                        
+                        <!-- Hidden field to automatically capture who placed the order -->
+                        <input type="hidden" name="order_placed_by" value="{{ Auth::user()->username }}">
+                        
+                        
+                        
                         <div class="step-arrow-nav mt-n3 mx-n3 mb-3">
                             <ul class="nav nav-pills nav-justified custom-nav bg-warning bg-opacity-75" role="tablist">
                                 <li class="nav-item" role="presentation">

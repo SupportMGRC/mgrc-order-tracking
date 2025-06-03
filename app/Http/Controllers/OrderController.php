@@ -18,6 +18,7 @@ use Illuminate\Support\Carbon;
 use App\Mail\ProductUpdateNotification;
 use App\Mail\OrderCanceledNotification;
 use App\Mail\OrderPhotoUploadedNotification;
+use Illuminate\Support\Facades\Cache;
 
 class OrderController extends Controller
 {
@@ -600,6 +601,13 @@ class OrderController extends Controller
      */
     private function sendNewOrderNotifications(Order $order)
     {
+        // Check for duplicate email sending (prevent sending same email for same order within 5 minutes)
+        $cacheKey = 'new_order_email_sent_' . $order->id;
+        if (Cache::has($cacheKey)) {
+            Log::info('Skipping duplicate new order email notification for Order #' . $order->id . ' (already sent within last 5 minutes)');
+            return;
+        }
+        
         try {
             // Load order relationships for the email
             $order->load(['customer', 'products']);
@@ -607,14 +615,10 @@ class OrderController extends Controller
             // Get users who have opted in to receive new order notifications
             $notificationUsers = User::where('receive_new_order_emails', true)->get();
             
-            // Check if we're in test mode
-            $testMode = config('mail_debug.test_mode', false);
-            if ($testMode) {
-                // Use test recipients only
-                $testRecipients = config('mail_debug.test_recipients', []);
-                if (!empty($testRecipients)) {
-                    Log::info('Using test recipients: ' . implode(', ', $testRecipients));
-                }
+            // If no users found, log warning and return
+            if ($notificationUsers->isEmpty()) {
+                Log::warning('No users found with receive_new_order_emails = true for Order #' . $order->id);
+                return;
             }
             
             // Create the email
@@ -622,13 +626,14 @@ class OrderController extends Controller
             
             // Track email recipients for logging
             $sentTo = [];
+            $emailSendSuccess = false;
             
             // Try to send via Laravel's mail system first
             try {
                 // Check if we should use test SMTP
                 $useTestSmtp = config('mail_debug.use_test_smtp', false);
                 if ($useTestSmtp) {
-                    Log::info('Using test SMTP settings');
+                    Log::info('Using test SMTP settings for product update notification');
                     // Create a custom mailer with test SMTP settings
                     $transport = (new \Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport(
                         config('mail_debug.test_smtp.host'), 
@@ -645,86 +650,32 @@ class OrderController extends Controller
                         app('events')
                     );
                     
-                    // Send using custom mailer
-                    if ($testMode && !empty($testRecipients)) {
-                        foreach ($testRecipients as $recipient) {
-                            $customMailer->to($recipient)->send($mail);
-                            $sentTo[] = $recipient . ' (Test Recipient)';
-                        }
-                    } else {
-                        // Send to users who opted in
-                        foreach ($notificationUsers as $user) {
-                            if ($user->email) {
-                                $customMailer->to($user->email)->send($mail);
-                                $sentTo[] = $user->email . ' (' . $user->department . ')';
-                            }
-                        }
-                    }
-                } else {
-                    // Use standard Laravel mail
-                    if ($testMode && !empty($testRecipients)) {
-                        foreach ($testRecipients as $recipient) {
-                            Mail::to($recipient)->send($mail);
-                            $sentTo[] = $recipient . ' (Test Recipient)';
-                        }
-                    } else {
-                        // Send to users who opted in
-                        foreach ($notificationUsers as $user) {
-                            if ($user->email) {
-                                Mail::to($user->email)->send($mail);
-                                $sentTo[] = $user->email . ' (' . $user->department . ')';
-                            }
-                        }
-                    }
-                }
-            } catch (\Exception $e) {
-                // Check if we should use PHP mail() as fallback
-                $usePhpMailFallback = config('mail_debug.use_php_mail_fallback', true);
-                if (!$usePhpMailFallback) {
-                    // Re-throw the exception if we don't want to use fallback
-                    throw $e;
-                }
-                
-                // If Laravel mail fails, try PHP mail() as fallback
-                Log::warning('Laravel mail failed, trying PHP mail() as fallback: ' . $e->getMessage());
-                
-                // Generate email content
-                $subject = '[ACTION REQUIRED] New Order #' . $order->id . ' - Delivery: ' . \Carbon\Carbon::parse($order->delivery_date)->format('d/m/Y');
-                
-                // Using view() to render the email template to a string
-                $htmlContent = view('emails.new-order', ['order' => $order])->render();
-                
-                // Log email content if enabled
-                if (config('mail_debug.log_email_content', false)) {
-                    Log::info('Email HTML content: ' . substr($htmlContent, 0, 500) . '... [truncated]');
-                }
-                
-                // Basic email headers
-                $headers = "MIME-Version: 1.0\r\n";
-                $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-                $headers .= "From: MGRC Order System <support@mgrc.com.my>\r\n";
-                $headers .= "X-Priority: 1\r\n";
-                $headers .= "X-MSMail-Priority: High\r\n";
-                $headers .= "Importance: High\r\n";
-                
-                if ($testMode && !empty($testRecipients)) {
-                    foreach ($testRecipients as $recipient) {
-                        $sent = mail($recipient, $subject, $htmlContent, $headers);
-                        if ($sent) {
-                            $sentTo[] = $recipient . ' (Test Recipient - via PHP mail)';
-                        }
-                    }
-                } else {
-                    // Send to users who opted in
+                    // Send using custom mailer to users who opted in
                     foreach ($notificationUsers as $user) {
                         if ($user->email) {
-                            $sent = mail($user->email, $subject, $htmlContent, $headers);
-                            if ($sent) {
-                                $sentTo[] = $user->email . ' (' . $user->department . ' - via PHP mail)';
-                            }
+                            $customMailer->to($user->email)->send($mail);
+                            $sentTo[] = $user->email . ' (' . $user->department . ')';
+                        }
+                    }
+                } else {
+                    // Use standard Laravel mail to users who opted in
+                    foreach ($notificationUsers as $user) {
+                        if ($user->email) {
+                            Mail::to($user->email)->send($mail);
+                            $sentTo[] = $user->email . ' (' . $user->department . ')';
                         }
                     }
                 }
+                $emailSendSuccess = true;
+                Log::info('Laravel mail system successfully sent product update emails');
+            } catch (\Exception $e) {
+                // Log error but don't interrupt the process
+                Log::error('Error sending product update notification: ' . $e->getMessage());
+            }
+            
+            // If email was sent successfully, cache the fact that we sent it (prevent duplicates for 5 minutes)
+            if ($emailSendSuccess && count($sentTo) > 0) {
+                Cache::put($cacheKey, true, 300); // 5 minutes = 300 seconds
             }
             
             // Log successful email sending
@@ -876,111 +827,6 @@ class OrderController extends Controller
     }
 
     /**
-     * Send notification email when products or quantities are updated.
-     */
-    private function sendProductUpdateNotification(Order $order, array $updatedProducts)
-    {
-        try {
-            // Skip if no changes were made
-            if (empty($updatedProducts)) {
-                return;
-            }
-            
-            // Reload order with relations
-            $order->load(['customer', 'user']);
-            
-            // Get users who have opted in to receive new order notifications
-            // Using the same recipients list as new order emails
-            $notificationUsers = User::where('receive_new_order_emails', true)->get();
-            
-            // Check if we're in test mode
-            $testMode = config('mail_debug.test_mode', false);
-            if ($testMode) {
-                // Use test recipients only
-                $testRecipients = config('mail_debug.test_recipients', []);
-                if (!empty($testRecipients)) {
-                    Log::info('Using test recipients: ' . implode(', ', $testRecipients));
-                }
-            }
-            
-            // Create the email
-            $mail = new ProductUpdateNotification($order, $updatedProducts);
-            
-            // Track email recipients for logging
-            $sentTo = [];
-            
-            // Try to send via Laravel's mail system first
-            try {
-                // Check if we should use test SMTP
-                $useTestSmtp = config('mail_debug.use_test_smtp', false);
-                if ($useTestSmtp) {
-                    Log::info('Using test SMTP settings');
-                    // Create a custom mailer with test SMTP settings
-                    $transport = (new \Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport(
-                        config('mail_debug.test_smtp.host'), 
-                        config('mail_debug.test_smtp.port'),
-                        config('mail_debug.test_smtp.encryption') === 'tls'
-                    ))
-                    ->setUsername(config('mail_debug.test_smtp.username'))
-                    ->setPassword(config('mail_debug.test_smtp.password'));
-                    
-                    $customMailer = new \Illuminate\Mail\Mailer(
-                        'smtp',
-                        new \Symfony\Component\Mailer\Mailer($transport),
-                        app('view'),
-                        app('events')
-                    );
-                    
-                    // Send using custom mailer
-                    if ($testMode && !empty($testRecipients)) {
-                        foreach ($testRecipients as $recipient) {
-                            $customMailer->to($recipient)->send($mail);
-                            $sentTo[] = $recipient . ' (Test Recipient)';
-                        }
-                    } else {
-                        // Send to users who opted in
-                        foreach ($notificationUsers as $user) {
-                            if ($user->email) {
-                                $customMailer->to($user->email)->send($mail);
-                                $sentTo[] = $user->email . ' (' . $user->department . ')';
-                            }
-                        }
-                    }
-                } else {
-                    // Use standard Laravel mail
-                    if ($testMode && !empty($testRecipients)) {
-                        foreach ($testRecipients as $recipient) {
-                            Mail::to($recipient)->send($mail);
-                            $sentTo[] = $recipient . ' (Test Recipient)';
-                        }
-                    } else {
-                        // Send to users who opted in
-                        foreach ($notificationUsers as $user) {
-                            if ($user->email) {
-                                Mail::to($user->email)->send($mail);
-                                $sentTo[] = $user->email . ' (' . $user->department . ')';
-                            }
-                        }
-                    }
-                }
-            } catch (\Exception $e) {
-                // Log error but don't interrupt the process
-                Log::error('Error sending product update notification: ' . $e->getMessage());
-            }
-            
-            // Log successful email sending
-            if (count($sentTo) > 0) {
-                Log::info('Product update notification emails sent to: ' . implode(', ', $sentTo));
-            } else {
-                Log::warning('No product update notification emails sent: No recipients found or all mail methods failed');
-            }
-        } catch (\Exception $e) {
-            // Log error but don't interrupt the process
-            Log::error('Error sending product update notification: ' . $e->getMessage());
-        }
-    }
-
-    /**
      * Display the order details page.
      */
     public function orderDetails(Order $order)
@@ -1019,26 +865,32 @@ class OrderController extends Controller
                 'prepared_by' => $request->prepared_by,
             ];
             
-            // Check permissions for batch number
-            if ($request->filled('batch_number') && $existingPivot->batch_number !== $request->batch_number) {
+            // Handle batch number permissions
+            if (isset($request->batch_number) && !empty($request->batch_number) && 
+                $existingPivot->batch_number !== $request->batch_number) {
                 if ($user->department === 'Cell Lab' || $user->department === 'Quality' || $user->role === 'superadmin') {
                     $updateData['batch_number'] = $request->batch_number;
                 } else {
                     return redirect()->back()->with('error', 'Only Cell Lab and Quality departments can edit batch numbers.');
                 }
-            } else {
+            } elseif ($existingPivot->batch_number) {
                 $updateData['batch_number'] = $existingPivot->batch_number;
+            } else {
+                $updateData['batch_number'] = $request->batch_number ?? null;
             }
             
-            // Check permissions for QC document number
-            if ($request->filled('qc_document_number') && $existingPivot->qc_document_number !== $request->qc_document_number) {
+            // Handle QC document number permissions
+            if (isset($request->qc_document_number) && !empty($request->qc_document_number) && 
+                $existingPivot->qc_document_number !== $request->qc_document_number) {
                 if ($user->department === 'Quality' || $user->role === 'superadmin') {
                     $updateData['qc_document_number'] = $request->qc_document_number;
                 } else {
                     return redirect()->back()->with('error', 'Only Quality department can edit QC document numbers.');
                 }
-            } else {
+            } elseif ($existingPivot->qc_document_number) {
                 $updateData['qc_document_number'] = $existingPivot->qc_document_number;
+            } else {
+                $updateData['qc_document_number'] = $request->qc_document_number ?? null;
             }
             
             // Update the pivot table
@@ -1187,80 +1039,56 @@ class OrderController extends Controller
         try {
             $order->load(['customer', 'products']);
             $notificationUsers = User::where('receive_new_order_emails', true)->get();
-            $testMode = config('mail_debug.test_mode', false);
-            $testRecipients = config('mail_debug.test_recipients', []);
+            
+            // If no users found, log warning and return
+            if ($notificationUsers->isEmpty()) {
+                Log::warning('No users found with receive_new_order_emails = true for order cancellation notification');
+                return;
+            }
+            
             $mail = new OrderCanceledNotification($order);
             $sentTo = [];
+            $emailSendSuccess = false;
+            
             try {
-                $useTestSmtp = config('mail_debug.use_test_smtp', false);
-                if ($useTestSmtp) {
-                    $transport = (new \Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport(
-                        config('mail_debug.test_smtp.host'), 
-                        config('mail_debug.test_smtp.port'),
-                        config('mail_debug.test_smtp.encryption') === 'tls'
-                    ))
-                    ->setUsername(config('mail_debug.test_smtp.username'))
-                    ->setPassword(config('mail_debug.test_smtp.password'));
-                    $customMailer = new \Illuminate\Mail\Mailer(
-                        'smtp',
-                        new \Symfony\Component\Mailer\Mailer($transport),
-                        app('view'),
-                        app('events')
-                    );
-                    if ($testMode && !empty($testRecipients)) {
-                        foreach ($testRecipients as $recipient) {
-                            $customMailer->to($recipient)->send($mail);
-                            $sentTo[] = $recipient . ' (Test Recipient)';
-                        }
-                    } else {
-                        foreach ($notificationUsers as $user) {
-                            if ($user->email) {
-                                $customMailer->to($user->email)->send($mail);
-                                $sentTo[] = $user->email . ' (' . $user->department . ')';
-                            }
-                        }
-                    }
-                } else {
-                    if ($testMode && !empty($testRecipients)) {
-                        foreach ($testRecipients as $recipient) {
-                            \Mail::to($recipient)->send($mail);
-                            $sentTo[] = $recipient . ' (Test Recipient)';
-                        }
-                    } else {
-                        foreach ($notificationUsers as $user) {
-                            if ($user->email) {
-                                \Mail::to($user->email)->send($mail);
-                                $sentTo[] = $user->email . ' (' . $user->department . ')';
-                            }
-                        }
+                // Send to users who opted in
+                foreach ($notificationUsers as $user) {
+                    if ($user->email) {
+                        \Mail::to($user->email)->send($mail);
+                        $sentTo[] = $user->email . ' (' . $user->department . ')';
                     }
                 }
+                $emailSendSuccess = true;
+                Log::info('Laravel mail system successfully sent cancellation emails');
             } catch (\Exception $e) {
+                Log::warning('Laravel mail failed for cancellation notification: ' . $e->getMessage());
+                
+                // Check if fallback is enabled
+                $usePhpMailFallback = config('mail_debug.use_php_mail_fallback', true);
+                if (!$usePhpMailFallback) {
+                    throw $e;
+                }
+                
                 // Fallback to PHP mail()
+                Log::info('Attempting PHP mail() fallback for cancellation notification');
                 $subject = '[CANCELED] Order #' . $order->id . ' has been canceled';
                 $htmlContent = view('emails.order-canceled', ['order' => $order])->render();
                 $headers = "MIME-Version: 1.0\r\n";
                 $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
                 $headers .= "From: MGRC Order System <support@mgrc.com.my>\r\n";
                 $headers .= "X-Priority: 1\r\n";
-                if ($testMode && !empty($testRecipients)) {
-                    foreach ($testRecipients as $recipient) {
-                        $sent = mail($recipient, $subject, $htmlContent, $headers);
+                
+                foreach ($notificationUsers as $user) {
+                    if ($user->email) {
+                        $sent = @mail($user->email, $subject, $htmlContent, $headers);
                         if ($sent) {
-                            $sentTo[] = $recipient . ' (Test Recipient - via PHP mail)';
-                        }
-                    }
-                } else {
-                    foreach ($notificationUsers as $user) {
-                        if ($user->email) {
-                            $sent = mail($user->email, $subject, $htmlContent, $headers);
-                            if ($sent) {
-                                $sentTo[] = $user->email . ' (' . $user->department . ' - via PHP mail)';
-                            }
+                            $sentTo[] = $user->email . ' (' . $user->department . ' - via PHP mail)';
+                            $emailSendSuccess = true;
                         }
                     }
                 }
             }
+            
             if (count($sentTo) > 0) {
                 \Log::info('Order #' . $order->id . ' cancel notification emails sent to: ' . implode(', ', $sentTo));
             } else {
@@ -1793,6 +1621,64 @@ class OrderController extends Controller
             DB::rollBack();
             return redirect()->back()
                 ->with('error', 'Error updating delivery date and time: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Send notification email when products or quantities are updated.
+     */
+    private function sendProductUpdateNotification(Order $order, array $updatedProducts)
+    {
+        try {
+            // Skip if no changes were made
+            if (empty($updatedProducts)) {
+                return;
+            }
+            
+            // Reload order with relations
+            $order->load(['customer', 'user']);
+            
+            // Get users who have opted in to receive new order notifications
+            $notificationUsers = User::where('receive_new_order_emails', true)->get();
+            
+            // If no users found, log warning and return
+            if ($notificationUsers->isEmpty()) {
+                Log::warning('No users found with receive_new_order_emails = true for product update notification');
+                return;
+            }
+            
+            // Create the email
+            $mail = new ProductUpdateNotification($order, $updatedProducts);
+            
+            // Track email recipients for logging
+            $sentTo = [];
+            $emailSendSuccess = false;
+            
+            // Try to send via Laravel's mail system first
+            try {
+                // Send to users who opted in
+                foreach ($notificationUsers as $user) {
+                    if ($user->email) {
+                        Mail::to($user->email)->send($mail);
+                        $sentTo[] = $user->email . ' (' . $user->department . ')';
+                    }
+                }
+                $emailSendSuccess = true;
+                Log::info('Laravel mail system successfully sent product update emails');
+            } catch (\Exception $e) {
+                // Log error but don't interrupt the process
+                Log::error('Error sending product update notification: ' . $e->getMessage());
+            }
+            
+            // Log successful email sending
+            if (count($sentTo) > 0) {
+                Log::info('Product update notification emails sent to: ' . implode(', ', $sentTo));
+            } else {
+                Log::warning('No product update notification emails sent: No recipients found or all mail methods failed');
+            }
+        } catch (\Exception $e) {
+            // Log error but don't interrupt the process
+            Log::error('Error sending product update notification: ' . $e->getMessage());
         }
     }
 }

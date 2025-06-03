@@ -160,7 +160,7 @@
                                     <th scope="col">Ready Time</th>
                                     <th scope="col">Delivery Time</th>
                                     <th scope="col">Type</th>
-                                    <th scope="col">Delivery Address</th>
+                                    {{-- <th scope="col">Delivery Address</th> --}}
                                     <th scope="col">Status</th>
                                     <th scope="col">Action</th>
                                 </tr>
@@ -225,9 +225,9 @@
                                                 </div>
                                             @endif
                                         </td>
-                                        <td>
+                                        {{-- <td>
                                             {{ $order->delivery_address ?? 'N/A' }}
-                                        </td>
+                                        </td> --}}
                                         <td>
                                             @php
                                                 $statusClass =
