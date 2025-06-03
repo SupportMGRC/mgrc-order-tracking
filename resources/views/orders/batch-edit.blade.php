@@ -95,6 +95,7 @@
                                                 <input type="text" class="form-control batch-number" id="batch_number_{{ $index }}" 
                                                     name="products[{{ $index }}][batch_number]" 
                                                     value="{{ $product->pivot->batch_number ?? '' }}"
+                                                    placeholder="Enter batch number"
                                                     {{ !$canEditBatch ? 'disabled' : '' }}>
                                             @endif
                                         </div>

@@ -814,11 +814,11 @@ class OrderController extends Controller
                 // Handle batch number permissions
                 if (isset($productData['batch_number']) && !empty($productData['batch_number']) && 
                     $existingPivot->batch_number !== $productData['batch_number']) {
-                    if ($user->department === 'Cell Lab' || $user->role === 'superadmin') {
+                    if ($user->department === 'Cell Lab' || $user->department === 'Quality' || $user->role === 'superadmin') {
                         $updateData['batch_number'] = $productData['batch_number'];
                     } else {
                         $hasErrors = true;
-                        $errorMessage = 'Only Cell Lab department can edit batch document numbers.';
+                        $errorMessage = 'Only Cell Lab and Quality departments can edit batch numbers.';
                         break;
                     }
                 } elseif ($existingPivot->batch_number) {
@@ -1021,10 +1021,10 @@ class OrderController extends Controller
             
             // Check permissions for batch number
             if ($request->filled('batch_number') && $existingPivot->batch_number !== $request->batch_number) {
-                if ($user->department === 'Cell Lab' || $user->role === 'superadmin') {
+                if ($user->department === 'Cell Lab' || $user->department === 'Quality' || $user->role === 'superadmin') {
                     $updateData['batch_number'] = $request->batch_number;
                 } else {
-                    return redirect()->back()->with('error', 'Only Cell Lab department can edit batch document numbers.');
+                    return redirect()->back()->with('error', 'Only Cell Lab and Quality departments can edit batch numbers.');
                 }
             } else {
                 $updateData['batch_number'] = $existingPivot->batch_number;
