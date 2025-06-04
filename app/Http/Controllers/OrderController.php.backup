@@ -6,64 +6,15 @@ use App\Models\Order;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\User;
-use App\Mail\NewOrderNotification;
-use App\Mail\OrderReadyNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Carbon;
-use App\Mail\ProductUpdateNotification;
-use App\Mail\OrderCanceledNotification;
-use App\Mail\OrderPhotoUploadedNotification;
-use Illuminate\Support\Facades\Cache;
 
 class OrderController extends Controller
 {
-    /**
-     * Global email throttling to prevent duplicate emails
-     * 
-     * @param string $type - Type of email (new_order, ready_order, etc.)
-     * @param int $orderId - Order ID
-     * @param string $recipientEmail - Recipient email address
-     * @param int $throttleMinutes - Minutes to throttle (default 15)
-     * @return bool - True if email should be sent, false if throttled
-     */
-    private function shouldSendEmail($type, $orderId, $recipientEmail, $throttleMinutes = 15)
-    {
-        // Create a more specific cache key to prevent conflicts
-        $cacheKey = "email_throttle_{$type}_{$orderId}_" . md5($recipientEmail . '_' . time() . '_' . uniqid());
-        $lockKey = "email_lock_{$type}_{$orderId}_" . md5($recipientEmail);
-        
-        // Use atomic lock to prevent race conditions
-        $lock = Cache::lock($lockKey, 30); // 30 second lock
-        
-        try {
-            if ($lock->get()) {
-                // Check if email was already sent recently (with longer cache key for actual throttling)
-                $throttleCacheKey = "email_sent_{$type}_{$orderId}_" . md5($recipientEmail);
-                
-                if (Cache::has($throttleCacheKey)) {
-                    $lastSent = Cache::get($throttleCacheKey);
-                    Log::info("Email throttled: {$type} for Order #{$orderId} to {$recipientEmail} (already sent at {$lastSent})");
-                    return false;
-                }
-                
-                // Set the throttle cache with timestamp
-                Cache::put($throttleCacheKey, now()->toDateTimeString(), $throttleMinutes * 60); // Convert minutes to seconds
-                Log::info("Email allowed: {$type} for Order #{$orderId} to {$recipientEmail}");
-                return true;
-            } else {
-                Log::warning("Could not acquire lock for email: {$type} for Order #{$orderId} to {$recipientEmail}");
-                return false;
-            }
-        } finally {
-            $lock->release();
-        }
-    }
-
     /**
      * Display a listing of the resource.
      */
@@ -626,9 +577,6 @@ class OrderController extends Controller
             
             DB::commit();
 
-            // Send email notifications
-            $this->sendNewOrderNotifications($order);
-
             // Redirect to the order details page
             return redirect()->route('orderdetails', $order->id)
                 ->with('success', 'Order created successfully!');
@@ -703,10 +651,10 @@ class OrderController extends Controller
                     } catch (\Exception $e) {
                         Log::warning('Laravel mail failed for new order notification to ' . $user->email . ': ' . $e->getMessage());
                         
-                        // Check if fallback is enabled AND we haven't already sent to this user
+                        // Check if fallback is enabled
                         $usePhpMailFallback = config('mail_debug.use_php_mail_fallback', true);
-                        if ($usePhpMailFallback && $this->shouldSendEmail('new_order_fallback', $order->id, $user->email, 30)) {
-                            // Fallback to PHP mail() with separate throttling
+                        if ($usePhpMailFallback) {
+                            // Fallback to PHP mail()
                             Log::info('Attempting PHP mail() fallback for new order notification to ' . $user->email);
                             $subject = '[NEW ORDER] Order #' . $order->id . ' - Delivery: ' . \Carbon\Carbon::parse($order->pickup_delivery_date)->format('d/m/Y');
                             $htmlContent = view('emails.new-order', ['order' => $order])->render();
@@ -1305,10 +1253,10 @@ class OrderController extends Controller
                     } catch (\Exception $e) {
                         Log::warning('Laravel mail failed for cancellation notification to ' . $user->email . ': ' . $e->getMessage());
                         
-                        // Check if fallback is enabled AND we haven't already sent to this user
+                        // Check if fallback is enabled
                         $usePhpMailFallback = config('mail_debug.use_php_mail_fallback', true);
-                        if ($usePhpMailFallback && $this->shouldSendEmail('cancel_order_fallback', $order->id, $user->email, 30)) {
-                            // Fallback to PHP mail() with separate throttling
+                        if ($usePhpMailFallback) {
+                            // Fallback to PHP mail()
                             Log::info('Attempting PHP mail() fallback for cancellation notification to ' . $user->email);
                             $subject = '[CANCELED] Order #' . $order->id . ' has been canceled';
                             $htmlContent = view('emails.order-canceled', ['order' => $order])->render();
@@ -1384,33 +1332,6 @@ class OrderController extends Controller
     }
 
     /**
-     * Clear email cache for specific order and type (utility method for debugging)
-     * 
-     * @param string $type - Type of email (new_order, ready_order, etc.)
-     * @param int $orderId - Order ID
-     * @param string $recipientEmail - Recipient email address (optional)
-     * @return bool
-     */
-    private function clearEmailCache($type, $orderId, $recipientEmail = null)
-    {
-        if ($recipientEmail) {
-            $throttleCacheKey = "email_sent_{$type}_{$orderId}_" . md5($recipientEmail);
-            $lockKey = "email_lock_{$type}_{$orderId}_" . md5($recipientEmail);
-            
-            Cache::forget($throttleCacheKey);
-            Cache::forget($lockKey);
-            
-            Log::info("Cleared email cache for {$type} Order #{$orderId} to {$recipientEmail}");
-            return true;
-        } else {
-            // Clear all email caches for this order type and ID
-            // This is more complex and would require cache key enumeration
-            Log::info("Email cache clear requested for {$type} Order #{$orderId} (all recipients)");
-            return false; // Not implemented for security reasons
-        }
-    }
-
-    /**
      * Send notifications to users who opted in for order ready notifications.
      * 
      * @param Order $order
@@ -1444,25 +1365,6 @@ class OrderController extends Controller
                         Log::info('Order ready notification sent to: ' . $user->email);
                     } catch (\Exception $e) {
                         Log::error('Failed to send order ready email to ' . $user->email . ': ' . $e->getMessage());
-                        
-                        // Check if fallback is enabled AND we haven't already sent to this user
-                        $usePhpMailFallback = config('mail_debug.use_php_mail_fallback', true);
-                        if ($usePhpMailFallback && $this->shouldSendEmail('ready_order_fallback', $order->id, $user->email, 30)) {
-                            // Fallback to PHP mail() with separate throttling
-                            Log::info('Attempting PHP mail() fallback for ready order notification to ' . $user->email);
-                            $subject = '[ORDER READY] Order #' . $order->id . ' is ready for collection/delivery';
-                            $htmlContent = view('emails.order-ready', ['order' => $order])->render();
-                            $headers = "MIME-Version: 1.0\r\n";
-                            $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-                            $headers .= "From: MGRC Order System <support@mgrc.com.my>\r\n";
-                            $headers .= "X-Priority: 1\r\n";
-                            
-                            $sent = @mail($user->email, $subject, $htmlContent, $headers);
-                            if ($sent) {
-                                $sentTo[] = $user->email . ' (' . $user->department . ' - via PHP mail)';
-                                $emailSendSuccess = true;
-                            }
-                        }
                     }
                 }
             }
@@ -1902,25 +1804,6 @@ class OrderController extends Controller
                     Log::info('Order photo upload notification sent to order creator: ' . $order->user->email . ' for Order #' . $order->id);
                 } catch (\Exception $e) {
                     Log::error('Error sending photo upload notification to order creator: ' . $e->getMessage());
-                    
-                    // Fallback to PHP mail() for order creator
-                    $usePhpMailFallback = config('mail_debug.use_php_mail_fallback', true);
-                    if ($usePhpMailFallback && $this->shouldSendEmail('photo_uploaded_fallback', $order->id, $order->user->email, 30)) {
-                        Log::info('Attempting PHP mail() fallback for photo upload notification to order creator: ' . $order->user->email);
-                        $subject = '[PHOTO UPLOADED] Order #' . $order->id . ' - Photo uploaded, ready to mark as ready';
-                        $htmlContent = view('emails.order-photo-uploaded', ['order' => $order, 'markReadyUrl' => $markReadyUrl])->render();
-                        $headers = "MIME-Version: 1.0\r\n";
-                        $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-                        $headers .= "From: MGRC Order System <support@mgrc.com.my>\r\n";
-                        $headers .= "X-Priority: 1\r\n";
-                        
-                        $sent = @mail($order->user->email, $subject, $htmlContent, $headers);
-                        if ($sent) {
-                            $sentTo[] = $order->user->email . ' (Order Creator - via PHP mail)';
-                            $emailsSent[] = $order->user->email;
-                            $emailSendSuccess = true;
-                        }
-                    }
                 }
             }
             
@@ -1936,25 +1819,6 @@ class OrderController extends Controller
                         Log::info('Order photo upload notification sent to order placer: ' . $placedByUser->email . ' for Order #' . $order->id);
                     } catch (\Exception $e) {
                         Log::error('Error sending photo upload notification to order placer: ' . $e->getMessage());
-                        
-                        // Fallback to PHP mail() for order placer
-                        $usePhpMailFallback = config('mail_debug.use_php_mail_fallback', true);
-                        if ($usePhpMailFallback && $this->shouldSendEmail('photo_uploaded_fallback', $order->id, $placedByUser->email, 30)) {
-                            Log::info('Attempting PHP mail() fallback for photo upload notification to order placer: ' . $placedByUser->email);
-                            $subject = '[PHOTO UPLOADED] Order #' . $order->id . ' - Photo uploaded, ready to mark as ready';
-                            $htmlContent = view('emails.order-photo-uploaded', ['order' => $order, 'markReadyUrl' => $markReadyUrl])->render();
-                            $headers = "MIME-Version: 1.0\r\n";
-                            $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-                            $headers .= "From: MGRC Order System <support@mgrc.com.my>\r\n";
-                            $headers .= "X-Priority: 1\r\n";
-                            
-                            $sent = @mail($placedByUser->email, $subject, $htmlContent, $headers);
-                            if ($sent) {
-                                $sentTo[] = $placedByUser->email . ' (Order Placed By - via PHP mail)';
-                                $emailsSent[] = $placedByUser->email;
-                                $emailSendSuccess = true;
-                            }
-                        }
                     }
                 }
             }
@@ -1971,25 +1835,6 @@ class OrderController extends Controller
                         $emailSendSuccess = true;
                     } catch (\Exception $e) {
                         Log::error('Error sending photo upload notification to ' . $user->email . ': ' . $e->getMessage());
-                        
-                        // Fallback to PHP mail() for general users
-                        $usePhpMailFallback = config('mail_debug.use_php_mail_fallback', true);
-                        if ($usePhpMailFallback && $this->shouldSendEmail('photo_uploaded_general_fallback', $order->id, $user->email, 30)) {
-                            Log::info('Attempting PHP mail() fallback for photo upload notification to: ' . $user->email);
-                            $subject = '[PHOTO UPLOADED] Order #' . $order->id . ' - Photo uploaded, ready to mark as ready';
-                            $htmlContent = view('emails.order-photo-uploaded', ['order' => $order, 'markReadyUrl' => $markReadyUrl])->render();
-                            $headers = "MIME-Version: 1.0\r\n";
-                            $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-                            $headers .= "From: MGRC Order System <support@mgrc.com.my>\r\n";
-                            $headers .= "X-Priority: 1\r\n";
-                            
-                            $sent = @mail($user->email, $subject, $htmlContent, $headers);
-                            if ($sent) {
-                                $sentTo[] = $user->email . ' (' . $user->department . ' - via PHP mail)';
-                                $emailsSent[] = $user->email;
-                                $emailSendSuccess = true;
-                            }
-                        }
                     }
                 }
             }
@@ -2151,25 +1996,6 @@ class OrderController extends Controller
                     } catch (\Exception $e) {
                         // Log error but don't interrupt the process
                         Log::error('Error sending product update notification to ' . $user->email . ': ' . $e->getMessage());
-                        
-                        // Check if fallback is enabled AND we haven't already sent to this user
-                        $usePhpMailFallback = config('mail_debug.use_php_mail_fallback', true);
-                        if ($usePhpMailFallback && $this->shouldSendEmail('product_update_fallback', $order->id, $user->email, 30)) {
-                            // Fallback to PHP mail() with separate throttling
-                            Log::info('Attempting PHP mail() fallback for product update notification to ' . $user->email);
-                            $subject = '[PRODUCT UPDATE] Order #' . $order->id . ' - Products/quantities updated';
-                            $htmlContent = view('emails.product-update', ['order' => $order, 'updatedProducts' => $updatedProducts])->render();
-                            $headers = "MIME-Version: 1.0\r\n";
-                            $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-                            $headers .= "From: MGRC Order System <support@mgrc.com.my>\r\n";
-                            $headers .= "X-Priority: 1\r\n";
-                            
-                            $sent = @mail($user->email, $subject, $htmlContent, $headers);
-                            if ($sent) {
-                                $sentTo[] = $user->email . ' (' . $user->department . ' - via PHP mail)';
-                                $emailSendSuccess = true;
-                            }
-                        }
                     }
                 }
             }
@@ -2184,56 +2010,5 @@ class OrderController extends Controller
             // Log error but don't interrupt the process
             Log::error('Error sending product update notification: ' . $e->getMessage());
         }
-    }
-
-    /**
-     * Debug method to check email cache status (for debugging purposes)
-     * 
-     * @param Request $request
-     * @return array
-     */
-    public function debugEmailCache(Request $request)
-    {
-        // Only allow superadmin to access this
-        if (Auth::user()->role !== 'superadmin') {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-        
-        $orderId = $request->get('order_id');
-        $email = $request->get('email');
-        $type = $request->get('type', 'new_order');
-        
-        if (!$orderId || !$email) {
-            return response()->json(['error' => 'order_id and email parameters required'], 400);
-        }
-        
-        $throttleCacheKey = "email_sent_{$type}_{$orderId}_" . md5($email);
-        $lockKey = "email_lock_{$type}_{$orderId}_" . md5($email);
-        
-        $result = [
-            'order_id' => $orderId,
-            'email' => $email,
-            'type' => $type,
-            'throttle_cache_key' => $throttleCacheKey,
-            'lock_cache_key' => $lockKey,
-            'is_throttled' => Cache::has($throttleCacheKey),
-            'is_locked' => Cache::has($lockKey),
-            'cache_driver' => config('cache.default'),
-            'timestamp' => now()->toDateTimeString()
-        ];
-        
-        if ($result['is_throttled']) {
-            $result['throttle_value'] = Cache::get($throttleCacheKey);
-        }
-        
-        // If clear=1 parameter is provided, clear the cache
-        if ($request->get('clear') == '1') {
-            Cache::forget($throttleCacheKey);
-            Cache::forget($lockKey);
-            $result['cache_cleared'] = true;
-            Log::info("Manual email cache clear for {$type} Order #{$orderId} to {$email}");
-        }
-        
-        return response()->json($result);
     }
 }

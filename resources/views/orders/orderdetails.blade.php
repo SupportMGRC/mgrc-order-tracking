@@ -836,6 +836,36 @@
 </div>
 @endif
 
+@if($order->status === 'delivered' || $order->status === 'cancel')
+@if($order->order_photo)
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="card-title mb-0"><i class="ri-image-line align-middle me-1 text-muted"></i> Order Photo</h5>
+    </div>
+    <div class="card-body">
+        <div class="mb-3">
+            <img src="{{ asset('storage/order_photos/' . $order->order_photo) }}" alt="Order Photo" class="img-fluid rounded shadow-sm" style="max-width: 300px; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewOrderPhotoModal">
+        </div>
+        
+        <!-- Modal for viewing order photo -->
+        <div class="modal fade" id="viewOrderPhotoModal" tabindex="-1" aria-labelledby="viewOrderPhotoModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="viewOrderPhotoModalLabel">Order Photo</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body text-center">
+                        <img src="{{ asset('storage/order_photos/' . $order->order_photo) }}" alt="Order Photo" class="img-fluid rounded shadow">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+@endif
+
 <div class="row">
     <div class="col-xl-9 col-lg-8 col-md-12">
         <div class="card">
