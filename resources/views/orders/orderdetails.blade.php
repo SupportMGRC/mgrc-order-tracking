@@ -113,6 +113,280 @@
         align-items: center;
         justify-content: center;
     }
+
+    .spinning {
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
+    /* Simple Mobile Responsive Styles */
+    @media (max-width: 768px) {
+        /* Progress bar for mobile */
+        .order-track-icon {
+            height: 40px;
+            width: 40px;
+            font-size: 16px;
+        }
+        
+        .order-track-text {
+            font-size: 12px;
+            text-align: center;
+        }
+        
+        .order-progress-bar {
+            padding: 15px 5px;
+        }
+        
+        /* Cards and content */
+        .card {
+            margin-bottom: 15px;
+        }
+        
+        .card-body {
+            padding: 15px;
+        }
+        
+        /* Buttons */
+        .btn-sm {
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+        
+        .btn {
+            margin-bottom: 8px;
+            width: 100%;
+        }
+        
+        /* Table responsive */
+        .table-responsive {
+            font-size: 14px;
+        }
+        
+        .table td, .table th {
+            padding: 8px 4px;
+            font-size: 13px;
+            word-wrap: break-word;
+        }
+        
+        /* Page title */
+        .page-title-box h4 {
+            font-size: 18px;
+        }
+        
+        .breadcrumb {
+            font-size: 12px;
+        }
+        
+        /* Badges */
+        .badge {
+            font-size: 11px;
+            padding: 4px 8px;
+        }
+        
+        /* Customer details */
+        .avatar-sm {
+            width: 32px;
+            height: 32px;
+        }
+        
+        /* Photo upload section */
+        .form-control {
+            font-size: 16px; /* Prevents zoom on iOS */
+        }
+        
+        /* Action buttons container */
+        .d-flex.gap-2 {
+            flex-direction: column;
+        }
+        
+        .d-flex.gap-2 .btn {
+            margin-bottom: 5px;
+        }
+        
+        /* Header actions */
+        .card-header .d-flex {
+            flex-direction: column;
+            align-items: stretch !important;
+        }
+        
+        .card-header .flex-shrink-0 {
+            margin-top: 10px;
+        }
+        
+        .card-header .flex-shrink-0 .btn {
+            margin-bottom: 5px;
+            margin-right: 0 !important;
+        }
+        
+        /* Status badges in header */
+        .d-sm-flex.align-items-center.justify-content-between {
+            flex-direction: column;
+            align-items: stretch !important;
+        }
+        
+        .ms-2.d-flex.align-items-center.gap-3 {
+            margin-top: 10px !important;
+            margin-left: 0 !important;
+            justify-content: center;
+            gap: 10px !important;
+        }
+        
+        /* Image display */
+        img.img-fluid {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        /* Modal improvements */
+        .modal-dialog {
+            margin: 10px;
+        }
+        
+        /* Form sections */
+        .mb-3 {
+            margin-bottom: 15px !important;
+        }
+        
+        /* Text sizing */
+        .fs-15, .fs-16 {
+            font-size: 14px !important;
+        }
+        
+        /* List items */
+        .list-unstyled li {
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        /* Delivery section for mobile */
+        .order-track-step:last-child .mt-2 {
+            margin-top: 10px !important;
+        }
+        
+        .order-track-step:last-child .text-center {
+            font-size: 11px;
+        }
+    }
+    
+    /* Extra small mobile devices */
+    @media (max-width: 576px) {
+        .order-track-text {
+            font-size: 10px;
+        }
+        
+        .order-track-icon {
+            height: 35px;
+            width: 35px;
+            font-size: 14px;
+        }
+        
+        .table td, .table th {
+            padding: 6px 2px;
+            font-size: 12px;
+        }
+        
+        .card-body {
+            padding: 10px;
+        }
+        
+        .btn-sm {
+            padding: 6px 10px;
+            font-size: 11px;
+        }
+        
+        .badge.fs-13 {
+            font-size: 10px !important;
+            padding: 3px 6px;
+        }
+    }
+
+    /* High-resolution mobile screens */
+    @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+        .mobile-file-input {
+            border-width: 1px;
+        }
+    }
+
+    /* File input styling improvements */
+    input[type="file"] {
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    input[type="file"]:hover {
+        border-color: #007bff;
+        background-color: #f8f9fa;
+    }
+
+    /* Image preview container styling */
+    #image-preview, 
+    #image-preview-2, 
+    #edit-image-preview {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 10px;
+        background-color: #f8f9fa;
+        text-align: center;
+    }
+
+    /* Upload progress styling */
+    #upload-progress, 
+    #upload-progress-2 {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        background-color: #f8f9fa;
+    }
+
+    /* Table mobile optimizations */
+    @media (max-width: 768px) {
+        .table-mobile .badge {
+            font-size: 10px;
+            padding: 2px 6px;
+        }
+        
+        .table-mobile .btn-sm {
+            padding: 4px 8px;
+            font-size: 11px;
+        }
+        
+        .table-mobile td .d-md-none {
+            margin-top: 2px;
+            padding: 2px 0;
+        }
+        
+        .fs-14 {
+            font-size: 13px !important;
+        }
+    }
+
+    /* General mobile improvements */
+    @media (max-width: 768px) {
+        .container-fluid {
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+        
+        .row {
+            margin-left: -5px;
+            margin-right: -5px;
+        }
+        
+        .row > * {
+            padding-left: 5px;
+            padding-right: 5px;
+        }
+        
+        .alert {
+            margin-bottom: 10px;
+            padding: 10px;
+            font-size: 14px;
+        }
+    }
 </style>
 <div class="row">
     <div class="col-12">
@@ -323,13 +597,34 @@
                     <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deletePhotoModal">Delete</button>
                 </div>
                 <div class="collapse" id="editPhotoForm">
-                    <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data">
+                    <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="editPhotoUploadForm">
                         @csrf
                         <div class="mb-3">
                             <label for="order_photo_edit" class="form-label">Replace Photo <span class="text-danger">*</span></label>
-                            <input type="file" class="form-control" id="order_photo_edit" name="order_photo" accept="image/*" required>
+                            <div class="position-relative">
+                                <input type="file" 
+                                       class="form-control" 
+                                       id="order_photo_edit" 
+                                       name="order_photo" 
+                                       accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
+                                       capture="environment"
+                                       required>
+                                <div class="form-text text-muted">
+                                    <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB</small>
+                                </div>
+                            </div>
+                            
+                            <!-- Image Preview for Edit -->
+                            <div id="edit-image-preview" class="mt-3" style="display: none;">
+                                <img id="edit-preview-img" src="" alt="Preview" class="img-fluid rounded shadow-sm" style="max-width: 200px; max-height: 200px;">
+                                <div class="mt-2">
+                                    <small class="text-muted">New photo preview</small>
+                                </div>
+                            </div>
                         </div>
-                        <button type="submit" class="btn btn-primary btn-sm"><i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload New Photo</button>
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload New Photo
+                        </button>
                     </form>
                 </div>
                 <!-- Modal for viewing order photo -->
@@ -372,13 +667,42 @@
                 <div class="alert alert-info mb-3">
                     <i class="ri-information-line me-2"></i> All products are ready! Please upload a photo of the completed order.
                 </div>
-                <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data">
+                <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="photoUploadForm">
                     @csrf
                     <div class="mb-3">
                         <label for="order_photo" class="form-label">Upload Photo <span class="text-danger">*</span></label>
-                        <input type="file" class="form-control" id="order_photo" name="order_photo" accept="image/*" required>
+                        <div class="position-relative">
+                            <input type="file" 
+                                   class="form-control" 
+                                   id="order_photo" 
+                                   name="order_photo" 
+                                   accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
+                                   capture="environment"
+                                   required>
+                            <div id="file-size-info" class="form-text text-muted">
+                                <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Image Preview -->
+                        <div id="image-preview" class="mt-3" style="display: none;">
+                            <img id="preview-img" src="" alt="Preview" class="img-fluid rounded shadow-sm" style="max-width: 300px; max-height: 300px;">
+                            <div class="mt-2">
+                                <small class="text-muted">Preview - Image will be uploaded when you click submit</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Upload Progress -->
+                        <div id="upload-progress" class="mt-3" style="display: none;">
+                            <div class="progress">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <small class="text-muted">Uploading photo...</small>
+                        </div>
                     </div>
-                    <button type="submit" class="btn btn-primary"><i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo</button>
+                    <button type="submit" class="btn btn-primary" id="upload-btn">
+                        <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo
+                    </button>
                 </form>
             @endif
         </div>
@@ -403,13 +727,34 @@
                 <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deletePhotoModal">Delete</button>
             </div>
             <div class="collapse" id="editPhotoForm">
-                <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data">
+                <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="editPhotoUploadForm">
                     @csrf
                     <div class="mb-3">
                         <label for="order_photo_edit" class="form-label">Replace Photo <span class="text-danger">*</span></label>
-                        <input type="file" class="form-control" id="order_photo_edit" name="order_photo" accept="image/*" required>
+                        <div class="position-relative">
+                            <input type="file" 
+                                   class="form-control" 
+                                   id="order_photo_edit" 
+                                   name="order_photo" 
+                                   accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
+                                   capture="environment"
+                                   required>
+                            <div class="form-text text-muted">
+                                <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Image Preview for Edit -->
+                        <div id="edit-image-preview" class="mt-3" style="display: none;">
+                            <img id="edit-preview-img" src="" alt="Preview" class="img-fluid rounded shadow-sm" style="max-width: 200px; max-height: 200px;">
+                            <div class="mt-2">
+                                <small class="text-muted">New photo preview</small>
+                            </div>
+                        </div>
                     </div>
-                    <button type="submit" class="btn btn-primary btn-sm"><i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload New Photo</button>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload New Photo
+                    </button>
                 </form>
             </div>
             <!-- Modal for viewing order photo -->
@@ -449,13 +794,42 @@
                 </div>
             </div>
         @else
-            <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data">
+            <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="photoUploadForm2">
                 @csrf
                 <div class="mb-3">
-                    <label for="order_photo" class="form-label">Upload Photo <span class="text-danger">*</span></label>
-                    <input type="file" class="form-control" id="order_photo" name="order_photo" accept="image/*" required>
+                    <label for="order_photo_ready" class="form-label">Upload Photo <span class="text-danger">*</span></label>
+                    <div class="position-relative">
+                        <input type="file" 
+                               class="form-control" 
+                               id="order_photo_ready" 
+                               name="order_photo" 
+                               accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
+                               capture="environment"
+                               required>
+                        <div id="file-size-info-2" class="form-text text-muted">
+                            <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Image Preview -->
+                    <div id="image-preview-2" class="mt-3" style="display: none;">
+                        <img id="preview-img-2" src="" alt="Preview" class="img-fluid rounded shadow-sm" style="max-width: 300px; max-height: 300px;">
+                        <div class="mt-2">
+                            <small class="text-muted">Preview - Image will be uploaded when you click submit</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Upload Progress -->
+                    <div id="upload-progress-2" class="mt-3" style="display: none;">
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <small class="text-muted">Uploading photo...</small>
+                    </div>
                 </div>
-                <button type="submit" class="btn btn-primary"><i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo</button>
+                <button type="submit" class="btn btn-primary" id="upload-btn-2">
+                    <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo
+                </button>
             </form>
         @endif
     </div>
@@ -463,20 +837,20 @@
 @endif
 
 <div class="row">
-    <div class="col-xl-9">
+    <div class="col-xl-9 col-lg-8 col-md-12">
         <div class="card">
             <div class="card-header">
-                <div class="d-flex align-items-center">
+                <div class="d-flex align-items-center flex-wrap">
                     <h5 class="card-title flex-grow-1 mb-0">Order #{{ $order->id }}</h5>
-                    <div class="flex-shrink-0">
-                        <a href="{{ route('orders.prf', $order->id) }}" class="btn btn-primary btn-sm me-2">
+                    <div class="flex-shrink-0 mt-2 mt-md-0">
+                        <a href="{{ route('orders.prf', $order->id) }}" class="btn btn-primary btn-sm me-2 mb-2">
                             <i class="ri-file-list-3-line align-middle me-1"></i> PRF
                         </a>
-                        <button type="button" class="btn btn-info btn-sm me-2" data-bs-toggle="modal" data-bs-target="#updateDeliveryDateTimeModal">
-                            <i class="ri-calendar-2-line align-middle me-1"></i> Update Delivery Schedule
+                        <button type="button" class="btn btn-info btn-sm me-2 mb-2" data-bs-toggle="modal" data-bs-target="#updateDeliveryDateTimeModal">
+                            <i class="ri-calendar-2-line align-middle me-1"></i> Update Schedule
                         </button>
-                        <a href="{{ route('orders.batch.edit', $order->id) }}" class="btn btn-success btn-sm">
-                            <i class="ri-settings-3-line align-middle me-1"></i> Manage All Batches
+                        <a href="{{ route('orders.batch.edit', $order->id) }}" class="btn btn-success btn-sm mb-2">
+                            <i class="ri-settings-3-line align-middle me-1"></i> Manage Batches
                         </a>
                     </div>
                 </div>
@@ -504,18 +878,18 @@
                 @endphp
 
                 <div class="table-responsive table-card">
-                    <table class="table table-nowrap align-middle table-borderless mb-0">
+                    <table class="table table-nowrap align-middle table-borderless mb-0 table-mobile">
                         <thead class="table-light text-muted">
                             <tr>
-                                <th scope="col">Product Details</th>
-                                <th scope="col">Unit #</th>
-                                <th scope="col">Batch Number</th>
-                                <th scope="col">Patient Name</th>
-                                <th scope="col">Remarks</th>
-                                <th scope="col">QC Document No.</th>
-                                <th scope="col">Prepared By</th>
+                                <th scope="col">Product</th>
+                                <th scope="col" class="d-none d-md-table-cell">Quantity</th>
+                                <th scope="col">Batch</th>
+                                <th scope="col" class="d-none d-lg-table-cell">Patient</th>
+                                <th scope="col" class="d-none d-lg-table-cell">Remarks</th>
+                                <th scope="col" class="d-none d-md-table-cell">QC Doc</th>
+                                <th scope="col" class="d-none d-lg-table-cell">Prepared By</th>
                                 @if($order->status === 'preparing' && (Auth::user()->department === 'Quality' || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin'))
-                                <th scope="col">Actions</th>
+                                <th scope="col">Status</th>
                                 @endif
                             </tr>
                         </thead>
@@ -532,11 +906,19 @@
                                 <td>
                                     <div class="d-flex">
                                         <div class="flex-grow-1">
-                                            <h5 class="fs-16"><a href="#" class="link-primary">{{ $product->name }}</a></h5>
+                                            <h5 class="fs-14 mb-1"><a href="#" class="link-primary">{{ $product->name }}</a></h5>
+                                            <div class="d-md-none">
+                                                <small class="text-muted">
+                                                    Quantity: {{ $product->pivot->quantity }}
+                                                    @if($product->pivot->patient_name)
+                                                    | Patient: {{ $product->pivot->patient_name }}
+                                                    @endif
+                                                </small>
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
-                                <td>{{ $unitCounter[$product->id] }}</td>
+                                <td class="d-none d-md-table-cell">{{ $product->pivot->quantity }}</td>
                                 <td>
                                     @if($product->pivot->batch_number)
                                         <span class="badge bg-primary">{{ $product->pivot->batch_number }}</span>
@@ -544,28 +926,28 @@
                                         <span class="badge bg-danger">Not Set</span>
                                     @endif
                                 </td>
-                                <td>
+                                <td class="d-none d-lg-table-cell">
                                     @if($product->pivot->patient_name)
                                         <span class="fw-medium">{{ $product->pivot->patient_name }}</span>
                                     @else
                                         <span class="text-muted">-</span>
                                     @endif
                                 </td>
-                                <td>
+                                <td class="d-none d-lg-table-cell">
                                     @if($product->pivot->remarks)
                                         <span class="fw-medium">{{ $product->pivot->remarks }}</span>
                                     @else
                                         <span class="text-muted">-</span>
                                     @endif
                                 </td>
-                                <td>
+                                <td class="d-none d-md-table-cell">
                                     @if($product->pivot->qc_document_number)
                                         <span class="fw-medium">{{ $product->pivot->qc_document_number }}</span>
                                     @else
                                         <span class="text-muted">-</span>
                                     @endif
                                 </td>
-                                <td>
+                                <td class="d-none d-lg-table-cell">
                                     @if($product->pivot->prepared_by)
                                         <span class="fw-medium">{{ $product->pivot->prepared_by }}</span>
                                     @else
@@ -576,11 +958,13 @@
                                 <td>
                                     @if($product->pivot->status === 'ready')
                                     <button type="button" class="btn btn-sm btn-soft-success" data-bs-toggle="modal" data-bs-target="#markProductNotReadyModal{{ $product->pivot->id }}">
-                                        <i class="ri-check-line align-middle"></i> Ready
+                                        <i class="ri-check-line align-middle d-md-none"></i>
+                                        <span class="d-none d-md-inline">Ready</span>
                                     </button>
                                     @else
                                     <button type="button" class="btn btn-sm btn-soft-danger" data-bs-toggle="modal" data-bs-target="#markProductReadyModal{{ $product->pivot->id }}">
-                                        <i class="ri-time-line align-middle"></i> Not Ready
+                                        <i class="ri-time-line align-middle d-md-none"></i>
+                                        <span class="d-none d-md-inline">Not Ready</span>
                                     </button>
                                     @endif
                                 </td>
@@ -604,7 +988,7 @@
                         }
                     @endphp
                     
-                    @if($allProductsReady && count($order->products) > 0 && (Auth::user()->department === 'Medical Affair' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin'))
+                    @if($allProductsReady && count($order->products) > 0 && (Auth::user()->department === 'Quality' || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin'))
                     <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#markOrderReadyModal">
                         <i class="ri-check-double-line align-bottom me-1"></i> Mark Order as Ready
                     </button>
@@ -632,12 +1016,12 @@
         <!--end card-->
     </div>
     <!--end col-->
-    <div class="col-xl-3">
+    <div class="col-xl-3 col-lg-4 col-md-12">
         <div class="card">
             <div class="card-header">
-                <div class="d-flex">
+                <div class="d-flex flex-wrap">
                     <h5 class="card-title flex-grow-1 mb-0">Customer Details</h5>
-                    <div class="flex-shrink-0">
+                    <div class="flex-shrink-0 mt-2 mt-md-0">
                         <a href="{{ route('customers.show', $order->customer_id) }}" class="link-secondary">View Profile</a>
                     </div>
                 </div>
@@ -1008,6 +1392,16 @@
                     }
                 }
             });
+            
+            // Initialize delivery_datetime picker for Mark as Delivered modal
+            flatpickr("#delivery_datetime", {
+                enableTime: true,
+                dateFormat: "d.m.Y H:i",
+                time_24hr: true,
+                minuteIncrement: 15,
+                allowInput: true,
+                minDate: "today"
+            });
         }
 
         // Form validation
@@ -1022,6 +1416,154 @@
                 timeDisplay.classList.remove('is-invalid');
             }
         });
+
+        // Handle product ready form submissions
+        document.querySelectorAll('.product-ready-form').forEach(function(form) {
+            form.addEventListener('submit', function(e) {
+                const button = form.querySelector('button[type="submit"]');
+                if (button) {
+                    button.disabled = true;
+                    button.innerHTML = '<i class="ri-loader-2-line spinning"></i> Processing...';
+                }
+            });
+        });
+
+        // Handle mark order ready form submission
+        const markOrderReadyForm = document.querySelector('#markOrderReadyModal form');
+        if (markOrderReadyForm) {
+            markOrderReadyForm.addEventListener('submit', function(e) {
+                const button = markOrderReadyForm.querySelector('button[type="submit"]');
+                if (button) {
+                    button.disabled = true;
+                    button.innerHTML = '<i class="ri-loader-2-line spinning"></i> Processing...';
+                }
+            });
+        }
+
+        // Enhanced Photo Upload Handling for Mobile
+        function setupPhotoUpload(fileInputId, previewId, progressId, formId) {
+            const fileInput = document.getElementById(fileInputId);
+            const preview = document.getElementById(previewId);
+            const previewImg = document.getElementById(previewId.replace('preview', 'preview-img'));
+            const progress = document.getElementById(progressId);
+            const form = document.getElementById(formId);
+
+            if (!fileInput) return;
+
+            // File selection handler
+            fileInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) {
+                    if (preview) preview.style.display = 'none';
+                    return;
+                }
+
+                // Validate file type
+                const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'];
+                if (!allowedTypes.includes(file.type)) {
+                    alert('Please select a valid image file (JPEG, PNG, GIF, WebP, or HEIC).');
+                    fileInput.value = '';
+                    if (preview) preview.style.display = 'none';
+                    return;
+                }
+
+                // Validate file size (50MB = 52428800 bytes)
+                const maxSize = 52428800; // 50MB
+                if (file.size > maxSize) {
+                    alert('File size must be less than 50MB. Please choose a smaller image or compress it.');
+                    fileInput.value = '';
+                    if (preview) preview.style.display = 'none';
+                    return;
+                }
+
+                // Show file size info
+                const sizeInfo = document.querySelector(`#${fileInputId} ~ .form-text small`);
+                if (sizeInfo) {
+                    const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+                    sizeInfo.innerHTML = `Selected: ${file.name} (${sizeMB} MB) - Ready to upload`;
+                    sizeInfo.style.color = '#28a745';
+                }
+
+                // Create image preview
+                if (preview && previewImg) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        previewImg.src = e.target.result;
+                        preview.style.display = 'block';
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            // Form submission handler
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    const file = fileInput.files[0];
+                    if (!file) {
+                        alert('Please select an image to upload.');
+                        e.preventDefault();
+                        return;
+                    }
+
+                    // Show progress and disable button
+                    const submitBtn = form.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        submitBtn.innerHTML = '<i class="ri-loader-2-line spinning"></i> Uploading...';
+                    }
+
+                    if (progress) {
+                        progress.style.display = 'block';
+                        const progressBar = progress.querySelector('.progress-bar');
+                        if (progressBar) {
+                            progressBar.style.width = '20%';
+                        }
+                    }
+
+                    // Simulate progress (since we can't track actual upload progress with standard form submission)
+                    let progressValue = 20;
+                    const progressInterval = setInterval(() => {
+                        progressValue += Math.random() * 30;
+                        if (progressValue >= 90) {
+                            progressValue = 90;
+                            clearInterval(progressInterval);
+                        }
+                        if (progress) {
+                            const progressBar = progress.querySelector('.progress-bar');
+                            if (progressBar) {
+                                progressBar.style.width = progressValue + '%';
+                            }
+                        }
+                    }, 500);
+
+                    // Clean up on form submission complete
+                    setTimeout(() => {
+                        clearInterval(progressInterval);
+                    }, 10000);
+                });
+            }
+        }
+
+        // Setup all photo upload forms
+        setupPhotoUpload('order_photo', 'image-preview', 'upload-progress', 'photoUploadForm');
+        setupPhotoUpload('order_photo_ready', 'image-preview-2', 'upload-progress-2', 'photoUploadForm2');
+        setupPhotoUpload('order_photo_edit', 'edit-image-preview', null, 'editPhotoUploadForm');
+
+        // Mobile-specific optimizations
+        if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+            // Add mobile-specific classes for better styling
+            document.querySelectorAll('input[type="file"]').forEach(input => {
+                input.classList.add('mobile-file-input');
+            });
+
+            // Improve mobile file input experience
+            document.querySelectorAll('input[type="file"]').forEach(input => {
+                input.addEventListener('click', function() {
+                    // Add visual feedback for mobile
+                    this.style.borderColor = '#007bff';
+                });
+            });
+        }
     });
 </script>
 @endsection

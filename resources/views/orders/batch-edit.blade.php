@@ -5,6 +5,60 @@
     .product-row:hover {
         background-color: #f5f5f5;
     }
+    
+    /* Mobile responsive improvements */
+    @media (max-width: 768px) {
+        .table-responsive {
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+        }
+        
+        .table th,
+        .table td {
+            min-width: 120px;
+            white-space: nowrap;
+        }
+        
+        .table th:first-child,
+        .table td:first-child {
+            min-width: 150px;
+            position: sticky;
+            left: 0;
+            background-color: #fff;
+            z-index: 2;
+        }
+        
+        .table thead th:first-child {
+            background-color: #f8f9fa;
+        }
+        
+        .form-control {
+            min-height: 44px; /* Better touch target */
+        }
+        
+        .btn {
+            min-height: 44px;
+            padding: 0.6rem 1.2rem;
+        }
+        
+        .card-body {
+            padding: 1rem;
+        }
+        
+        .alert {
+            margin-bottom: 1rem;
+        }
+        
+        .page-title-box {
+            flex-direction: column;
+            align-items: flex-start !important;
+            gap: 0.5rem;
+        }
+        
+        .breadcrumb {
+            margin-top: 0.5rem;
+        }
+    }
 </style>
 
 <div class="row">

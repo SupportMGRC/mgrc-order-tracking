@@ -19,3 +19,30 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# Handle Angular and Vue.js client side routes
+RewriteCond %{REQUEST_FILENAME} -d [OR]
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ ^$1 [N]
+
+RewriteCond %{REQUEST_URI} (\+|\s|\%20)
+RewriteRule ^(.*)$ /$1 [R=301,L]
+RewriteRule ^(.*) /index.php [L]
+
+# Increase PHP upload limits for mobile photo uploads
+php_value upload_max_filesize 50M
+php_value post_max_size 55M
+php_value memory_limit 256M
+php_value max_execution_time 300
+php_value max_input_time 300
+
+# Security headers
+Header always set X-Content-Type-Options nosniff
+Header always set X-Frame-Options DENY
+Header always set X-XSS-Protection "1; mode=block"
+
+# Cache control for images
+<FilesMatch "\.(jpg|jpeg|png|gif|webp|heic|heif)$">
+    ExpiresActive On
+    ExpiresDefault "access plus 1 month"
+</FilesMatch>

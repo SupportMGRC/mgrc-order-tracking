@@ -1001,8 +1001,83 @@ class OrderController extends Controller
             'delivery_type' => 'required|in:delivery,self_collect',
         ]);
 
-        // Parse the datetime
-        $dateTime = Carbon::createFromFormat('d.m.Y H:i', $request->delivery_datetime);
+        // Parse the datetime with flexible format handling
+        try {
+            $dateTimeString = trim($request->delivery_datetime);
+            
+            // Log the incoming datetime string for debugging
+            Log::info('Datetime parsing attempt', [
+                'original_string' => $dateTimeString,
+                'order_id' => $id,
+                'user' => Auth::user()->name
+            ]);
+            
+            // Try multiple formats to handle different flatpickr outputs
+            $formats = [
+                'd.m.Y H:i',      // 31.12.2023 15:30 (expected flatpickr format)
+                'Y-m-d H:i',      // 2023-12-31 15:30 (ISO format)
+                'd/m/Y H:i',      // 31/12/2023 15:30
+                'm/d/Y H:i',      // 12/31/2023 15:30
+                'd-m-Y H:i',      // 31-12-2023 15:30
+                'd.m.Y h:i A',    // 31.12.2023 3:30 PM
+                'd/m/Y h:i A',    // 31/12/2023 3:30 PM
+                'Y-m-d h:i A',    // 2023-12-31 3:30 PM
+                'd.m.Y H:i:s',    // 31.12.2023 15:30:00
+                'Y-m-d H:i:s',    // 2023-12-31 15:30:00
+                'Y-m-d\TH:i:s',   // ISO 8601 format
+                'Y-m-d\TH:i:s.u\Z', // ISO 8601 with microseconds
+            ];
+            
+            $dateTime = null;
+            $usedFormat = null;
+            
+            foreach ($formats as $format) {
+                try {
+                    $parsed = Carbon::createFromFormat($format, $dateTimeString);
+                    if ($parsed && $parsed->year > 1900 && $parsed->year < 2100) {
+                        $dateTime = $parsed;
+                        $usedFormat = $format;
+                        break;
+                    }
+                } catch (\Exception $e) {
+                    continue;
+                }
+            }
+            
+            // If specific formats fail, try Carbon's flexible parsing
+            if (!$dateTime) {
+                try {
+                    $dateTime = Carbon::parse($dateTimeString);
+                    $usedFormat = 'Carbon::parse()';
+                } catch (\Exception $e) {
+                    // Log the parsing failure
+                    Log::error('All datetime parsing methods failed', [
+                        'input_string' => $dateTimeString,
+                        'attempted_formats' => $formats,
+                        'carbon_parse_error' => $e->getMessage(),
+                        'order_id' => $id
+                    ]);
+                    throw new \Exception('Unable to parse the date and time. Please ensure you have selected both a valid date and time.');
+                }
+            }
+            
+            // Log successful parsing
+            Log::info('Datetime parsing successful', [
+                'input_string' => $dateTimeString,
+                'used_format' => $usedFormat,
+                'parsed_datetime' => $dateTime->format('Y-m-d H:i:s'),
+                'order_id' => $id
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Datetime parsing error in updateStatus', [
+                'error' => $e->getMessage(),
+                'input' => $request->delivery_datetime ?? 'NULL',
+                'order_id' => $id
+            ]);
+            return redirect()->back()->with('error', 'Invalid date/time format. Please select a valid date and time from the date picker. Error: ' . $e->getMessage());
+        }
         
         $order = Order::findOrFail($id);
         $order->status = 'delivered';
@@ -1050,7 +1125,7 @@ class OrderController extends Controller
                 }
                 // Set item_ready_at if not already set
                 if (!$order->item_ready_at) {
-                    $order->item_ready_at = now()->toDateString();
+                    $order->item_ready_at = now();
                 }
             }
             
@@ -1067,8 +1142,83 @@ class OrderController extends Controller
                     'delivery_type' => 'required|in:delivery,self_collect',
                 ]);
 
-                // Parse the datetime
-                $dateTime = Carbon::createFromFormat('d.m.Y H:i', $request->delivery_datetime);
+                // Parse the datetime with flexible format handling
+                try {
+                    $dateTimeString = trim($request->delivery_datetime);
+                    
+                    // Log the incoming datetime string for debugging
+                    Log::info('Datetime parsing attempt', [
+                        'original_string' => $dateTimeString,
+                        'order_id' => $id,
+                        'user' => Auth::user()->name
+                    ]);
+                    
+                    // Try multiple formats to handle different flatpickr outputs
+                    $formats = [
+                        'd.m.Y H:i',      // 31.12.2023 15:30 (expected flatpickr format)
+                        'Y-m-d H:i',      // 2023-12-31 15:30 (ISO format)
+                        'd/m/Y H:i',      // 31/12/2023 15:30
+                        'm/d/Y H:i',      // 12/31/2023 15:30
+                        'd-m-Y H:i',      // 31-12-2023 15:30
+                        'd.m.Y h:i A',    // 31.12.2023 3:30 PM
+                        'd/m/Y h:i A',    // 31/12/2023 3:30 PM
+                        'Y-m-d h:i A',    // 2023-12-31 3:30 PM
+                        'd.m.Y H:i:s',    // 31.12.2023 15:30:00
+                        'Y-m-d H:i:s',    // 2023-12-31 15:30:00
+                        'Y-m-d\TH:i:s',   // ISO 8601 format
+                        'Y-m-d\TH:i:s.u\Z', // ISO 8601 with microseconds
+                    ];
+                    
+                    $dateTime = null;
+                    $usedFormat = null;
+                    
+                    foreach ($formats as $format) {
+                        try {
+                            $parsed = Carbon::createFromFormat($format, $dateTimeString);
+                            if ($parsed && $parsed->year > 1900 && $parsed->year < 2100) {
+                                $dateTime = $parsed;
+                                $usedFormat = $format;
+                                break;
+                            }
+                        } catch (\Exception $e) {
+                            continue;
+                        }
+                    }
+                    
+                    // If specific formats fail, try Carbon's flexible parsing
+                    if (!$dateTime) {
+                        try {
+                            $dateTime = Carbon::parse($dateTimeString);
+                            $usedFormat = 'Carbon::parse()';
+                        } catch (\Exception $e) {
+                            // Log the parsing failure
+                            Log::error('All datetime parsing methods failed', [
+                                'input_string' => $dateTimeString,
+                                'attempted_formats' => $formats,
+                                'carbon_parse_error' => $e->getMessage(),
+                                'order_id' => $id
+                            ]);
+                            throw new \Exception('Unable to parse the date and time. Please ensure you have selected both a valid date and time.');
+                        }
+                    }
+                    
+                    // Log successful parsing
+                    Log::info('Datetime parsing successful', [
+                        'input_string' => $dateTimeString,
+                        'used_format' => $usedFormat,
+                        'parsed_datetime' => $dateTime->format('Y-m-d H:i:s'),
+                        'order_id' => $id
+                    ]);
+                    
+                } catch (\Exception $e) {
+                    DB::rollBack();
+                    Log::error('Datetime parsing error in updateStatus', [
+                        'error' => $e->getMessage(),
+                        'input' => $request->delivery_datetime ?? 'NULL',
+                        'order_id' => $id
+                    ]);
+                    return redirect()->back()->with('error', 'Invalid date/time format. Please select a valid date and time from the date picker. Error: ' . $e->getMessage());
+                }
                 
                 $order->delivery_type = $request->delivery_type;
                 $order->pickup_delivery_date = $dateTime->toDateString();
@@ -1197,7 +1347,7 @@ class OrderController extends Controller
             $order->status = 'ready';
             // Set item_ready_at if not already set
             if (!$order->item_ready_at) {
-                $order->item_ready_at = now()->toDateString();
+                $order->item_ready_at = now();
             }
             $order->save();
             
@@ -1569,40 +1719,98 @@ class OrderController extends Controller
      */
     public function uploadOrderPhoto(Request $request, $orderId)
     {
-        $order = Order::findOrFail($orderId);
+        try {
+            $order = Order::findOrFail($orderId);
 
-        // Check if all products are ready
-        $allProductsReady = true;
-        $totalProducts = count($order->products);
-        foreach($order->products as $product) {
-            if($product->pivot->status !== 'ready') {
-                $allProductsReady = false;
-                break;
+            // Check if all products are ready
+            $allProductsReady = true;
+            $totalProducts = count($order->products);
+            foreach($order->products as $product) {
+                if($product->pivot->status !== 'ready') {
+                    $allProductsReady = false;
+                    break;
+                }
             }
+
+            // Only allow upload if order is ready or if all products are ready in preparing status
+            if ($order->status !== 'ready' && !($order->status === 'preparing' && $allProductsReady && $totalProducts > 0)) {
+                return redirect()->back()->with('error', 'Photo can only be uploaded when all products are ready.');
+            }
+
+            // Enhanced validation with better error messages
+            $validator = Validator::make($request->all(), [
+                'order_photo' => 'required|image|mimes:jpeg,png,jpg,gif,webp,heic,heif|max:51200', // 50MB limit
+            ], [
+                'order_photo.required' => 'Please select an image to upload.',
+                'order_photo.image' => 'The uploaded file must be an image.',
+                'order_photo.mimes' => 'Image must be a JPEG, PNG, GIF, WebP, or HEIC file.',
+                'order_photo.max' => 'Image size must not exceed 50MB. Please compress your image and try again.'
+            ]);
+
+            if ($validator->fails()) {
+                return redirect()->back()
+                    ->withErrors($validator)
+                    ->withInput()
+                    ->with('error', 'Upload failed: ' . $validator->errors()->first());
+            }
+
+            $file = $request->file('order_photo');
+            
+            // Additional file validation
+            if (!$file || !$file->isValid()) {
+                return redirect()->back()->with('error', 'Invalid file upload. Please try again.');
+            }
+
+            // Check actual file size (double-check)
+            $maxFileSize = 52428800; // 50MB in bytes
+            if ($file->getSize() > $maxFileSize) {
+                return redirect()->back()->with('error', 'File size exceeds 50MB limit. Please compress your image and try again.');
+            }
+
+            // Generate unique filename with timestamp and order ID
+            $originalName = $file->getClientOriginalName();
+            $extension = $file->getClientOriginalExtension();
+            $filename = 'order_' . $order->id . '_' . time() . '_' . uniqid() . '.' . $extension;
+            
+            // Delete old photo if exists
+            if ($order->order_photo) {
+                \Storage::delete('public/order_photos/' . $order->order_photo);
+            }
+
+            // Store the uploaded photo with error handling
+            try {
+                $path = $file->storeAs('public/order_photos', $filename);
+                
+                if (!$path) {
+                    throw new \Exception('Failed to store uploaded file.');
+                }
+                
+                // Verify file was actually saved
+                if (!\Storage::exists($path)) {
+                    throw new \Exception('File upload verification failed.');
+                }
+                
+            } catch (\Exception $e) {
+                Log::error('File storage error for Order #' . $order->id . ': ' . $e->getMessage());
+                return redirect()->back()->with('error', 'Failed to save uploaded image. Please try again.');
+            }
+
+            // Update the order with the photo filename
+            $order->order_photo = $filename;
+            $order->save();
+
+            // Log successful upload
+            Log::info('Photo uploaded successfully for Order #' . $order->id . ' - File: ' . $filename . ' - Size: ' . round($file->getSize() / 1024 / 1024, 2) . 'MB');
+
+            // Send email to the user who placed the order with a Mark as Ready button
+            $this->sendOrderPhotoUploadedNotification($order);
+
+            return redirect()->back()->with('success', 'Order photo uploaded successfully! (' . round($file->getSize() / 1024 / 1024, 2) . 'MB)');
+            
+        } catch (\Exception $e) {
+            Log::error('Photo upload error for Order #' . $orderId . ': ' . $e->getMessage());
+            return redirect()->back()->with('error', 'An error occurred while uploading the photo. Please try again.');
         }
-
-        // Only allow upload if order is ready or if all products are ready in preparing status
-        if ($order->status !== 'ready' && !($order->status === 'preparing' && $allProductsReady && $totalProducts > 0)) {
-            return redirect()->back()->with('error', 'Photo can only be uploaded when all products are ready.');
-        }
-
-        $request->validate([
-            'order_photo' => 'required|image|mimes:jpeg,png,jpg,gif|max:4096',
-        ]);
-
-        // Store the uploaded photo
-        $file = $request->file('order_photo');
-        $filename = 'order_' . $order->id . '_' . time() . '.' . $file->getClientOriginalExtension();
-        $file->storeAs('public/order_photos', $filename);
-
-        // Update the order with the photo filename
-        $order->order_photo = $filename;
-        $order->save();
-
-        // Send email to the user who placed the order with a Mark as Ready button
-        $this->sendOrderPhotoUploadedNotification($order);
-
-        return redirect()->back()->with('success', 'Order photo uploaded successfully!');
     }
 
     /**
@@ -1613,7 +1821,7 @@ class OrderController extends Controller
         try {
             $user = $order->user; // The user who placed the order
             if ($user && $user->email && $this->shouldSendEmail('photo_uploaded', $order->id, $user->email)) {
-                $markReadyUrl = route('orders.mark.ready', $order->id);
+                $markReadyUrl = route('orders.mark.ready.link', $order->id);
                 \Mail::to($user->email)->send(new OrderPhotoUploadedNotification($order, $markReadyUrl));
                 
                 Log::info('Order photo upload notification sent to: ' . $user->email . ' for Order #' . $order->id);
@@ -1656,7 +1864,7 @@ class OrderController extends Controller
         if ($order->status !== 'ready') {
             $order->status = 'ready';
             if (!$order->item_ready_at) {
-                $order->item_ready_at = now()->toDateString();
+                $order->item_ready_at = now();
             }
             $order->save();
             

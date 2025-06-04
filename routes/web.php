@@ -95,7 +95,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::delete('/orders/{order}/delete-photo', [OrderController::class, 'deleteOrderPhoto'])->name('orders.delete.photo');
 
-    Route::get('/orders/{order}/mark-ready-link', [OrderController::class, 'markReadyLink'])->name('orders.mark.ready');
+    Route::get('/orders/{order}/mark-ready-link', [OrderController::class, 'markReadyLink'])->name('orders.mark.ready.link');
 
     // Order delivery date/time update route
     Route::patch('/orders/{id}/delivery-datetime', [OrderController::class, 'updateDeliveryDateTime'])->name('orders.delivery.datetime.update');

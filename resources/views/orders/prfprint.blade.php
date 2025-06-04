@@ -44,7 +44,7 @@
                         <img src="{{ asset('assets/images/mgrc/controlledcopy.png') }}" alt="Controlled Copy" class="controlled-copy-stamp">
 
                         <!-- Customer Details Section -->
-                        <div class="prf-section mb-4">
+                        <div class="prf-section mb-2">
                             <div class="fw-bold small-text">A: Customer Details</div>
                             
                             <table class="w-100 mb-3">
@@ -63,12 +63,7 @@
                                 </tr>
                             </table>
                             
-                            <table class="w-100 mb-3">
-                                <tr>
-                                    <td width="20%" class="small-text">Address</td>
-                                    <td width="80%" class="small-text border-bottom border-dark">{{ $order->customer->address ?? 'N/A' }}</td>
-                                </tr>
-                            </table>
+                            
                             
                             <table class="w-100 mb-3">
                                 <tr>
@@ -172,12 +167,12 @@
                         </div>
                         
                         <!-- Deliverables Section -->
-                        <div class="prf-section mb-4">
+                        <div class="prf-section mb-2">
                             <div class="fw-bold small-text mb-2">B: Deliverables Details (For Cell Lab usage only)</div>
                             
                             <!-- Batch Information Table -->
                             <div class="table-responsive">
-                                <table class="w-100 table-bordered mb-3">
+                                <table class="w-100 table-bordered mb-2">
                                     <thead>
                                         <tr>
                                             <th width="10%" class="small-text py-1 text-center">No</th>
@@ -209,7 +204,7 @@
                         
                         <!-- Product Collection Section -->
                         <div class="prf-section">
-                            <div class="fw-bold small-text mb-4">C: Product Collection at Lab</div>
+                            <div class="fw-bold small-text mb-2">C: Product Collection at Lab</div>
                             
                             <table class="w-100 mb-3">
                                 <tr>

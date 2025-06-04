@@ -41,7 +41,7 @@ class Order extends Model
         'order_time' => 'datetime',
         'pickup_delivery_date' => 'date',
         'pickup_delivery_time' => 'datetime',
-        'item_ready_at' => 'datetime:H:i A',
+        'item_ready_at' => 'datetime',
     ];
 
     /**
