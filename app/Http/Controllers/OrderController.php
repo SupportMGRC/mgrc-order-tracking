@@ -33,6 +33,10 @@ class OrderController extends Controller
      */
     private function shouldSendEmail($type, $orderId, $recipientEmail, $throttleMinutes = 15)
     {
+        // TEMPORARY: Block all emails
+        Log::info("Email blocked (temporary): {$type} for Order #{$orderId} to {$recipientEmail}");
+        return false;
+        
         // Create a more specific cache key to prevent conflicts
         $cacheKey = "email_throttle_{$type}_{$orderId}_" . md5($recipientEmail . '_' . time() . '_' . uniqid());
         $lockKey = "email_lock_{$type}_{$orderId}_" . md5($recipientEmail);
