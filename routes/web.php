@@ -82,7 +82,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/calendar', [HomeController::class, 'index'])->name('dashboard');
 
     Route::post('order-batch-update/{id}', [OrderController::class, 'updateBatch'])->name('orders.update.batch');
-    Route::patch('orders/{id}/status', [OrderController::class, 'updateStatus'])->name('orders.update.status');
     
     // Email testing route - admin only
     Route::get('/test-email', [OrderController::class, 'testEmailNotification'])->middleware('role:admin,superadmin');
