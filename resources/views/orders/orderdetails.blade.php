@@ -607,7 +607,6 @@
                                        id="order_photo_edit" 
                                        name="order_photo" 
                                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
-                                       capture="environment"
                                        required>
                                 <div class="form-text text-muted">
                                     <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB</small>
@@ -677,7 +676,6 @@
                                    id="order_photo" 
                                    name="order_photo" 
                                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
-                                   capture="environment"
                                    required>
                             <div id="file-size-info" class="form-text text-muted">
                                 <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB</small>
@@ -737,7 +735,6 @@
                                    id="order_photo_edit" 
                                    name="order_photo" 
                                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
-                                   capture="environment"
                                    required>
                             <div class="form-text text-muted">
                                 <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB</small>
@@ -804,7 +801,6 @@
                                id="order_photo_ready" 
                                name="order_photo" 
                                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
-                               capture="environment"
                                required>
                         <div id="file-size-info-2" class="form-text text-muted">
                             <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB</small>
