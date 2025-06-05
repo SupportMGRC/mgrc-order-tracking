@@ -46,8 +46,27 @@ class ProductUpdateNotification extends Mailable
      */
     public function envelope()
     {
+        // Check if this is a delivery update
+        $isDeliveryUpdate = false;
+        foreach ($this->updatedProducts as $product) {
+            if ($product['name'] === 'Delivery Schedule') {
+                $isDeliveryUpdate = true;
+                break;
+            }
+        }
+
+        $subject = $isDeliveryUpdate 
+            ? "[DELIVERY UPDATED] Order #{$this->order->id} - Schedule Changed"
+            : "[PRODUCT UPDATED] Order #{$this->order->id} - Products/Quantities Changed";
+
         return new Envelope(
-            subject: "[PRODUCT UPDATED] Order #{$this->order->id} - Products/Quantities Changed",
+            from: new \Illuminate\Mail\Mailables\Address(config('mail.from.address', 'support@mgrc.com'), config('mail.from.name', 'MGRC Order System')),
+            subject: $subject,
+            tags: ['order', 'update'],
+            metadata: [
+                'order_id' => $this->order->id,
+                'update_type' => $isDeliveryUpdate ? 'delivery' : 'product',
+            ]
         );
     }
 

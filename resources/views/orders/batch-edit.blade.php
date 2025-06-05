@@ -123,7 +123,7 @@
                             <thead class="table-light">
                                 <tr>
                                     <th scope="col">Product</th>
-                                    <th scope="col">Unit #</th>
+                                    <th scope="col">Quantity</th>
                                     <th scope="col">Batch Number</th>
                                     <th scope="col">Patient Name</th>
                                     <th scope="col">Remarks</th>
@@ -135,14 +135,9 @@
                                 @php
                                     $canEditBatch = Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'superadmin' || Auth::user()->department === 'Quality';
                                     $canEditQc = Auth::user()->department === 'Quality' || Auth::user()->role === 'superadmin';
-                                    $unitCounter = [];
                                 @endphp
 
                                 @foreach($order->products as $index => $product)
-                                @php
-                                    // Keep track of units for each product
-                                    $unitCounter[$product->id] = isset($unitCounter[$product->id]) ? $unitCounter[$product->id] + 1 : 1;
-                                @endphp
                                 <tr class="product-row">
                                     <td>
                                         <div class="d-flex align-items-center">
@@ -153,7 +148,7 @@
                                         </div>
                                     </td>
                                     <td>
-                                        <span class="fw-medium">{{ $unitCounter[$product->id] }}</span>
+                                        <span class="fw-medium">{{ $product->pivot->quantity }}</span>
                                     </td>
                                     <td>
                                         <div class="input-group">

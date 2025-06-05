@@ -70,6 +70,15 @@
             border-radius: 3px;
             font-weight: bold;
         }
+        .button {
+            display: inline-block;
+            background-color: #f0ad4e;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
     </style>
 </head>
 <body>
@@ -91,7 +100,12 @@
             <p><strong>Order Date:</strong> {{ \Carbon\Carbon::parse($order->order_date)->format('F j, Y') }} {{ \Carbon\Carbon::parse($order->order_time)->format('g:i A') }}</p>
             <p><strong>Status:</strong> <span class="status-badge">Canceled</span></p>
         </div>
-        <p>If you have any questions regarding this cancellation, please contact the system administrator.</p>
+        <p>If you have any questions regarding this cancellation, please contact the system administrator. You can view the full order details by clicking the button below:</p>
+        
+        <div style="text-align: center;">
+            <a href="{{ route('orderdetails', $order->id) }}" class="button">View Order Details</a>
+        </div>
+        
         <div class="footer">
             <p>This is an automated message. Please do not reply to this email.</p>
         </div>

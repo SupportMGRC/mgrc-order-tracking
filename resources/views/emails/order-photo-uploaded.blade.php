@@ -110,6 +110,15 @@
         .product-list li:last-child {
             border-bottom: none;
         }
+        .button {
+            display: inline-block;
+            background-color: #f0ad4e;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
     </style>
 </head>
 <body>
@@ -149,6 +158,7 @@
 
         <div style="text-align: center;">
             <a href="{{ $markReadyUrl }}" class="btn-primary">Mark as Ready</a>
+            <a href="{{ route('orderdetails', $order->id) }}" class="button">View Order Details</a>
         </div>
 
         <p>Thank you,<br>MGRC Order Management System</p>

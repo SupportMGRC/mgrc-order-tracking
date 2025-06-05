@@ -6,68 +6,15 @@ use App\Models\Order;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\User;
-use App\Mail\NewOrderNotification;
-use App\Mail\OrderReadyNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Carbon;
-use App\Mail\ProductUpdateNotification;
-use App\Mail\OrderCanceledNotification;
-use App\Mail\OrderPhotoUploadedNotification;
-use Illuminate\Support\Facades\Cache;
 
 class OrderController extends Controller
 {
-    /**
-     * Global email throttling to prevent duplicate emails
-     * 
-     * @param string $type - Type of email (new_order, ready_order, etc.)
-     * @param int $orderId - Order ID
-     * @param string $recipientEmail - Recipient email address
-     * @param int $throttleMinutes - Minutes to throttle (default 15)
-     * @return bool - True if email should be sent, false if throttled
-     */
-    private function shouldSendEmail($type, $orderId, $recipientEmail, $throttleMinutes = 15)
-    {
-        // TEMPORARY: Block all emails
-        Log::info("Email blocked (temporary): {$type} for Order #{$orderId} to {$recipientEmail}");
-        return false;
-        
-        // Create a more specific cache key to prevent conflicts
-        $cacheKey = "email_throttle_{$type}_{$orderId}_" . md5($recipientEmail . '_' . time() . '_' . uniqid());
-        $lockKey = "email_lock_{$type}_{$orderId}_" . md5($recipientEmail);
-        
-        // Use atomic lock to prevent race conditions
-        $lock = Cache::lock($lockKey, 30); // 30 second lock
-        
-        try {
-            if ($lock->get()) {
-                // Check if email was already sent recently (with longer cache key for actual throttling)
-                $throttleCacheKey = "email_sent_{$type}_{$orderId}_" . md5($recipientEmail);
-                
-                if (Cache::has($throttleCacheKey)) {
-                    $lastSent = Cache::get($throttleCacheKey);
-                    Log::info("Email throttled: {$type} for Order #{$orderId} to {$recipientEmail} (already sent at {$lastSent})");
-                    return false;
-                }
-                
-                // Set the throttle cache with timestamp
-                Cache::put($throttleCacheKey, now()->toDateTimeString(), $throttleMinutes * 60); // Convert minutes to seconds
-                Log::info("Email allowed: {$type} for Order #{$orderId} to {$recipientEmail}");
-                return true;
-            } else {
-                Log::warning("Could not acquire lock for email: {$type} for Order #{$orderId} to {$recipientEmail}");
-                return false;
-            }
-        } finally {
-            $lock->release();
-        }
-    }
-
     /**
      * Display a listing of the resource.
      */
@@ -167,15 +114,13 @@ class OrderController extends Controller
                 $product->stock -= $productData['quantity'];
                 $product->save();
                 
-                // Create separate records for each unit
-                for ($i = 0; $i < $productData['quantity']; $i++) {
-                    $order->products()->attach($product->id, [
-                        'quantity' => 1,
-                        'batch_number' => $productData['batch_number'] ?? null,
-                        'patient_name' => $productData['patient_name'] ?? null,
-                        'remarks' => $productData['remarks'] ?? null,
-                    ]);
-                }
+                // Create single record with actual quantity
+                $order->products()->attach($product->id, [
+                    'quantity' => $productData['quantity'],
+                    'batch_number' => $productData['batch_number'] ?? null,
+                    'patient_name' => $productData['patient_name'] ?? null,
+                    'remarks' => $productData['remarks'] ?? null,
+                ]);
             }
             
             DB::commit();
@@ -280,15 +225,13 @@ class OrderController extends Controller
                     $product->stock -= $productData['quantity'];
                     $product->save();
                     
-                    // Create separate records for each unit
-                    for ($i = 0; $i < $productData['quantity']; $i++) {
-                        $order->products()->attach($product->id, [
-                            'quantity' => 1,
-                            'batch_number' => $productData['batch_number'] ?? null,
-                            'patient_name' => $productData['patient_name'] ?? null,
-                            'remarks' => $productData['remarks'] ?? null,
-                        ]);
-                    }
+                    // Create single record with actual quantity
+                    $order->products()->attach($product->id, [
+                        'quantity' => $productData['quantity'],
+                        'batch_number' => $productData['batch_number'] ?? null,
+                        'patient_name' => $productData['patient_name'] ?? null,
+                        'remarks' => $productData['remarks'] ?? null,
+                    ]);
                 }
             }
             
@@ -333,7 +276,8 @@ class OrderController extends Controller
                     ->with('success', 'Order deleted successfully.');
             }
             
-            return redirect()->route('orders.index')
+            // Default to order history page for "All Orders" section
+            return redirect()->route('orderhistory')
                 ->with('success', 'Order deleted successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -618,20 +562,19 @@ class OrderController extends Controller
                 $productModel->stock -= $product['quantity'];
                 $productModel->save();
                 
-                // Create separate records for each unit
-                for ($i = 0; $i < $product['quantity']; $i++) {
-                    $order->products()->attach($productModel->id, [
-                        'quantity' => 1,
-                        'patient_name' => isset($product['patient_name']) ? $product['patient_name'] : null,
-                        'remarks' => isset($product['remarks']) ? $product['remarks'] : null,
-                    ]);
-                }
+                // Create single record with actual quantity
+                $order->products()->attach($productModel->id, [
+                    'quantity' => $product['quantity'],
+                    'patient_name' => isset($product['patient_name']) ? $product['patient_name'] : null,
+                    'remarks' => isset($product['remarks']) ? $product['remarks'] : null,
+                ]);
             }
             
             DB::commit();
 
-            // Send email notifications
-            $this->sendNewOrderNotifications($order);
+            // Send new order notification emails
+            $emailController = new EmailController();
+            $emailController->sendNewOrderNotification($order);
 
             // Redirect to the order details page
             return redirect()->route('orderdetails', $order->id)
@@ -644,106 +587,7 @@ class OrderController extends Controller
         }
     }
 
-    /**
-     * Send email notifications for new orders
-     * 
-     * @param \App\Models\Order $order
-     * @return void
-     */
-    private function sendNewOrderNotifications(Order $order)
-    {
-        try {
-            // Load order relationships for the email
-            $order->load(['customer', 'products']);
-            
-            // Get users who have opted in to receive new order notifications
-            $notificationUsers = User::where('receive_new_order_emails', true)->get();
-            
-            // If no users found, log warning and return
-            if ($notificationUsers->isEmpty()) {
-                Log::warning('No users found with receive_new_order_emails = true for Order #' . $order->id);
-                return;
-            }
-            
-            // Create the email
-            $mail = new NewOrderNotification($order);
-            
-            // Track email recipients for logging
-            $sentTo = [];
-            $emailSendSuccess = false;
-            
-            // Send to users who opted in, with individual throttling
-            foreach ($notificationUsers as $user) {
-                if ($user->email && $this->shouldSendEmail('new_order', $order->id, $user->email)) {
-                    try {
-                        // Check if we should use test SMTP
-                        $useTestSmtp = config('mail_debug.use_test_smtp', false);
-                        if ($useTestSmtp) {
-                            Log::info('Using test SMTP settings for new order notification');
-                            // Create a custom mailer with test SMTP settings
-                            $transport = (new \Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport(
-                                config('mail_debug.test_smtp.host'), 
-                                config('mail_debug.test_smtp.port'),
-                                config('mail_debug.test_smtp.encryption') === 'tls'
-                            ))
-                            ->setUsername(config('mail_debug.test_smtp.username'))
-                            ->setPassword(config('mail_debug.test_smtp.password'));
-                            
-                            $customMailer = new \Illuminate\Mail\Mailer(
-                                'smtp',
-                                new \Symfony\Component\Mailer\Mailer($transport),
-                                app('view'),
-                                app('events')
-                            );
-                            
-                            $customMailer->to($user->email)->send($mail);
-                        } else {
-                            // Use standard Laravel mail
-                            Mail::to($user->email)->send($mail);
-                        }
-                        
-                        $sentTo[] = $user->email . ' (' . $user->department . ')';
-                        $emailSendSuccess = true;
-                    } catch (\Exception $e) {
-                        Log::warning('Laravel mail failed for new order notification to ' . $user->email . ': ' . $e->getMessage());
-                        
-                        // Check if fallback is enabled AND we haven't already sent to this user
-                        $usePhpMailFallback = config('mail_debug.use_php_mail_fallback', true);
-                        if ($usePhpMailFallback && $this->shouldSendEmail('new_order_fallback', $order->id, $user->email, 30)) {
-                            // Fallback to PHP mail() with separate throttling
-                            Log::info('Attempting PHP mail() fallback for new order notification to ' . $user->email);
-                            $subject = '[NEW ORDER] Order #' . $order->id . ' - Delivery: ' . \Carbon\Carbon::parse($order->pickup_delivery_date)->format('d/m/Y');
-                            $htmlContent = view('emails.new-order', ['order' => $order])->render();
-                            $headers = "MIME-Version: 1.0\r\n";
-                            $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-                            $headers .= "From: MGRC Order System <support@mgrc.com.my>\r\n";
-                            $headers .= "X-Priority: 1\r\n";
-                            
-                            $sent = @mail($user->email, $subject, $htmlContent, $headers);
-                            if ($sent) {
-                                $sentTo[] = $user->email . ' (' . $user->department . ' - via PHP mail)';
-                                $emailSendSuccess = true;
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Log successful email sending
-            if (count($sentTo) > 0) {
-                Log::info('Order #' . $order->id . ' notification emails sent to: ' . implode(', ', $sentTo));
-            } else {
-                Log::warning('No notification emails sent for Order #' . $order->id . ': No recipients found or all emails throttled');
-            }
-        } catch (\Exception $e) {
-            // Log detailed error but don't stop the process
-            Log::error('Failed to send order notification email for Order #' . $order->id . ': ' . $e->getMessage(), [
-                'order_id' => $order->id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-        }
-    }
+
 
     /**
      * Show the form for editing batch information.
@@ -1252,25 +1096,19 @@ class OrderController extends Controller
             $order->status = $request->status;
             $order->save();
             
-            // If the status changed to 'ready', send notifications
-            if ($oldStatus !== 'ready' && $request->status === 'ready') {
-                $order->load(['customer', 'products']);
-                $this->sendOrderReadyNotifications($order);
-            }
-            
-            // If the status changed to 'new', send new order notifications 
-            if ($oldStatus !== 'new' && $request->status === 'new') {
-                $order->load(['customer', 'products']);
-                $this->sendNewOrderNotifications($order);
+            DB::commit();
+
+            // Send order cancellation notification emails if status changed to cancel
+            if ($request->status === 'cancel' && $oldStatus !== 'cancel') {
+                $emailController = new EmailController();
+                $emailController->sendOrderCanceledNotification($order);
             }
 
-            // If the status changed to 'cancel', send cancel notifications
-            if ($oldStatus !== 'cancel' && $request->status === 'cancel') {
-                $order->load(['customer', 'products']);
-                $this->sendOrderCanceledNotification($order);
+            // Send order ready notification emails if status changed to ready
+            if ($request->status === 'ready' && $oldStatus !== 'ready') {
+                $emailController = new EmailController();
+                $emailController->sendOrderReadyNotification($order);
             }
-            
-            DB::commit();
 
             $statusMessage = ucfirst($request->status);
             return redirect()->back()->with('success', "Order marked as {$statusMessage} successfully!");
@@ -1280,70 +1118,7 @@ class OrderController extends Controller
         }
     }
 
-    /**
-     * Send notification email when order is canceled.
-     */
-    private function sendOrderCanceledNotification(Order $order)
-    {
-        try {
-            $order->load(['customer', 'products']);
-            $notificationUsers = User::where('receive_new_order_emails', true)->get();
-            
-            // If no users found, log warning and return
-            if ($notificationUsers->isEmpty()) {
-                Log::warning('No users found with receive_new_order_emails = true for order cancellation notification');
-                return;
-            }
-            
-            $mail = new OrderCanceledNotification($order);
-            $sentTo = [];
-            $emailSendSuccess = false;
-            
-            // Send to users who opted in, with individual throttling
-            foreach ($notificationUsers as $user) {
-                if ($user->email && $this->shouldSendEmail('cancel_order', $order->id, $user->email)) {
-                    try {
-                        \Mail::to($user->email)->send($mail);
-                        $sentTo[] = $user->email . ' (' . $user->department . ')';
-                        $emailSendSuccess = true;
-                    } catch (\Exception $e) {
-                        Log::warning('Laravel mail failed for cancellation notification to ' . $user->email . ': ' . $e->getMessage());
-                        
-                        // Check if fallback is enabled AND we haven't already sent to this user
-                        $usePhpMailFallback = config('mail_debug.use_php_mail_fallback', true);
-                        if ($usePhpMailFallback && $this->shouldSendEmail('cancel_order_fallback', $order->id, $user->email, 30)) {
-                            // Fallback to PHP mail() with separate throttling
-                            Log::info('Attempting PHP mail() fallback for cancellation notification to ' . $user->email);
-                            $subject = '[CANCELED] Order #' . $order->id . ' has been canceled';
-                            $htmlContent = view('emails.order-canceled', ['order' => $order])->render();
-                            $headers = "MIME-Version: 1.0\r\n";
-                            $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-                            $headers .= "From: MGRC Order System <support@mgrc.com.my>\r\n";
-                            $headers .= "X-Priority: 1\r\n";
-                            
-                            $sent = @mail($user->email, $subject, $htmlContent, $headers);
-                            if ($sent) {
-                                $sentTo[] = $user->email . ' (' . $user->department . ' - via PHP mail)';
-                                $emailSendSuccess = true;
-                            }
-                        }
-                    }
-                }
-            }
-            
-            if (count($sentTo) > 0) {
-                \Log::info('Order #' . $order->id . ' cancel notification emails sent to: ' . implode(', ', $sentTo));
-            } else {
-                \Log::warning('No cancel notification emails sent for Order #' . $order->id . ': No recipients found or all emails throttled');
-            }
-        } catch (\Exception $e) {
-            \Log::error('Failed to send order cancel notification email for Order #' . $order->id . ': ' . $e->getMessage(), [
-                'order_id' => $order->id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-        }
-    }
+
 
     /**
      * Mark an order as ready.
@@ -1374,12 +1149,13 @@ class OrderController extends Controller
             }
             $order->save();
             
-            // Send email notifications to users who opted in
-            $this->sendOrderReadyNotifications($order);
-            
             DB::commit();
 
-            return redirect()->back()->with('success', 'Order marked as Ready successfully! Email notifications sent to designated recipients.');
+            // Send order ready notification emails
+            $emailController = new EmailController();
+            $emailController->sendOrderReadyNotification($order);
+
+            return redirect()->back()->with('success', 'Order marked as Ready successfully!');
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error marking order as ready: ' . $e->getMessage());
@@ -1387,100 +1163,9 @@ class OrderController extends Controller
         }
     }
 
-    /**
-     * Clear email cache for specific order and type (utility method for debugging)
-     * 
-     * @param string $type - Type of email (new_order, ready_order, etc.)
-     * @param int $orderId - Order ID
-     * @param string $recipientEmail - Recipient email address (optional)
-     * @return bool
-     */
-    private function clearEmailCache($type, $orderId, $recipientEmail = null)
-    {
-        if ($recipientEmail) {
-            $throttleCacheKey = "email_sent_{$type}_{$orderId}_" . md5($recipientEmail);
-            $lockKey = "email_lock_{$type}_{$orderId}_" . md5($recipientEmail);
-            
-            Cache::forget($throttleCacheKey);
-            Cache::forget($lockKey);
-            
-            Log::info("Cleared email cache for {$type} Order #{$orderId} to {$recipientEmail}");
-            return true;
-        } else {
-            // Clear all email caches for this order type and ID
-            // This is more complex and would require cache key enumeration
-            Log::info("Email cache clear requested for {$type} Order #{$orderId} (all recipients)");
-            return false; // Not implemented for security reasons
-        }
-    }
 
-    /**
-     * Send notifications to users who opted in for order ready notifications.
-     * 
-     * @param Order $order
-     * @return void
-     */
-    private function sendOrderReadyNotifications(Order $order)
-    {
-        try {
-            // Get users who have opted in to receive order ready notifications
-            $notificationUsers = User::where('receive_order_ready_emails', true)->get();
-            
-            // If no users found who opted in, default to admins as fallback
-            if ($notificationUsers->isEmpty()) {
-                $notificationUsers = User::whereIn('role', ['superadmin', 'admin'])->get();
-            }
-            
-            // Create the email notification
-            $mail = new OrderReadyNotification($order);
-            
-            // Track email recipients for logging
-            $sentTo = [];
-            $emailSendSuccess = false;
-            
-            // Send to all users who opted in, with individual throttling
-            foreach ($notificationUsers as $user) {
-                if ($user->email && $this->shouldSendEmail('ready_order', $order->id, $user->email)) {
-                    try {
-                        Mail::to($user->email)->send($mail);
-                        $sentTo[] = $user->email . ' (' . $user->department . ')';
-                        $emailSendSuccess = true;
-                        Log::info('Order ready notification sent to: ' . $user->email);
-                    } catch (\Exception $e) {
-                        Log::error('Failed to send order ready email to ' . $user->email . ': ' . $e->getMessage());
-                        
-                        // Check if fallback is enabled AND we haven't already sent to this user
-                        $usePhpMailFallback = config('mail_debug.use_php_mail_fallback', true);
-                        if ($usePhpMailFallback && $this->shouldSendEmail('ready_order_fallback', $order->id, $user->email, 30)) {
-                            // Fallback to PHP mail() with separate throttling
-                            Log::info('Attempting PHP mail() fallback for ready order notification to ' . $user->email);
-                            $subject = '[ORDER READY] Order #' . $order->id . ' is ready for collection/delivery';
-                            $htmlContent = view('emails.order-ready', ['order' => $order])->render();
-                            $headers = "MIME-Version: 1.0\r\n";
-                            $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-                            $headers .= "From: MGRC Order System <support@mgrc.com.my>\r\n";
-                            $headers .= "X-Priority: 1\r\n";
-                            
-                            $sent = @mail($user->email, $subject, $htmlContent, $headers);
-                            if ($sent) {
-                                $sentTo[] = $user->email . ' (' . $user->department . ' - via PHP mail)';
-                                $emailSendSuccess = true;
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Log successful email sending
-            if (count($sentTo) > 0) {
-                Log::info('Order #' . $order->id . ' ready notification emails sent to: ' . implode(', ', $sentTo));
-            } else {
-                Log::warning('No ready notification emails sent for Order #' . $order->id . ': No recipients found or all emails throttled');
-            }
-        } catch (\Exception $e) {
-            Log::error('Error sending order ready notifications: ' . $e->getMessage());
-        }
-    }
+
+
 
     /**
      * Update product ready status
@@ -1503,6 +1188,7 @@ class OrderController extends Controller
             Log::info('Product ready status update request', [
                 'order_id' => $orderId,
                 'product_id' => $productId,
+                'pivot_id' => $request->pivot_id,
                 'status' => $request->status,
                 'current_order_status' => $order->status,
                 'user' => Auth::user()->name . ' (' . Auth::user()->department . ')',
@@ -1525,6 +1211,7 @@ class OrderController extends Controller
             // Validate request
             $validator = Validator::make($request->all(), [
                 'status' => 'required|in:ready,not_ready',
+                'pivot_id' => 'required|integer|exists:order_product,id',
             ]);
             
             if ($validator->fails()) {
@@ -1540,31 +1227,43 @@ class OrderController extends Controller
                 return redirect()->back()->with('error', 'Validation failed: ' . implode(', ', $validator->errors()->all()));
             }
             
+            // Get the specific pivot record
+            $pivotRecord = DB::table('order_product')
+                ->where('id', $request->pivot_id)
+                ->where('order_id', $orderId)
+                ->first();
+                
+            if (!$pivotRecord) {
+                Log::error('Pivot record not found', [
+                    'pivot_id' => $request->pivot_id,
+                    'order_id' => $orderId
+                ]);
+                return redirect()->back()->with('error', 'Product record not found.');
+            }
+            
             // Log before update
             Log::info('Before updating pivot', [
-                'product_current_status' => $order->products()->where('product_id', $productId)->first()->pivot->status ?? 'not found'
+                'pivot_id' => $request->pivot_id,
+                'current_status' => $pivotRecord->status
             ]);
             
-            // Update the product's ready status
-            $updated = $order->products()->updateExistingPivot($productId, [
-                'status' => $request->status,
-            ]);
+            // Update the specific pivot record
+            $updated = DB::table('order_product')
+                ->where('id', $request->pivot_id)
+                ->where('order_id', $orderId)
+                ->update([
+                    'status' => $request->status,
+                    'updated_at' => now()
+                ]);
             
             Log::info('Pivot update result', [
                 'updated' => $updated,
-                'status_value' => $request->status
+                'status_value' => $request->status,
+                'pivot_id' => $request->pivot_id
             ]);
             
             // Force refresh the relationship
             $order->load('products');
-            
-            // Check if the specific product was updated
-            $updatedProduct = $order->products()->where('product_id', $productId)->first();
-            Log::info('Updated product check', [
-                'product_id' => $productId,
-                'found' => $updatedProduct ? true : false,
-                'status' => $updatedProduct ? $updatedProduct->pivot->status : 'N/A'
-            ]);
             
             // Check if all products are ready after this update
             $allProductsReady = true;
@@ -1623,165 +1322,7 @@ class OrderController extends Controller
         }
     }
 
-    /**
-     * For testing email notifications - DISABLED to prevent duplicate emails
-     */
-    public function testEmailNotification()
-    {
-        // DISABLED: This function was causing duplicate emails by bypassing caching mechanisms
-        // To re-enable, remove this early return and ensure proper caching is implemented
-        return [
-            'status' => 'disabled',
-            'message' => 'Email testing has been disabled to prevent duplicate emails. Use the actual order system to test emails.',
-            'note' => 'All email notifications now go through proper caching mechanisms to prevent duplicates.'
-        ];
-        
-        $results = [
-            'status' => 'testing',
-            'laravel_mail' => [],
-            'php_mail' => [],
-            'users_new_order' => [],
-            'users_ready_order' => [],
-            'errors' => [],
-            'mail_config' => []
-        ];
-        
-        try {
-            // Get the latest order for testing
-            $order = Order::with(['customer', 'products'])->latest()->first();
-            
-            if (!$order) {
-                $results['errors'][] = 'No orders found to test with.';
-                $results['status'] = 'error';
-                return $results;
-            }
-            
-            $results['order_found'] = 'Using Order #' . $order->id;
-            
-            // Get users who have opted-in to receive email notifications
-            $newOrderUsers = User::where('receive_new_order_emails', true)->get();
-            $readyOrderUsers = User::where('receive_order_ready_emails', true)->get();
-            
-            // Record user info
-            foreach ($newOrderUsers as $user) {
-                $results['users_new_order'][] = [
-                    'email' => $user->email,
-                    'name' => ($user->first_name ?? '') . ' ' . ($user->last_name ?? ''),
-                    'department' => $user->department
-                ];
-            }
-            
-            foreach ($readyOrderUsers as $user) {
-                $results['users_ready_order'][] = [
-                    'email' => $user->email,
-                    'name' => ($user->first_name ?? '') . ' ' . ($user->last_name ?? ''),
-                    'department' => $user->department
-                ];
-            }
-            
-            // Record mail configuration
-            $results['mail_config'] = [
-                'driver' => config('mail.default'),
-                'host' => config('mail.mailers.smtp.host'),
-                'port' => config('mail.mailers.smtp.port'),
-                'encryption' => config('mail.mailers.smtp.encryption'),
-                'username' => config('mail.mailers.smtp.username'),
-                'from_address' => config('mail.from.address'),
-                'from_name' => config('mail.from.name')
-            ];
-            
-            // Create the emails
-            $newOrderMail = new NewOrderNotification($order);
-            $readyOrderMail = new OrderReadyNotification($order);
-            
-            // Send using Laravel Mail
-            try {
-                // Test new order emails
-                foreach ($newOrderUsers as $user) {
-                    if ($user->email) {
-                        try {
-                            Mail::to($user->email)->send($newOrderMail);
-                            $results['laravel_mail'][] = 'New Order email sent to ' . $user->email . ' (' . $user->department . ')';
-                        } catch (\Exception $e) {
-                            $results['errors'][] = 'Laravel mail to ' . $user->email . ' failed: ' . $e->getMessage();
-                        }
-                    }
-                }
-                
-                // Test ready order emails
-                foreach ($readyOrderUsers as $user) {
-                    if ($user->email) {
-                        try {
-                            Mail::to($user->email)->send($readyOrderMail);
-                            $results['laravel_mail'][] = 'Order Ready email sent to ' . $user->email . ' (' . $user->department . ')';
-                        } catch (\Exception $e) {
-                            $results['errors'][] = 'Laravel mail to ' . $user->email . ' failed: ' . $e->getMessage();
-                        }
-                    }
-                }
-            } catch (\Exception $e) {
-                $results['errors'][] = 'Laravel mail system error: ' . $e->getMessage();
-            }
-            
-            // Try PHP mail() as fallback if no emails sent via Laravel Mail
-            if (empty($results['laravel_mail']) && function_exists('mail')) {
-                $subject = '[TEST] Order #' . $order->id . ' - ' . date('Y-m-d H:i:s');
-                $newOrderHtml = view('emails.new-order', ['order' => $order])->render();
-                $readyOrderHtml = view('emails.order-ready', ['order' => $order])->render();
-                
-                // Basic email headers
-                $headers = "MIME-Version: 1.0\r\n";
-                $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-                $headers .= "From: MGRC Order System <support@mgrc.com.my>\r\n";
-                $headers .= "X-Priority: 1\r\n";
-                
-                // Test new order emails with PHP mail()
-                foreach ($newOrderUsers as $user) {
-                    if ($user->email) {
-                        $sent = @mail($user->email, '[TEST] New Order #' . $order->id, $newOrderHtml, $headers);
-                        if ($sent) {
-                            $results['php_mail'][] = 'New Order email sent to ' . $user->email . ' (' . $user->department . ')';
-                        } else {
-                            $results['errors'][] = 'PHP mail() to ' . $user->email . ' failed';
-                        }
-                    }
-                }
-                
-                // Test ready order emails with PHP mail()
-                foreach ($readyOrderUsers as $user) {
-                    if ($user->email) {
-                        $sent = @mail($user->email, '[TEST] Order Ready #' . $order->id, $readyOrderHtml, $headers);
-                        if ($sent) {
-                            $results['php_mail'][] = 'Order Ready email sent to ' . $user->email . ' (' . $user->department . ')';
-                        } else {
-                            $results['errors'][] = 'PHP mail() to ' . $user->email . ' failed';
-                        }
-                    }
-                }
-            }
-            
-            // Check overall status
-            if (count($results['laravel_mail']) > 0 || count($results['php_mail']) > 0) {
-                $results['status'] = 'success';
-            } else if (count($results['errors']) > 0) {
-                $results['status'] = 'error';
-            } else {
-                $results['status'] = 'no_recipients';
-                $results['errors'][] = 'No emails sent: No users have opted in to receive notifications or all mail methods failed';
-            }
-            
-            // Log result
-            Log::info('Email test run', $results);
-            
-            return $results;
-            
-        } catch (\Exception $e) {
-            $results['status'] = 'error';
-            $results['errors'][] = 'Critical error: ' . $e->getMessage();
-            Log::error('Email test critical error: ' . $e->getMessage());
-            return $results;
-        }
-    }
+
 
     /**
      * Handle uploading an order photo after all items are ready.
@@ -1871,8 +1412,9 @@ class OrderController extends Controller
             // Log successful upload
             Log::info('Photo uploaded successfully for Order #' . $order->id . ' - File: ' . $filename . ' - Size: ' . round($file->getSize() / 1024 / 1024, 2) . 'MB');
 
-            // Send email to the user who placed the order with a Mark as Ready button
-            $this->sendOrderPhotoUploadedNotification($order);
+            // Send photo upload notification to the person who placed the order
+            $emailController = new EmailController();
+            $emailController->sendPhotoUploadNotification($order);
 
             return redirect()->back()->with('success', 'Order photo uploaded successfully! (' . round($file->getSize() / 1024 / 1024, 2) . 'MB)');
             
@@ -1882,133 +1424,7 @@ class OrderController extends Controller
         }
     }
 
-    /**
-     * Send notification email when order photo is uploaded.
-     */
-    private function sendOrderPhotoUploadedNotification(Order $order)
-    {
-        try {
-            // Reload order with relations
-            $order->load(['customer', 'user']);
-            
-            $markReadyUrl = route('orders.mark.ready.link', $order->id);
-            $emailSendSuccess = false;
-            $sentTo = [];
-            $emailsSent = []; // Track emails already sent to prevent duplicates
-            
-            // Option 1: Send to the user who placed the order (based on user_id)
-            if ($order->user && $order->user->email && !in_array($order->user->email, $emailsSent) && $this->shouldSendEmail('photo_uploaded', $order->id, $order->user->email)) {
-                try {
-                    \Mail::to($order->user->email)->send(new OrderPhotoUploadedNotification($order, $markReadyUrl));
-                    $sentTo[] = $order->user->email . ' (Order Creator)';
-                    $emailsSent[] = $order->user->email; // Mark as sent
-                    $emailSendSuccess = true;
-                    Log::info('Order photo upload notification sent to order creator: ' . $order->user->email . ' for Order #' . $order->id);
-                } catch (\Exception $e) {
-                    Log::error('Error sending photo upload notification to order creator: ' . $e->getMessage());
-                    
-                    // Fallback to PHP mail() for order creator
-                    $usePhpMailFallback = config('mail_debug.use_php_mail_fallback', true);
-                    if ($usePhpMailFallback && $this->shouldSendEmail('photo_uploaded_fallback', $order->id, $order->user->email, 30)) {
-                        Log::info('Attempting PHP mail() fallback for photo upload notification to order creator: ' . $order->user->email);
-                        $subject = '[PHOTO UPLOADED] Order #' . $order->id . ' - Photo uploaded, ready to mark as ready';
-                        $htmlContent = view('emails.order-photo-uploaded', ['order' => $order, 'markReadyUrl' => $markReadyUrl])->render();
-                        $headers = "MIME-Version: 1.0\r\n";
-                        $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-                        $headers .= "From: MGRC Order System <support@mgrc.com.my>\r\n";
-                        $headers .= "X-Priority: 1\r\n";
-                        
-                        $sent = @mail($order->user->email, $subject, $htmlContent, $headers);
-                        if ($sent) {
-                            $sentTo[] = $order->user->email . ' (Order Creator - via PHP mail)';
-                            $emailsSent[] = $order->user->email;
-                            $emailSendSuccess = true;
-                        }
-                    }
-                }
-            }
-            
-            // Option 2: Try to find user by order_placed_by name if user_id relationship doesn't exist
-            if (!$order->user && $order->order_placed_by) {
-                $placedByUser = User::where('name', $order->order_placed_by)->first();
-                if ($placedByUser && $placedByUser->email && !in_array($placedByUser->email, $emailsSent) && $this->shouldSendEmail('photo_uploaded', $order->id, $placedByUser->email)) {
-                    try {
-                        \Mail::to($placedByUser->email)->send(new OrderPhotoUploadedNotification($order, $markReadyUrl));
-                        $sentTo[] = $placedByUser->email . ' (Order Placed By)';
-                        $emailsSent[] = $placedByUser->email; // Mark as sent
-                        $emailSendSuccess = true;
-                        Log::info('Order photo upload notification sent to order placer: ' . $placedByUser->email . ' for Order #' . $order->id);
-                    } catch (\Exception $e) {
-                        Log::error('Error sending photo upload notification to order placer: ' . $e->getMessage());
-                        
-                        // Fallback to PHP mail() for order placer
-                        $usePhpMailFallback = config('mail_debug.use_php_mail_fallback', true);
-                        if ($usePhpMailFallback && $this->shouldSendEmail('photo_uploaded_fallback', $order->id, $placedByUser->email, 30)) {
-                            Log::info('Attempting PHP mail() fallback for photo upload notification to order placer: ' . $placedByUser->email);
-                            $subject = '[PHOTO UPLOADED] Order #' . $order->id . ' - Photo uploaded, ready to mark as ready';
-                            $htmlContent = view('emails.order-photo-uploaded', ['order' => $order, 'markReadyUrl' => $markReadyUrl])->render();
-                            $headers = "MIME-Version: 1.0\r\n";
-                            $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-                            $headers .= "From: MGRC Order System <support@mgrc.com.my>\r\n";
-                            $headers .= "X-Priority: 1\r\n";
-                            
-                            $sent = @mail($placedByUser->email, $subject, $htmlContent, $headers);
-                            if ($sent) {
-                                $sentTo[] = $placedByUser->email . ' (Order Placed By - via PHP mail)';
-                                $emailsSent[] = $placedByUser->email;
-                                $emailSendSuccess = true;
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Option 3: Send to users who have opted in to receive notifications (but skip if already sent to them)
-            $notificationUsers = User::where('receive_new_order_emails', true)->get();
-            
-            foreach ($notificationUsers as $user) {
-                if ($user->email && !in_array($user->email, $emailsSent) && $this->shouldSendEmail('photo_uploaded_general', $order->id, $user->email)) {
-                    try {
-                        \Mail::to($user->email)->send(new OrderPhotoUploadedNotification($order, $markReadyUrl));
-                        $sentTo[] = $user->email . ' (' . $user->department . ')';
-                        $emailsSent[] = $user->email; // Mark as sent
-                        $emailSendSuccess = true;
-                    } catch (\Exception $e) {
-                        Log::error('Error sending photo upload notification to ' . $user->email . ': ' . $e->getMessage());
-                        
-                        // Fallback to PHP mail() for general users
-                        $usePhpMailFallback = config('mail_debug.use_php_mail_fallback', true);
-                        if ($usePhpMailFallback && $this->shouldSendEmail('photo_uploaded_general_fallback', $order->id, $user->email, 30)) {
-                            Log::info('Attempting PHP mail() fallback for photo upload notification to: ' . $user->email);
-                            $subject = '[PHOTO UPLOADED] Order #' . $order->id . ' - Photo uploaded, ready to mark as ready';
-                            $htmlContent = view('emails.order-photo-uploaded', ['order' => $order, 'markReadyUrl' => $markReadyUrl])->render();
-                            $headers = "MIME-Version: 1.0\r\n";
-                            $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-                            $headers .= "From: MGRC Order System <support@mgrc.com.my>\r\n";
-                            $headers .= "X-Priority: 1\r\n";
-                            
-                            $sent = @mail($user->email, $subject, $htmlContent, $headers);
-                            if ($sent) {
-                                $sentTo[] = $user->email . ' (' . $user->department . ' - via PHP mail)';
-                                $emailsSent[] = $user->email;
-                                $emailSendSuccess = true;
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Log results
-            if (count($sentTo) > 0) {
-                Log::info('Order photo upload notification emails sent to: ' . implode(', ', $sentTo) . ' (Total unique recipients: ' . count($emailsSent) . ')');
-            } else {
-                Log::warning('No order photo upload notification emails sent for Order #' . $order->id . ': No recipients found or all emails throttled');
-            }
-            
-        } catch (\Exception $e) {
-            Log::error('Failed to send order photo upload notification for Order #' . $order->id . ': ' . $e->getMessage());
-        }
-    }
+
 
     /**
      * Delete the order photo from storage and database.
@@ -2044,13 +1460,13 @@ class OrderController extends Controller
                 $order->item_ready_at = now();
             }
             $order->save();
-            
-            // Load relationships and send email notifications
-            $order->load(['customer', 'products']);
-            $this->sendOrderReadyNotifications($order);
+
+            // Send order ready notification emails
+            $emailController = new EmailController();
+            $emailController->sendOrderReadyNotification($order);
         }
         return redirect()->route('orderdetails', $order->id)
-            ->with('success', 'Order has been marked as Ready! Email notifications sent to designated recipients.');
+            ->with('success', 'Order has been marked as Ready!');
     }
 
     /**
@@ -2082,29 +1498,11 @@ class OrderController extends Controller
             // Create new datetime for comparison
             $newDateTime = Carbon::parse($request->pickup_delivery_date . ' ' . $request->pickup_delivery_time);
             
-            // If date or time changed, send notification
-            if (!$originalDateTime || $originalDateTime->format('Y-m-d H:i') !== $newDateTime->format('Y-m-d H:i')) {
-                $updatedProducts = [];
-                foreach ($order->products as $product) {
-                    $updatedProducts[] = [
-                        'id' => $product->id,
-                        'name' => $product->name,
-                        'quantity' => $product->pivot->quantity,
-                        'is_new' => false,
-                        'field_changes' => [
-                            'delivery_date_time' => [
-                                'from' => $originalDateTime ? $originalDateTime->format('Y-m-d h:i A') : 'Not set',
-                                'to' => $newDateTime->format('Y-m-d h:i A')
-                            ]
-                        ]
-                    ];
-                }
-                
-                // Send notification
-                $this->sendProductUpdateNotification($order, $updatedProducts);
-            }
-            
             DB::commit();
+            
+            // Send delivery update notification emails
+            $emailController = new EmailController();
+            $emailController->sendDeliveryUpdateNotification($order, $originalDateTime, $newDateTime);
             
             return redirect()->route('orderdetails', $order->id)
                 ->with('success', 'Delivery date and time updated successfully!');
@@ -2115,129 +1513,7 @@ class OrderController extends Controller
         }
     }
 
-    /**
-     * Send notification email when products or quantities are updated.
-     */
-    private function sendProductUpdateNotification(Order $order, array $updatedProducts)
-    {
-        try {
-            // Skip if no changes were made
-            if (empty($updatedProducts)) {
-                return;
-            }
-            
-            // Reload order with relations
-            $order->load(['customer', 'user']);
-            
-            // Get users who have opted in to receive new order notifications
-            $notificationUsers = User::where('receive_new_order_emails', true)->get();
-            
-            // If no users found, log warning and return
-            if ($notificationUsers->isEmpty()) {
-                Log::warning('No users found with receive_new_order_emails = true for product update notification');
-                return;
-            }
-            
-            // Create the email
-            $mail = new ProductUpdateNotification($order, $updatedProducts);
-            
-            // Track email recipients for logging
-            $sentTo = [];
-            $emailSendSuccess = false;
-            
-            // Send to users who opted in, with individual throttling
-            foreach ($notificationUsers as $user) {
-                if ($user->email && $this->shouldSendEmail('product_update', $order->id, $user->email)) {
-                    try {
-                        Mail::to($user->email)->send($mail);
-                        $sentTo[] = $user->email . ' (' . $user->department . ')';
-                        $emailSendSuccess = true;
-                    } catch (\Exception $e) {
-                        // Log error but don't interrupt the process
-                        Log::error('Error sending product update notification to ' . $user->email . ': ' . $e->getMessage());
-                        
-                        // Check if fallback is enabled AND we haven't already sent to this user
-                        $usePhpMailFallback = config('mail_debug.use_php_mail_fallback', true);
-                        if ($usePhpMailFallback && $this->shouldSendEmail('product_update_fallback', $order->id, $user->email, 30)) {
-                            // Fallback to PHP mail() with separate throttling
-                            Log::info('Attempting PHP mail() fallback for product update notification to ' . $user->email);
-                            $subject = '[PRODUCT UPDATE] Order #' . $order->id . ' - Products/quantities updated';
-                            $htmlContent = view('emails.product-update', ['order' => $order, 'updatedProducts' => $updatedProducts])->render();
-                            $headers = "MIME-Version: 1.0\r\n";
-                            $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-                            $headers .= "From: MGRC Order System <support@mgrc.com.my>\r\n";
-                            $headers .= "X-Priority: 1\r\n";
-                            
-                            $sent = @mail($user->email, $subject, $htmlContent, $headers);
-                            if ($sent) {
-                                $sentTo[] = $user->email . ' (' . $user->department . ' - via PHP mail)';
-                                $emailSendSuccess = true;
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Log successful email sending
-            if (count($sentTo) > 0) {
-                Log::info('Product update notification emails sent to: ' . implode(', ', $sentTo));
-            } else {
-                Log::warning('No product update notification emails sent: No recipients found or all emails throttled');
-            }
-        } catch (\Exception $e) {
-            // Log error but don't interrupt the process
-            Log::error('Error sending product update notification: ' . $e->getMessage());
-        }
-    }
 
-    /**
-     * Debug method to check email cache status (for debugging purposes)
-     * 
-     * @param Request $request
-     * @return array
-     */
-    public function debugEmailCache(Request $request)
-    {
-        // Only allow superadmin to access this
-        if (Auth::user()->role !== 'superadmin') {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-        
-        $orderId = $request->get('order_id');
-        $email = $request->get('email');
-        $type = $request->get('type', 'new_order');
-        
-        if (!$orderId || !$email) {
-            return response()->json(['error' => 'order_id and email parameters required'], 400);
-        }
-        
-        $throttleCacheKey = "email_sent_{$type}_{$orderId}_" . md5($email);
-        $lockKey = "email_lock_{$type}_{$orderId}_" . md5($email);
-        
-        $result = [
-            'order_id' => $orderId,
-            'email' => $email,
-            'type' => $type,
-            'throttle_cache_key' => $throttleCacheKey,
-            'lock_cache_key' => $lockKey,
-            'is_throttled' => Cache::has($throttleCacheKey),
-            'is_locked' => Cache::has($lockKey),
-            'cache_driver' => config('cache.default'),
-            'timestamp' => now()->toDateTimeString()
-        ];
-        
-        if ($result['is_throttled']) {
-            $result['throttle_value'] = Cache::get($throttleCacheKey);
-        }
-        
-        // If clear=1 parameter is provided, clear the cache
-        if ($request->get('clear') == '1') {
-            Cache::forget($throttleCacheKey);
-            Cache::forget($lockKey);
-            $result['cache_cleared'] = true;
-            Log::info("Manual email cache clear for {$type} Order #{$orderId} to {$email}");
-        }
-        
-        return response()->json($result);
-    }
+
+
 }

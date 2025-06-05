@@ -133,48 +133,72 @@
             <p><strong>Status:</strong> <span class="status-badge">{{ ucfirst($order->status) }}</span></p>
         </div>
         
-        <h3>Updated Information</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>Product</th>
-                    <th>Quantity</th>
-                    <th>Changes</th>
-                </tr>
-            </thead>
-            <tbody>
+        @php
+            $isDeliveryUpdate = collect($updatedProducts)->where('name', 'Delivery Schedule')->isNotEmpty();
+        @endphp
+
+        @if($isDeliveryUpdate)
+            <h3>📅 Delivery Schedule Update</h3>
+            <div class="order-info">
                 @foreach($updatedProducts as $product)
-                <tr class="{{ $product['is_new'] ? 'new-product' : '' }}">
-                    <td>{{ $product['name'] }}</td>
-                    <td>
-                        @if(isset($product['previous_quantity']) && $product['quantity'] != $product['previous_quantity'])
-                            <span class="changed">
-                                {{ $product['previous_quantity'] }} → {{ $product['quantity'] }}
-                            </span>
-                        @else
-                            {{ $product['quantity'] }}
-                        @endif
-                    </td>
-                    <td>
-                        @if($product['is_new'])
-                            <strong>New product added</strong>
-                        @elseif(isset($product['field_changes']))
-                            <ul style="margin: 0; padding-left: 20px;">
-                                @foreach($product['field_changes'] as $field => $change)
-                                    @if($change['from'] !== $change['to'])
-                                        <li>
-                                            <strong>{{ ucwords(str_replace('_', ' ', $field)) }}:</strong> 
-                                            {{ $change['from'] ?: 'empty' }} → {{ $change['to'] ?: 'empty' }}
-                                        </li>
-                                    @endif
-                                @endforeach
-                            </ul>
-                        @endif
-                    </td>
-                </tr>
+                    @if($product['name'] === 'Delivery Schedule' && isset($product['field_changes']))
+                        @foreach($product['field_changes'] as $field => $change)
+                            @if($change['from'] !== $change['to'])
+                                <p><strong>{{ $order->delivery_type === 'delivery' ? 'Delivery' : 'Self Collect' }} Date & Time:</strong></p>
+                                <p style="padding: 10px; background-color: #fff3cd; border-radius: 5px; margin: 10px 0;">
+                                    <span style="color: #721c24; text-decoration: line-through;">{{ $change['from'] }}</span>
+                                    <br>
+                                    <span style="color: #155724; font-weight: bold;">→ {{ $change['to'] }}</span>
+                                </p>
+                            @endif
+                        @endforeach
+                    @endif
                 @endforeach
-            </tbody>
-        </table>
+            </div>
+        @else
+            <h3>Updated Information</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Quantity</th>
+                        <th>Changes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($updatedProducts as $product)
+                    <tr class="{{ $product['is_new'] ? 'new-product' : '' }}">
+                        <td>{{ $product['name'] }}</td>
+                        <td>
+                            @if(isset($product['previous_quantity']) && $product['quantity'] != $product['previous_quantity'])
+                                <span class="changed">
+                                    {{ $product['previous_quantity'] }} → {{ $product['quantity'] }}
+                                </span>
+                            @else
+                                {{ $product['quantity'] }}
+                            @endif
+                        </td>
+                        <td>
+                            @if($product['is_new'])
+                                <strong>New product added</strong>
+                            @elseif(isset($product['field_changes']))
+                                <ul style="margin: 0; padding-left: 20px;">
+                                    @foreach($product['field_changes'] as $field => $change)
+                                        @if($change['from'] !== $change['to'])
+                                            <li>
+                                                <strong>{{ ucwords(str_replace('_', ' ', $field)) }}:</strong> 
+                                                {{ $change['from'] ?: 'empty' }} → {{ $change['to'] ?: 'empty' }}
+                                            </li>
+                                        @endif
+                                    @endforeach
+                                </ul>
+                            @endif
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
         
         <p>Please check the order in the system for complete details.</p>
         

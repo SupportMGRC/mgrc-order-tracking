@@ -124,7 +124,7 @@
 
                                 <div>
                                     <div class="row mb-3">
-                                        <div class="col-sm-12">
+                                        <div class="col-12">
                                             <label for="customer_name" class="form-label">Customer Name <span class="text-danger">*</span></label>
                                             <div class="dropdown customer-dropdown">
                                                 <input type="text" class="form-control search-customer @error('customer_name') is-invalid @enderror" 
@@ -167,7 +167,7 @@
                                     </div>
 
                                     <div class="row">
-                                        <div class="col-sm-6">
+                                        <div class="col-md-6 col-12">
                                             <div class="mb-3">
                                                 <label for="customer_email" class="form-label">Email <span class="text-muted">(Optional)</span></label>
                                                 <input type="email" class="form-control @error('customer_email') is-invalid @enderror" 
@@ -179,7 +179,7 @@
                                             </div>
                                         </div>
 
-                                        <div class="col-sm-6">
+                                        <div class="col-md-6 col-12">
                                             <div class="mb-3">
                                                 <label for="customer_phone" class="form-label">Phone <span class="text-danger">*</span></label>
                                                 <input type="text" class="form-control @error('customer_phone') is-invalid @enderror" 
@@ -204,13 +204,13 @@
                                         <div class="invalid-feedback">Please enter the customer address</div>
                                     </div>
 
-                                    <div class="d-flex align-items-start gap-3 mt-3">
-                                        <button type="button" class="btn btn-success btn-label right ms-auto nexttab"
-                                            data-nexttab="pills-bill-address-tab">
-                                            <i class="ri-arrow-right-line label-icon align-middle fs-16 ms-2"></i>
-                                            Next to Order Details
-                                        </button>
-                                    </div>
+                                                                    <div class="d-flex flex-column flex-sm-row align-items-start gap-3 mt-3">
+                                    <button type="button" class="btn btn-success btn-label right ms-auto nexttab w-100 w-sm-auto"
+                                        data-nexttab="pills-bill-address-tab">
+                                        <i class="ri-arrow-right-line label-icon align-middle fs-16 ms-2"></i>
+                                        Next to Order Details
+                                    </button>
+                                </div>
                                 </div>
                             </div>
 
@@ -224,11 +224,11 @@
                                     <div class="order-item p-2 border rounded bg-light shadow-sm mb-3">
                                         <div class="row">
                                             <div class="col-12">
-                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center mb-2 gap-2">
                                                     <h6 class="text-primary mb-0"><i class="ri-medicine-bottle-line me-1"></i>Order Item</h6>
                                                     <div>
                                                         <button type="button" class="btn btn-sm btn-danger shadow-sm delete-item" data-item-id="0">
-                                                            <i class="ri-delete-bin-line me-1"></i>Remove
+                                                            <i class="ri-delete-bin-line me-1"></i><span class="d-none d-sm-inline">Remove</span><span class="d-sm-none">Remove</span>
                                                         </button>
                                                     </div>
                                                 </div>
@@ -236,7 +236,7 @@
                                             </div>
                                         </div>
                                         <div class="row">
-                                            <div class="col-md-6">
+                                            <div class="col-lg-6 col-12">
                                                 <div class="mb-3">
                                                     <label for="products[0][type]" class="form-label fw-semibold">Order Type <span class="text-danger">*</span></label>
                                                     <select class="form-select order-type shadow-sm @error('products.0.type') is-invalid @enderror" 
@@ -254,7 +254,7 @@
                                                     <div class="invalid-feedback">Please select an order type</div>
                                                 </div>
                                             </div>
-                                            <div class="col-md-4">
+                                            <div class="col-lg-4 col-sm-8 col-12">
                                                 <div class="mb-3">
                                                     <label for="products[0][patient_name]" class="form-label fw-semibold">Patient Name</label>
                                                     <input type="text" class="form-control @error('products.0.patient_name') is-invalid @enderror" 
@@ -265,7 +265,7 @@
                                                     @enderror
                                                 </div>
                                             </div>
-                                            <div class="col-md-2">
+                                            <div class="col-lg-2 col-sm-4 col-12">
                                                 <div class="mb-3">
                                                     <label for="products[0][quantity]" class="form-label fw-semibold">Quantity <span class="text-danger">*</span></label>
                                                     <input type="number" class="form-control @error('products.0.quantity') is-invalid @enderror" 
@@ -316,43 +316,47 @@
                                 </div>
 
                                 <div class="row mb-3">
-                                    <div class="col-lg-12">
-                                        <div class="mb-3 d-flex align-items-end gap-4">
-                                            <div>
-                                                <label class="form-label d-block">Delivery Type <span class="text-danger">*</span></label>
-                                                <div class="form-check-inline">
-                                                    <input class="form-check-input" 
-                                                        type="radio" 
-                                                        name="delivery_type" 
-                                                        id="delivery_type_delivery" 
-                                                        value="delivery" 
-                                                        {{ old('delivery_type', 'delivery') == 'delivery' ? 'checked' : '' }}>
-                                                    <label class="form-check-label" for="delivery_type_delivery">
-                                                        <i class="ri-truck-line me-1"></i>Delivery
-                                                    </label>
+                                    <div class="col-12">
+                                        <div class="mb-3">
+                                            <div class="row">
+                                                <div class="col-lg-6 col-12">
+                                                    <label class="form-label d-block">Delivery Type <span class="text-danger">*</span></label>
+                                                    <div class="d-flex flex-column flex-sm-row gap-3 gap-sm-4">
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" 
+                                                                type="radio" 
+                                                                name="delivery_type" 
+                                                                id="delivery_type_delivery" 
+                                                                value="delivery" 
+                                                                {{ old('delivery_type', 'delivery') == 'delivery' ? 'checked' : '' }}>
+                                                            <label class="form-check-label" for="delivery_type_delivery">
+                                                                <i class="ri-truck-line me-1"></i>Delivery
+                                                            </label>
+                                                        </div>
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" 
+                                                                type="radio" 
+                                                                name="delivery_type" 
+                                                                id="delivery_type_self" 
+                                                                value="self_collect"
+                                                                {{ old('delivery_type') == 'self_collect' ? 'checked' : '' }}>
+                                                            <label class="form-check-label" for="delivery_type_self">
+                                                                <i class="ri-user-location-line me-1"></i>Self Collect
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    @error('delivery_type')
+                                                        <div class="text-danger small mt-1">{{ $message }}</div>
+                                                    @enderror
                                                 </div>
-                                                <div class="form-check-inline ms-3">
-                                                    <input class="form-check-input" 
-                                                        type="radio" 
-                                                        name="delivery_type" 
-                                                        id="delivery_type_self" 
-                                                        value="self_collect"
-                                                        {{ old('delivery_type') == 'self_collect' ? 'checked' : '' }}>
-                                                    <label class="form-check-label" for="delivery_type_self">
-                                                        <i class="ri-user-location-line me-1"></i>Self Collect
-                                                    </label>
+                                                <div class="col-lg-6 col-12">
+                                                    <label for="item_ready_at" class="form-label">Item Ready Time <span class="text-danger">*</span></label>
+                                                    <input type="text" class="form-control @error('item_ready_at') is-invalid @enderror" id="item_ready_at" name="item_ready_at" placeholder="e.g. 02:30 PM" data-provider="flatpickr" data-enable-time="true" data-no-calendar="true" data-date-format="h:i K" value="{{ old('item_ready_at') }}" required>
+                                                    @error('item_ready_at')
+                                                        <div class="invalid-feedback">{{ $message }}</div>
+                                                    @enderror
+                                                    <div class="invalid-feedback">Please select the item ready time</div>
                                                 </div>
-                                                @error('delivery_type')
-                                                    <div class="text-danger small mt-1">{{ $message }}</div>
-                                                @enderror
-                                            </div>
-                                            <div style="min-width:220px;">
-                                                <label for="item_ready_at" class="form-label">Item Ready Time <span class="text-danger">*</span></label>
-                                                <input type="text" class="form-control @error('item_ready_at') is-invalid @enderror" id="item_ready_at" name="item_ready_at" placeholder="e.g. 02:30 PM" data-provider="flatpickr" data-enable-time="true" data-no-calendar="true" data-date-format="h:i K" value="{{ old('item_ready_at') }}" required>
-                                                @error('item_ready_at')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
-                                                <div class="invalid-feedback">Please select the item ready time</div>
                                             </div>
                                         </div>
                                     </div>
@@ -398,13 +402,13 @@
                                     @enderror
                                 </div>
 
-                                <div class="d-flex align-items-start gap-3 mt-3">
-                                    <button type="button" class="btn btn-light btn-label previestab"
+                                <div class="d-flex flex-column flex-sm-row align-items-start gap-3 mt-3">
+                                    <button type="button" class="btn btn-light btn-label previestab w-100 w-sm-auto"
                                         data-previous="pills-bill-info-tab">
                                         <i class="ri-arrow-left-line label-icon align-middle fs-16 me-2"></i>
                                         Back to Customer Details
                                     </button>
-                                    <button type="submit" class="btn btn-success btn-label right ms-auto">
+                                    <button type="submit" class="btn btn-success btn-label right ms-auto w-100 w-sm-auto">
                                         <i class="ri-save-line label-icon align-middle fs-16 ms-2"></i>
                                         Save Order
                                     </button>
@@ -609,11 +613,11 @@
                 newItem.innerHTML = `
                     <div class="row">
                         <div class="col-12">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center mb-2 gap-2">
                                 <h6 class="text-primary mb-0"><i class="ri-medicine-bottle-line me-1"></i>Order Item</h6>
                                 <div>
                                     <button type="button" class="btn btn-sm btn-danger shadow-sm delete-item" data-item-id="${itemCount}">
-                                        <i class="ri-delete-bin-line me-1"></i>Remove
+                                        <i class="ri-delete-bin-line me-1"></i><span class="d-none d-sm-inline">Remove</span><span class="d-sm-none">Remove</span>
                                     </button>
                                 </div>
                             </div>
@@ -621,7 +625,7 @@
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-lg-6 col-12">
                             <div class="mb-3">
                                 <label for="products[${itemCount}][type]" class="form-label fw-semibold">Order Type <span class="text-danger">*</span></label>
                                 <select class="form-select order-type shadow-sm" id="products[${itemCount}][type]" name="products[${itemCount}][type]" required>
@@ -633,13 +637,13 @@
                                 <div class="invalid-feedback">Please select an order type</div>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-lg-4 col-sm-8 col-12">
                             <div class="mb-3">
                                 <label for="products[${itemCount}][patient_name]" class="form-label fw-semibold">Patient Name</label>
                                 <input type="text" class="form-control" id="products[${itemCount}][patient_name]" name="products[${itemCount}][patient_name]" placeholder="Enter patient name">
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-lg-2 col-sm-4 col-12">
                             <div class="mb-3">
                                 <label for="products[${itemCount}][quantity]" class="form-label fw-semibold">Quantity <span class="text-danger">*</span></label>
                                 <input type="number" class="form-control" id="products[${itemCount}][quantity]" name="products[${itemCount}][quantity]" value="1" min="1" max="100" onkeypress="return event.charCode >= 48 && event.charCode <= 57" required>

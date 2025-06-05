@@ -85,6 +85,15 @@
             padding-bottom: 5px;
             color: #444;
         }
+        .button {
+            display: inline-block;
+            background-color: #f0ad4e;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
     </style>
 </head>
 <body>
@@ -149,7 +158,11 @@
         <p>{{ $order->remarks }}</p>
         @endif
         
-        <p>Please process this order at your earliest convenience.</p>
+        <p>Please process this order at your earliest convenience. You can view the full order details by clicking the button below:</p>
+        
+        <div style="text-align: center;">
+            <a href="{{ route('orderdetails', $order->id) }}" class="button">View Order Details</a>
+        </div>
         
         <p>Thank you,<br>MGRC Order Management System</p>
         

@@ -83,8 +83,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::post('order-batch-update/{id}', [OrderController::class, 'updateBatch'])->name('orders.update.batch');
     
-    // Email testing route - admin only
-    Route::get('/test-email', [OrderController::class, 'testEmailNotification'])->middleware('role:admin,superadmin');
+
     
     // Profile Routes
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -98,9 +97,6 @@ Route::middleware(['auth'])->group(function () {
 
     // Order delivery date/time update route
     Route::patch('/orders/{id}/delivery-datetime', [OrderController::class, 'updateDeliveryDateTime'])->name('orders.delivery.datetime.update');
-    
-    // Debug route for email cache (superadmin only)
-    Route::get('/debug/email-cache', [OrderController::class, 'debugEmailCache'])->middleware('role:superadmin');
 });
 
 

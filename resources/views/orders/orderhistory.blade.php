@@ -44,7 +44,7 @@
                 <div class="card-body border border-dashed border-end-0 border-start-0">
                     <form action="{{ route('orderhistory') }}" method="GET">
                         <div class="row g-3">
-                            <div class="col-xl-8 col-md-6">
+                            <div class="col-lg-8 col-12">
                                 <div class="search-box">
                                     <input type="text" class="form-control" name="search"
                                         placeholder="Search for order ID, customer, order status..."
@@ -52,9 +52,9 @@
                                     <i class="ri-search-line search-icon"></i>
                                 </div>
                             </div>
-                            <div class="col-xl-4 col-md-6">
-                                <div class="d-flex gap-2">
-                                    <select class="form-select w-50" name="date_range" id="dateRangeSelect" 
+                            <div class="col-lg-4 col-12">
+                                <div class="d-flex flex-column flex-sm-row gap-2">
+                                    <select class="form-select flex-fill" name="date_range" id="dateRangeSelect" 
                                             {{ in_array(request('status'), ['new', 'preparing', 'ready']) ? 'disabled' : '' }}>
                                         <option value="today" {{ request('date_range') == 'today' || !request('date_range') ? 'selected' : '' }}>
                                             Today
@@ -72,9 +72,9 @@
                                             All Time
                                         </option>
                                     </select>
-                                    <button type="submit" class="btn btn-primary" 
+                                    <button type="submit" class="btn btn-primary flex-shrink-0" 
                                             {{ in_array(request('status'), ['new', 'preparing', 'ready']) ? 'disabled' : '' }}>
-                                        <i class="ri-equalizer-fill align-bottom me-1"></i> Filter
+                                        <i class="ri-equalizer-fill align-bottom me-1"></i><span class="d-none d-sm-inline"> Filter</span><span class="d-sm-none">Filter</span>
                                     </button>
                                     <!-- Hidden input to preserve the status parameter -->
                                     @if(request('status') && request('status') != 'all')
@@ -86,56 +86,58 @@
                     </form>
                 </div>
                 <div class="card-body pt-0">
-                    <div class="col-xxl-12">
+                    <div class="col-12">
                         <div class="card-header px-0">
                             <div class="row align-items-center">
-                                <div class="col-xxl-9 col-sm-8">
-                                    <ul class="nav nav-tabs nav-tabs-custom nav-primary gap-1" role="tablist">
-                                        <li class="nav-item">
-                                            <a class="nav-link {{ request('status') == 'all' || !request('status') ? 'active' : '' }} py-3 All"
-                                                href="{{ route('orderhistory', ['status' => 'all', 'date_range' => request('date_range', 'today'), 'search' => request('search')]) }}" role="tab">
-                                                <i class="ri-shopping-bag-3-line me-1 align-bottom"></i> All Orders
-                                            </a>
-                                        </li>
-                                        <li class="nav-item">
-                                            <a class="nav-link {{ request('status') == 'new' ? 'active' : '' }} py-3 Pending"
-                                                href="{{ route('orderhistory', ['status' => 'new', 'search' => request('search')]) }}" role="tab">
-                                                <i class="ri-add-circle-line me-1 align-bottom"></i> New
-                                                <span class="badge bg-danger align-middle ms-1">{{ $newCount }}</span>
-                                            </a>
-                                        </li>
-                                        <li class="nav-item">
-                                            <a class="nav-link {{ request('status') == 'preparing' ? 'active' : '' }} py-3 Inprogress"
-                                                href="{{ route('orderhistory', ['status' => 'preparing', 'search' => request('search')]) }}"
-                                                role="tab">
-                                                <i class="ri-loader-4-line me-1 align-bottom"></i> Preparing
-                                                <span
-                                                    class="badge bg-warning align-middle ms-1">{{ $preparingCount }}</span>
-                                            </a>
-                                        </li>
-                                        <li class="nav-item">
-                                            <a class="nav-link {{ request('status') == 'ready' ? 'active' : '' }} py-3 Ready"
-                                                href="{{ route('orderhistory', ['status' => 'ready', 'search' => request('search')]) }}" role="tab">
-                                                <i class="ri-checkbox-circle-line me-1 align-bottom"></i> Ready
-                                                <span class="badge bg-info align-middle ms-1">{{ $readyCount }}</span>
-                                            </a>
-                                        </li>
-                                        <li class="nav-item">
-                                            <a class="nav-link {{ request('status') == 'delivered' ? 'active' : '' }} py-3 Delivered"
-                                                href="{{ route('orderhistory', ['status' => 'delivered', 'date_range' => request('date_range', 'today'), 'search' => request('search')]) }}"
-                                                role="tab">
-                                                <i class="ri-truck-line me-1 align-bottom"></i> Delivered
-                                                <span
-                                                    class="badge bg-success align-middle ms-1">{{ $deliveredCount }}</span>
-                                            </a>
-                                        </li>
-                                        <li class="nav-item">
-                                            <a class="nav-link {{ request('status') == 'cancel' ? 'active' : '' }} py-3 text-muted"
-                                                href="{{ route('orderhistory', ['status' => 'cancel', 'date_range' => request('date_range', 'today'), 'search' => request('search')]) }}" role="tab">
-                                                <i class="ri-close-circle-line me-1 align-bottom"></i> Canceled
-                                            </a>
-                                        </li>
-                                    </ul>
+                                <div class="col-12">
+                                    <div class="nav-tabs-wrapper">
+                                        <ul class="nav nav-tabs nav-tabs-custom nav-primary gap-1 flex-nowrap overflow-auto" role="tablist" style="white-space: nowrap;">
+                                            <li class="nav-item flex-shrink-0">
+                                                <a class="nav-link {{ request('status') == 'all' || !request('status') ? 'active' : '' }} py-3 All"
+                                                    href="{{ route('orderhistory', ['status' => 'all', 'date_range' => request('date_range', 'today'), 'search' => request('search')]) }}" role="tab">
+                                                    <i class="ri-shopping-bag-3-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> All Orders</span><span class="d-sm-none">All</span>
+                                                </a>
+                                            </li>
+                                            <li class="nav-item flex-shrink-0">
+                                                <a class="nav-link {{ request('status') == 'new' ? 'active' : '' }} py-3 Pending"
+                                                    href="{{ route('orderhistory', ['status' => 'new', 'search' => request('search')]) }}" role="tab">
+                                                    <i class="ri-add-circle-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> New</span><span class="d-sm-none">New</span>
+                                                    <span class="badge bg-danger align-middle ms-1">{{ $newCount }}</span>
+                                                </a>
+                                            </li>
+                                            <li class="nav-item flex-shrink-0">
+                                                <a class="nav-link {{ request('status') == 'preparing' ? 'active' : '' }} py-3 Inprogress"
+                                                    href="{{ route('orderhistory', ['status' => 'preparing', 'search' => request('search')]) }}"
+                                                    role="tab">
+                                                    <i class="ri-loader-4-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> Preparing</span><span class="d-sm-none">Prep</span>
+                                                    <span
+                                                        class="badge bg-warning align-middle ms-1">{{ $preparingCount }}</span>
+                                                </a>
+                                            </li>
+                                            <li class="nav-item flex-shrink-0">
+                                                <a class="nav-link {{ request('status') == 'ready' ? 'active' : '' }} py-3 Ready"
+                                                    href="{{ route('orderhistory', ['status' => 'ready', 'search' => request('search')]) }}" role="tab">
+                                                    <i class="ri-checkbox-circle-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> Ready</span><span class="d-sm-none">Ready</span>
+                                                    <span class="badge bg-info align-middle ms-1">{{ $readyCount }}</span>
+                                                </a>
+                                            </li>
+                                            <li class="nav-item flex-shrink-0">
+                                                <a class="nav-link {{ request('status') == 'delivered' ? 'active' : '' }} py-3 Delivered"
+                                                    href="{{ route('orderhistory', ['status' => 'delivered', 'date_range' => request('date_range', 'today'), 'search' => request('search')]) }}"
+                                                    role="tab">
+                                                    <i class="ri-truck-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> Delivered</span><span class="d-sm-none">Deliv</span>
+                                                    <span
+                                                        class="badge bg-success align-middle ms-1">{{ $deliveredCount }}</span>
+                                                </a>
+                                            </li>
+                                            <li class="nav-item flex-shrink-0">
+                                                <a class="nav-link {{ request('status') == 'cancel' ? 'active' : '' }} py-3 text-muted"
+                                                    href="{{ route('orderhistory', ['status' => 'cancel', 'date_range' => request('date_range', 'today'), 'search' => request('search')]) }}" role="tab">
+                                                    <i class="ri-close-circle-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> Canceled</span><span class="d-sm-none">Cancel</span>
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -242,20 +244,16 @@
                                             <span class="badge {{ $statusClass }}">{{ ucfirst($order->status) }}</span>
                                         </td>
                                         <td>
-                                            <ul class="list-inline hstack gap-2 mb-0">
-                                                <li class="list-inline-item" data-bs-toggle="tooltip" data-bs-trigger="hover" data-bs-placement="top" title="View Details">
-                                                    <a href="{{ route('orderdetails', $order->id) }}" class="text-info d-inline-block">
-                                                        <i class="ri-eye-fill fs-16"></i>
-                                                    </a>
-                                                </li>
+                                            <div class="d-flex flex-column flex-sm-row gap-1">
+                                                <a href="{{ route('orderdetails', $order->id) }}" class="btn btn-sm btn-info d-flex align-items-center justify-content-center" data-bs-toggle="tooltip" data-bs-trigger="hover" data-bs-placement="top" title="View Details">
+                                                    <i class="ri-eye-fill"></i>
+                                                </a>
                                                 @if(Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
-                                                <li class="list-inline-item" data-bs-toggle="tooltip" data-bs-trigger="hover" data-bs-placement="top" title="Delete">
-                                                    <a href="javascript:void(0);" class="text-danger d-inline-block remove-item-btn" data-bs-toggle="modal" data-bs-target="#deleteOrder" data-order-id="{{ $order->id }}">
-                                                        <i class="ri-delete-bin-5-fill fs-16"></i>
-                                                    </a>
-                                                </li>
+                                                <a href="javascript:void(0);" class="btn btn-sm btn-danger d-flex align-items-center justify-content-center remove-item-btn" data-bs-toggle="modal" data-bs-target="#deleteOrder" data-order-id="{{ $order->id }}" data-bs-toggle="tooltip" data-bs-trigger="hover" data-bs-placement="top" title="Delete">
+                                                    <i class="ri-delete-bin-5-fill"></i>
+                                                </a>
                                                 @endif
-                                            </ul>
+                                            </div>
                                         </td>
                                     </tr>
                                 @empty
@@ -277,7 +275,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="d-flex justify-content-end">
+                    <div class="d-flex justify-content-center justify-content-sm-end">
                         <div class="pagination-wrap hstack gap-2">
                             {{ $orders->links('vendor.pagination.bootstrap-4') }}
                         </div>
@@ -475,8 +473,8 @@
             deleteButtons.forEach(button => {
                 button.addEventListener('click', function() {
                     const orderId = this.getAttribute('data-order-id');
-                    // Make sure we're submitting to the orders resource controller, not the orderhistory page
-                    deleteForm.action = `{{ url('orders') }}/${orderId}`;
+                    // Use the correct route for deleting orders
+                    deleteForm.action = "{{ route('orders.destroy', ':id') }}".replace(':id', orderId);
                 });
             });
 

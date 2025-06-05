@@ -924,14 +924,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @php
-                                $unitCounter = [];
-                            @endphp
                             @foreach($order->products as $product)
-                            @php
-                                // Keep track of units for each product
-                                $unitCounter[$product->id] = isset($unitCounter[$product->id]) ? $unitCounter[$product->id] + 1 : 1;
-                            @endphp
                             <tr>
                                 <td>
                                     <div class="d-flex">
@@ -1204,6 +1197,7 @@
             <form action="{{ route('orders.product.ready', ['order' => $order->id, 'product' => $product->id]) }}" method="POST" class="product-ready-form">
                 @csrf
                 @method('PATCH')
+                <input type="hidden" name="pivot_id" value="{{ $product->pivot->id }}">
                 <div class="modal-body">
                     <div class="text-center mb-4">
                         <div class="avatar-md mx-auto">
@@ -1234,6 +1228,7 @@
             <form action="{{ route('orders.product.ready', ['order' => $order->id, 'product' => $product->id]) }}" method="POST" class="product-ready-form">
                 @csrf
                 @method('PATCH')
+                <input type="hidden" name="pivot_id" value="{{ $product->pivot->id }}">
                 <div class="modal-body">
                     <div class="text-center mb-4">
                         <div class="avatar-md mx-auto">
