@@ -112,6 +112,7 @@
                         <div class="flex-grow-1">
                             <h5 class="alert-heading">Assign Batch Information</h5>
                             <p class="mb-0">Please assign batch details for each product unit in this order.</p>
+                            <p class="mb-0 mt-2"><strong>Note:</strong> For "Infusion Set" products, only quantity and batch number fields are required. Other fields are disabled.</p>
                         </div>
                     </div>
                 </div>
@@ -171,19 +172,21 @@
                                         <input type="text" class="form-control patient-name" id="patient_name_{{ $index }}" 
                                             name="products[{{ $index }}][patient_name]" 
                                             value="{{ $product->pivot->patient_name ?? '' }}"
-                                            placeholder="Enter patient name">
+                                            placeholder="Enter patient name"
+                                            {{ $product->name === 'Infusion Set' ? 'disabled style=background-color:#f8f9fa; placeholder=Not required for Infusion Set' : '' }}>
                                     </td>
                                     <td>
                                         <textarea class="form-control remarks" id="remarks_{{ $index }}" 
                                             name="products[{{ $index }}][remarks]" 
-                                            placeholder="Enter remarks">{{ $product->pivot->remarks ?? '' }}</textarea>
+                                            placeholder="Enter remarks"
+                                            {{ $product->name === 'Infusion Set' ? 'disabled style=background-color:#f8f9fa;' : '' }}>{{ $product->name === 'Infusion Set' ? '' : ($product->pivot->remarks ?? '') }}</textarea>
                                     </td>
                                     <td>
                                         <input type="text" class="form-control qc-document" id="qc_document_{{ $index }}" 
                                             name="products[{{ $index }}][qc_document_number]" 
-                                            value="{{ $product->pivot->qc_document_number ?? '' }}"
-                                            {{ !$canEditQc ? 'disabled' : '' }}
-                                            placeholder="Enter QC document number">
+                                            value="{{ $product->name === 'Infusion Set' ? '' : ($product->pivot->qc_document_number ?? '') }}"
+                                            {{ !$canEditQc || $product->name === 'Infusion Set' ? 'disabled' : '' }}
+                                            {{ $product->name === 'Infusion Set' ? 'style=background-color:#f8f9fa; placeholder=Not required for Infusion Set' : 'placeholder=Enter QC document number' }}>
                                         @if(!$canEditQc)
                                             <input type="hidden" name="products[{{ $index }}][qc_document_number]" value="{{ $product->pivot->qc_document_number ?? '' }}">
                                         @endif
@@ -191,8 +194,8 @@
                                     <td>
                                         <input type="text" class="form-control prepared-by" id="prepared_by_{{ $index }}" 
                                             name="products[{{ $index }}][prepared_by]" 
-                                            value="{{ $product->pivot->prepared_by ?? '' }}"
-                                            placeholder="Enter preparer name">
+                                            value="{{ $product->name === 'Infusion Set' ? '' : ($product->pivot->prepared_by ?? '') }}"
+                                            {{ $product->name === 'Infusion Set' ? 'disabled style=background-color:#f8f9fa; placeholder=Not required for Infusion Set' : 'placeholder=Enter preparer name' }}>
                                     </td>
                                 </tr>
                                 @endforeach

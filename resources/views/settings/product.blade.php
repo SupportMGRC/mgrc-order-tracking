@@ -134,8 +134,10 @@
                                 <th class="sort" data-sort="id">ID</th>
                                 <th class="sort" data-sort="name">Name</th>
                                 <th class="sort" data-sort="description">Description</th>
-                                {{-- <th class="sort" data-sort="price">Price</th>
-                                <th class="sort" data-sort="stock">Stock</th> --}}
+                                @if(auth()->user()->role == 'superadmin')
+                                <th class="sort" data-sort="price">Price</th>
+                                <th class="sort" data-sort="stock">Stock</th>
+                                @endif
                                 <th class="sort" data-sort="action">Action</th>
                             </tr>
                         </thead>
@@ -150,8 +152,10 @@
                                 <td class="id">{{ $product->id }}</td>
                                 <td class="name">{{ $product->name }}</td>
                                 <td class="description">{{ $product->description }}</td>
-                                {{-- <td class="price">{{ number_format($product->price, 2) }}</td>
-                                <td class="stock">{{ $product->stock }}</td> --}}
+                                @if(auth()->user()->role == 'superadmin')
+                                <td class="price">{{ $product->price ? number_format($product->price, 2) : '-' }}</td>
+                                <td class="stock">{{ $product->stock ?? '-' }}</td>
+                                @endif
                                 <td>
                                     <ul class="list-inline hstack gap-2 mb-0">
                                         <li class="list-inline-item edit" data-bs-toggle="tooltip"
@@ -192,14 +196,16 @@
                                                     <label for="edit-description-{{ $product->id }}" class="form-label">Description</label>
                                                     <textarea class="form-control" id="edit-description-{{ $product->id }}" name="description" rows="3">{{ $product->description }}</textarea>
                                                 </div>
-                                                {{-- <div class="mb-3">
+                                                @if(auth()->user()->role == 'superadmin')
+                                                <div class="mb-3">
                                                     <label for="edit-price-{{ $product->id }}" class="form-label">Price</label>
-                                                    <input type="number" step="0.01" class="form-control" id="edit-price-{{ $product->id }}" name="price" value="{{ $product->price }}" required>
+                                                    <input type="number" step="0.01" class="form-control" id="edit-price-{{ $product->id }}" name="price" value="{{ $product->price }}">
                                                 </div>
                                                 <div class="mb-3">
                                                     <label for="edit-stock-{{ $product->id }}" class="form-label">Stock</label>
-                                                    <input type="number" class="form-control" id="edit-stock-{{ $product->id }}" name="stock" value="{{ $product->stock }}" required>
-                                                </div> --}}
+                                                    <input type="number" class="form-control" id="edit-stock-{{ $product->id }}" name="stock" value="{{ $product->stock }}">
+                                                </div>
+                                                @endif
                                             </div>
                                             <div class="modal-footer">
                                                 <div class="hstack gap-2 justify-content-end">
@@ -245,7 +251,7 @@
                             <!-- End Delete Product Modal -->
                             @empty
                             <tr>
-                                <td colspan="7" class="text-center">No products found</td>
+                                <td colspan="{{ auth()->user()->role == 'superadmin' ? '6' : '4' }}" class="text-center">No products found</td>
                             </tr>
                             @endforelse
                         </tbody>
@@ -290,14 +296,16 @@
                         <label for="description" class="form-label">Description</label>
                         <textarea class="form-control" id="description" name="description" rows="3">{{ old('description') }}</textarea>
                     </div>
-                    {{-- <div class="mb-3">
+                    @if(auth()->user()->role == 'superadmin')
+                    <div class="mb-3">
                         <label for="price" class="form-label">Price</label>
-                        <input type="number" step="0.01" class="form-control" id="price" name="price" required value="{{ old('price') }}">
+                        <input type="number" step="0.01" class="form-control" id="price" name="price" value="{{ old('price') }}">
                     </div>
                     <div class="mb-3">
                         <label for="stock" class="form-label">Stock</label>
-                        <input type="number" class="form-control" id="stock" name="stock" required value="{{ old('stock', 0) }}">
-                    </div> --}}
+                        <input type="number" class="form-control" id="stock" name="stock" value="{{ old('stock') }}">
+                    </div>
+                    @endif
                 </div>
                 <div class="modal-footer">
                     <div class="hstack gap-2 justify-content-end">

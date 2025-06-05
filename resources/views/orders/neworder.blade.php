@@ -218,6 +218,10 @@
                                 <div>
                                     <h5 class="mb-1">Order Details</h5>
                                     <p class="text-muted mb-4">Please fill all information below</p>
+                                    <div class="alert alert-info alert-border-left mb-4" role="alert">
+                                        <i class="ri-information-line me-2"></i>
+                                        <strong>Note:</strong> For "Infusion Set" products, only quantity is required. Patient name and remarks fields will be disabled.
+                                    </div>
                                 </div>
 
                                 <div class="order-items mb-3">
@@ -257,7 +261,7 @@
                                             <div class="col-lg-4 col-sm-8 col-12">
                                                 <div class="mb-3">
                                                     <label for="products[0][patient_name]" class="form-label fw-semibold">Patient Name</label>
-                                                    <input type="text" class="form-control @error('products.0.patient_name') is-invalid @enderror" 
+                                                    <input type="text" class="form-control patient-name-field @error('products.0.patient_name') is-invalid @enderror" 
                                                         id="products[0][patient_name]" name="products[0][patient_name]" 
                                                         placeholder="Enter patient name" value="{{ old('products.0.patient_name') }}">
                                                     @error('products.0.patient_name')
@@ -283,7 +287,7 @@
                                             <div class="col-12">
                                                 <div class="mb-0">
                                                     <label for="products[0][remarks]" class="form-label fw-semibold">Remarks</label>
-                                                    <textarea class="form-control @error('products.0.remarks') is-invalid @enderror" 
+                                                    <textarea class="form-control remarks-field @error('products.0.remarks') is-invalid @enderror" 
                                                         id="products[0][remarks]" name="products[0][remarks]" 
                                                         placeholder="Enter any remarks for this order item" rows="2">{{ old('products.0.remarks') }}</textarea>
                                                     @error('products.0.remarks')
@@ -637,12 +641,12 @@
                                 <div class="invalid-feedback">Please select an order type</div>
                             </div>
                         </div>
-                        <div class="col-lg-4 col-sm-8 col-12">
-                            <div class="mb-3">
-                                <label for="products[${itemCount}][patient_name]" class="form-label fw-semibold">Patient Name</label>
-                                <input type="text" class="form-control" id="products[${itemCount}][patient_name]" name="products[${itemCount}][patient_name]" placeholder="Enter patient name">
-                            </div>
-                        </div>
+                                                                <div class="col-lg-4 col-sm-8 col-12">
+                                            <div class="mb-3">
+                                                <label for="products[${itemCount}][patient_name]" class="form-label fw-semibold">Patient Name</label>
+                                                <input type="text" class="form-control patient-name-field" id="products[${itemCount}][patient_name]" name="products[${itemCount}][patient_name]" placeholder="Enter patient name">
+                                            </div>
+                                        </div>
                         <div class="col-lg-2 col-sm-4 col-12">
                             <div class="mb-3">
                                 <label for="products[${itemCount}][quantity]" class="form-label fw-semibold">Quantity <span class="text-danger">*</span></label>
@@ -651,14 +655,14 @@
                             </div>
                         </div>
                     </div>
-                    <div class="row">
-                        <div class="col-12">
-                            <div class="mb-0">
-                                <label for="products[${itemCount}][remarks]" class="form-label fw-semibold">Remarks</label>
-                                <textarea class="form-control" id="products[${itemCount}][remarks]" name="products[${itemCount}][remarks]" placeholder="Enter any remarks for this order item" rows="2"></textarea>
-                            </div>
-                        </div>
-                    </div>
+                                                        <div class="row">
+                                        <div class="col-12">
+                                            <div class="mb-0">
+                                                <label for="products[${itemCount}][remarks]" class="form-label fw-semibold">Remarks</label>
+                                                <textarea class="form-control remarks-field" id="products[${itemCount}][remarks]" name="products[${itemCount}][remarks]" placeholder="Enter any remarks for this order item" rows="2"></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
                 `;
                 document.querySelector('.order-items').appendChild(newItem);
                 
@@ -667,6 +671,7 @@
                 
                 newSelect.addEventListener('change', function() {
                     validateField(this);
+                    handleInfusionSetLogic(this);
                 });
                 
                 newQuantity.addEventListener('change', function() {
@@ -748,6 +753,46 @@
                 });
             }
             
+            // Function to handle Infusion Set logic
+            function handleInfusionSetLogic(selectElement) {
+                const orderItem = selectElement.closest('.order-item');
+                const patientNameField = orderItem.querySelector('.patient-name-field');
+                const remarksField = orderItem.querySelector('.remarks-field');
+                
+                if (selectElement.value === 'Infusion Set') {
+                    // Disable patient name and remarks fields
+                    if (patientNameField) {
+                        patientNameField.disabled = true;
+                        patientNameField.value = '';
+                        patientNameField.style.backgroundColor = '#f8f9fa';
+                        patientNameField.placeholder = 'Not required for Infusion Set';
+                    }
+                    if (remarksField) {
+                        remarksField.disabled = true;
+                        remarksField.value = '';
+                        remarksField.style.backgroundColor = '#f8f9fa';
+                        remarksField.placeholder = 'Not required for Infusion Set';
+                    }
+                } else {
+                    // Enable patient name and remarks fields
+                    if (patientNameField) {
+                        patientNameField.disabled = false;
+                        patientNameField.style.backgroundColor = '';
+                        patientNameField.placeholder = 'Enter patient name';
+                    }
+                    if (remarksField) {
+                        remarksField.disabled = false;
+                        remarksField.style.backgroundColor = '';
+                        remarksField.placeholder = 'Enter any remarks for this order item';
+                    }
+                }
+            }
+
+            // Add change listener to existing order type select
+            document.querySelector('select[name="products[0][type]"]').addEventListener('change', function() {
+                handleInfusionSetLogic(this);
+            });
+
             // Add validation listeners to all required fields
             document.querySelectorAll('[required]').forEach(function(field) {
                 field.addEventListener('blur', function() {
