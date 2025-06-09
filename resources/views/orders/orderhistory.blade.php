@@ -56,7 +56,7 @@
                                 <div class="d-flex flex-column flex-sm-row gap-2">
                                     <select class="form-select flex-fill" name="date_range" id="dateRangeSelect" 
                                             {{ in_array(request('status'), ['new', 'preparing', 'ready']) ? 'disabled' : '' }}>
-                                        <option value="today" {{ request('date_range') == 'today' || !request('date_range') ? 'selected' : '' }}>
+                                        <option value="today" {{ request('date_range') == 'today' ? 'selected' : '' }}>
                                             Today
                                         </option>
                                         <option value="weekly" {{ request('date_range') == 'weekly' ? 'selected' : '' }}>
@@ -68,7 +68,7 @@
                                         <option value="yearly" {{ request('date_range') == 'yearly' ? 'selected' : '' }}>
                                             This Year
                                         </option>
-                                        <option value="all" {{ request('date_range') == 'all' ? 'selected' : '' }}>
+                                        <option value="all" {{ request('date_range') == 'all' || !request('date_range') ? 'selected' : '' }}>
                                             All Time
                                         </option>
                                     </select>
@@ -94,7 +94,7 @@
                                         <ul class="nav nav-tabs nav-tabs-custom nav-primary gap-1 flex-nowrap overflow-auto" role="tablist" style="white-space: nowrap;">
                                             <li class="nav-item flex-shrink-0">
                                                 <a class="nav-link {{ request('status') == 'all' || !request('status') ? 'active' : '' }} py-3 All"
-                                                    href="{{ route('orderhistory', ['status' => 'all', 'date_range' => request('date_range', 'today'), 'search' => request('search')]) }}" role="tab">
+                                                    href="{{ route('orderhistory', ['status' => 'all', 'date_range' => request('date_range', 'all'), 'search' => request('search')]) }}" role="tab">
                                                     <i class="ri-shopping-bag-3-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> All Orders</span><span class="d-sm-none">All</span>
                                                 </a>
                                             </li>
@@ -123,7 +123,7 @@
                                             </li>
                                             <li class="nav-item flex-shrink-0">
                                                 <a class="nav-link {{ request('status') == 'delivered' ? 'active' : '' }} py-3 Delivered"
-                                                    href="{{ route('orderhistory', ['status' => 'delivered', 'date_range' => request('date_range', 'today'), 'search' => request('search')]) }}"
+                                                    href="{{ route('orderhistory', ['status' => 'delivered', 'date_range' => request('date_range', 'all'), 'search' => request('search')]) }}"
                                                     role="tab">
                                                     <i class="ri-truck-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> Delivered</span><span class="d-sm-none">Deliv</span>
                                                     <span
@@ -132,7 +132,7 @@
                                             </li>
                                             <li class="nav-item flex-shrink-0">
                                                 <a class="nav-link {{ request('status') == 'cancel' ? 'active' : '' }} py-3 text-muted"
-                                                    href="{{ route('orderhistory', ['status' => 'cancel', 'date_range' => request('date_range', 'today'), 'search' => request('search')]) }}" role="tab">
+                                                    href="{{ route('orderhistory', ['status' => 'cancel', 'date_range' => request('date_range', 'all'), 'search' => request('search')]) }}" role="tab">
                                                     <i class="ri-close-circle-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> Canceled</span><span class="d-sm-none">Cancel</span>
                                                 </a>
                                             </li>

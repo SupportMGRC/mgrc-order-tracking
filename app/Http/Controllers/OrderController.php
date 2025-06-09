@@ -308,7 +308,7 @@ class OrderController extends Controller
         // For 'new', 'preparing', and 'ready' statuses, show all orders regardless of date
         if (!in_array($request->status, ['new', 'preparing', 'ready'])) {
             // Filter by date range - using predefined options
-            $dateRange = $request->get('date_range', 'today'); // Default to today if not specified
+            $dateRange = $request->get('date_range', 'all'); // Default to all if not specified
             
             switch ($dateRange) {
                 case 'today':
