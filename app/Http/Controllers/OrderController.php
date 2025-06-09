@@ -1513,7 +1513,48 @@ class OrderController extends Controller
         }
     }
 
+    /**
+     * Save e-signature for order collection
+     */
+    public function saveSignature(Request $request, Order $order)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'collected_by' => 'required|string|max:255',
+                'signature_data' => 'required|string',
+            ]);
 
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
 
+            // Update order with signature data
+            $order->update([
+                'collected_by' => $request->collected_by,
+                'signature_data' => $request->signature_data,
+                'signature_date' => now(),
+                'signature_ip' => $request->ip(),
+            ]);
 
+            return response()->json([
+                'success' => true,
+                'message' => 'Signature saved successfully!',
+                'data' => [
+                    'collected_by' => $order->collected_by,
+                    'signature_date' => $order->signature_date->format('d/m/Y h:i A'),
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error saving signature: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error saving signature: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

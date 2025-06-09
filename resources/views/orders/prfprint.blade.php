@@ -123,8 +123,9 @@
                                         <thead>
                                             <tr>
                                                 <th width="10%" class="small-text py-1 text-center">No</th>
-                                                <th width="65%" class="small-text py-1">Product Name</th>
-                                                <th width="25%" class="small-text py-1 text-center">Quantity</th>
+                                                <th width="55%" class="small-text py-1">Product Name</th>
+                                                <th width="15%" class="small-text py-1 text-center">Quantity</th>
+                                                <th width="20%" class="small-text py-1 text-center">Remarks</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -133,11 +134,12 @@
                                                 <td class="text-center small-text py-1">{{ $index + 1 }}</td>
                                                 <td class="small-text py-1">{{ $product->name }}</td>
                                                 <td class="text-center small-text py-1">{{ $product->pivot->quantity }}</td>
+                                                <td class="text-center small-text py-1">{{ $product->pivot->remarks ?? 'N/A' }}</td>
                                             </tr>
                                             @endforeach
                                             @if(count($order->products) == 0)
                                             <tr>
-                                                <td colspan="3" class="text-center small-text py-1">N/A</td>
+                                                <td colspan="4" class="text-center small-text py-1">N/A</td>
                                             </tr>
                                             @endif
                                         </tbody>
@@ -204,28 +206,39 @@
                         
                         <!-- Product Collection Section -->
                         <div class="prf-section">
-                            <div class="fw-bold small-text mb-2">C: Product Collection at Lab</div>
+                            <div class="fw-bold small-text mb-2">
+                                C: Product Collection at Lab
+                                @if(!$order->signature_data)
+                                    <button type="button" class="btn btn-sm btn-success ms-2" id="openSignatureModal" style="font-size: 0.7rem;">
+                                        <i class="ri-pencil-line"></i> E-Sign Collection
+                                    </button>
+                                @endif
+                            </div>
                             
                             <table class="w-100 mb-3">
                                 <tr>
                                     <td width="20%" class="small-text">Collected by</td>
-                                    <td width="80%" class="small-text border-bottom border-dark"></td>
+                                    <td width="80%" class="small-text border-bottom border-dark">{{ $order->collected_by ?? '' }}</td>
                                 </tr>
                             </table>
                             
                             <table class="w-100 mb-3">
                                 <tr>
                                     <td width="20%" class="small-text">Sign</td>
-                                    <td width="80%" class="small-text border-bottom border-dark" style="height: 25px;"></td>
+                                    <td width="80%" class="small-text border-bottom border-dark" style="height: 25px; position: relative;">
+                                        @if($order->signature_data)
+                                            <img src="{{ $order->signature_data }}" alt="Signature" style="max-height: 40px; max-width: 100%; object-fit: contain;">
+                                        @endif
+                                    </td>
                                 </tr>
                             </table>
                             
                             <table class="w-100 mb-0">
                                 <tr>
                                     <td width="20%" class="small-text">Date</td>
-                                    <td width="30%" class="small-text border-bottom border-dark"></td>
+                                    <td width="30%" class="small-text border-bottom border-dark">{{ $order->signature_date ? $order->signature_date->format('d/m/Y') : '' }}</td>
                                     <td width="10%" class="small-text text-center">Time</td>
-                                    <td width="40%" class="small-text border-bottom border-dark"></td>
+                                    <td width="40%" class="small-text border-bottom border-dark">{{ $order->signature_date ? $order->signature_date->format('h:i A') : '' }}</td>
                                 </tr>
                             </table>
                             
@@ -286,6 +299,10 @@
         
         .btn {
             display: none;
+        }
+        
+        #openSignatureModal {
+            display: none !important;
         }
         
         .prf-document {
@@ -498,5 +515,182 @@
         pointer-events: none;
     }
 </style>
+
+<!-- E-Signature Modal -->
+<div class="modal fade" id="signatureModal" tabindex="-1" aria-labelledby="signatureModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="signatureModalLabel">Product Collection E-Signature</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="signatureForm">
+                    @csrf
+                    <div class="mb-3">
+                        <label for="collectedBy" class="form-label">Collected by (Full Name) <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="collectedBy" name="collected_by" required>
+                        <div class="invalid-feedback">Please enter your full name.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Date & Time</label>
+                        <input type="text" class="form-control" id="currentDateTime" readonly>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Signature <span class="text-danger">*</span></label>
+                        <div class="signature-container">
+                            <canvas id="signatureCanvas" class="border" style="width: 100%; height: 200px; touch-action: none;"></canvas>
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-sm btn-secondary" id="clearSignature">
+                                    <i class="ri-eraser-line"></i> Clear
+                                </button>
+                                <small class="text-muted ms-2">
+                                    Use your mouse (computer) or finger (mobile/tablet) to sign
+                                </small>
+                            </div>
+                        </div>
+                        <div class="invalid-feedback" id="signatureError">Please provide your signature.</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveSignature">
+                    <i class="ri-save-line"></i> Save Signature
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = new bootstrap.Modal(document.getElementById('signatureModal'));
+    const canvas = document.getElementById('signatureCanvas');
+    const signaturePad = new SignaturePad(canvas, {
+        backgroundColor: 'rgba(255, 255, 255, 0)',
+        penColor: 'rgb(0, 0, 0)',
+        velocityFilterWeight: 0.7,
+        minWidth: 1,
+        maxWidth: 3,
+    });
+
+    // Resize canvas
+    function resizeCanvas() {
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * ratio;
+        canvas.height = rect.height * ratio;
+        canvas.getContext('2d').scale(ratio, ratio);
+        signaturePad.clear();
+    }
+
+    // Open modal
+    document.getElementById('openSignatureModal')?.addEventListener('click', function() {
+        modal.show();
+        updateDateTime();
+        setTimeout(resizeCanvas, 300); // Delay to ensure modal is fully shown
+    });
+
+    // Clear signature
+    document.getElementById('clearSignature').addEventListener('click', function() {
+        signaturePad.clear();
+    });
+
+    // Update date/time
+    function updateDateTime() {
+        const now = new Date();
+        const formatted = now.toLocaleString('en-GB', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        });
+        document.getElementById('currentDateTime').value = formatted;
+    }
+
+    // Save signature
+    document.getElementById('saveSignature').addEventListener('click', function() {
+        const collectedBy = document.getElementById('collectedBy').value.trim();
+        const nameInput = document.getElementById('collectedBy');
+        const signatureError = document.getElementById('signatureError');
+        
+        // Reset validation states
+        nameInput.classList.remove('is-invalid');
+        signatureError.style.display = 'none';
+        
+        let hasError = false;
+        
+        // Validate name
+        if (!collectedBy) {
+            nameInput.classList.add('is-invalid');
+            hasError = true;
+        }
+        
+        // Validate signature
+        if (signaturePad.isEmpty()) {
+            signatureError.style.display = 'block';
+            hasError = true;
+        }
+        
+        if (hasError) {
+            return;
+        }
+
+        // Get signature data
+        const signatureData = signaturePad.toDataURL();
+        
+        // Show loading state
+        const saveBtn = this;
+        const originalText = saveBtn.innerHTML;
+        saveBtn.innerHTML = '<i class="ri-loader-4-line animate-spin"></i> Saving...';
+        saveBtn.disabled = true;
+
+        // Submit via AJAX
+        fetch('{{ route("orders.signature", $order->id) }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            },
+            body: JSON.stringify({
+                collected_by: collectedBy,
+                signature_data: signatureData
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update the form display - simply reload the page to show updated data
+                window.location.reload();
+            } else {
+                throw new Error(data.message || 'Failed to save signature');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error saving signature: ' + error.message);
+        })
+        .finally(() => {
+            saveBtn.innerHTML = originalText;
+            saveBtn.disabled = false;
+        });
+    });
+
+    // Handle modal shown event
+    document.getElementById('signatureModal').addEventListener('shown.bs.modal', function() {
+        resizeCanvas();
+        document.getElementById('collectedBy').focus();
+    });
+
+    // Handle window resize
+    window.addEventListener('resize', resizeCanvas);
+});
+</script>
 
 @endsection

@@ -97,6 +97,9 @@ Route::middleware(['auth'])->group(function () {
 
     // Order delivery date/time update route
     Route::patch('/orders/{id}/delivery-datetime', [OrderController::class, 'updateDeliveryDateTime'])->name('orders.delivery.datetime.update');
+    
+    // Order signature route
+    Route::post('/orders/{order}/signature', [OrderController::class, 'saveSignature'])->name('orders.signature');
 });
 
 

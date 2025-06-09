@@ -19,6 +19,10 @@ class Order extends Model
         'user_id',
         'order_placed_by',
         'delivered_by',
+        'collected_by',
+        'signature_data',
+        'signature_date',
+        'signature_ip',
         'order_date',
         'order_time',
         'status',
@@ -42,6 +46,7 @@ class Order extends Model
         'pickup_delivery_date' => 'date',
         'pickup_delivery_time' => 'datetime',
         'item_ready_at' => 'datetime',
+        'signature_date' => 'datetime',
     ];
 
     /**
