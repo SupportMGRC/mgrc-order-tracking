@@ -1287,7 +1287,7 @@
                     <div class="mb-3">
                         <label for="delivery_datetime" class="form-label">Delivery Date & Time</label>
                         <input type="text" class="form-control flatpickr-input" id="delivery_datetime" name="delivery_datetime" 
-                               data-provider="flatpickr" data-date-format="d.m.Y H:i" data-enable-time="true" required>
+                               data-provider="flatpickr" data-date-format="d.m.Y h:i K" data-enable-time="true" required>
                     </div>
                     <input type="hidden" name="status" value="delivered">
                 </div>
@@ -1417,11 +1417,10 @@
             // Initialize delivery_datetime picker for Mark as Delivered modal
             flatpickr("#delivery_datetime", {
                 enableTime: true,
-                dateFormat: "d.m.Y H:i",
-                time_24hr: true,
+                dateFormat: "d.m.Y h:i K",
+                time_24hr: false,
                 minuteIncrement: 15,
-                allowInput: true,
-                minDate: "today"
+                allowInput: true
             });
         }
 
