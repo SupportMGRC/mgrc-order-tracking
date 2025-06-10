@@ -58,99 +58,6 @@
         th {
             background-color: #f2f2f2;
         }
-        
-        /* Mobile responsive styles */
-        @media only screen and (max-width: 600px) {
-            body {
-                padding: 10px;
-            }
-            
-            .container {
-                padding: 15px;
-                margin: 0;
-            }
-            
-            .header {
-                margin: -15px -15px 15px;
-                padding: 15px;
-            }
-            
-            .header h2 {
-                font-size: 18px;
-                margin: 0;
-            }
-            
-            .order-info {
-                padding: 10px;
-            }
-            
-            .order-info p {
-                font-size: 14px;
-                margin: 8px 0;
-            }
-            
-            h3 {
-                font-size: 16px;
-                margin: 20px 0 10px;
-            }
-            
-            /* Hide table headers on mobile */
-            .responsive-table thead {
-                display: none;
-            }
-            
-            /* Stack table rows vertically on mobile */
-            .responsive-table,
-            .responsive-table tbody,
-            .responsive-table tr,
-            .responsive-table td {
-                display: block;
-                width: 100%;
-            }
-            
-            .responsive-table tr {
-                border: 1px solid #ddd;
-                margin-bottom: 15px;
-                padding: 10px;
-                background: #fff;
-                border-radius: 5px;
-            }
-            
-            .responsive-table td {
-                border: none;
-                padding: 8px 0;
-                position: relative;
-                padding-left: 35%;
-            }
-            
-            /* Add labels before each data cell on mobile */
-            .responsive-table td:before {
-                content: attr(data-label);
-                position: absolute;
-                left: 0;
-                width: 30%;
-                padding-right: 10px;
-                white-space: nowrap;
-                font-weight: bold;
-                color: #333;
-            }
-            
-            .responsive-table td:first-child:before {
-                content: "Product: ";
-            }
-            
-            .responsive-table td:nth-child(2):before {
-                content: "Quantity: ";
-            }
-            
-            .responsive-table td:nth-child(3):before {
-                content: "Patient: ";
-            }
-            
-            .responsive-table td:nth-child(4):before {
-                content: "Remarks: ";
-            }
-        }
         .order-info {
             margin-bottom: 20px;
             background: #fff;
@@ -225,7 +132,7 @@
         </div>
         
         <h3>Order Items</h3>
-        <table class="responsive-table">
+        <table>
             <thead>
                 <tr>
                     <th>Product</th>
@@ -237,10 +144,10 @@
             <tbody>
                 @foreach($order->products as $product)
                 <tr>
-                    <td data-label="Product">{{ $product->name }}</td>
-                    <td data-label="Quantity">{{ $product->pivot->quantity }}</td>
-                    <td data-label="Patient">{{ $product->pivot->patient_name ?? 'N/A' }}</td>
-                    <td data-label="Remarks">{{ $product->pivot->remarks ?? 'N/A' }}</td>
+                    <td>{{ $product->name }}</td>
+                    <td>{{ $product->pivot->quantity }}</td>
+                    <td>{{ $product->pivot->patient_name ?? 'N/A' }}</td>
+                    <td>{{ $product->pivot->remarks ?? 'N/A' }}</td>
                 </tr>
                 @endforeach
             </tbody>
