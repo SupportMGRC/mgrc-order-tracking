@@ -1339,7 +1339,7 @@
                 @method('PATCH')
                 <div class="modal-body">
                     <div class="alert alert-info mb-3">
-                        <i class="ri-information-line me-2"></i> Update the delivery date and time for this order.
+                        <i class="ri-information-line me-2"></i> Update the delivery date and reach client time for this order.
                     </div>
                     <div class="row">
                         <div class="col-lg-12">
@@ -1358,7 +1358,7 @@
                         </div>
                         <div class="col-lg-12">
                             <div class="mb-3">
-                                <label for="pickup_delivery_time_display" class="form-label">{{ $order->delivery_type === 'delivery' ? 'Delivery' : 'Self Collect' }} Time <span class="text-danger">*</span></label>
+                                <label for="pickup_delivery_time_display" class="form-label">{{ $order->delivery_type === 'delivery' ? 'Reach Client' : 'Self Collect' }} Time <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control @error('pickup_delivery_time') is-invalid @enderror" 
                                     id="pickup_delivery_time_display" 
                                     data-provider="timepickr" 

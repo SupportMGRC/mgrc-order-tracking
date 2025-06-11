@@ -160,7 +160,7 @@
                                     <th scope="col">Delivered By</th>
                                     <th scope="col">Order Date</th>
                                     <th scope="col">Ready Time</th>
-                                    <th scope="col">Delivery Time</th>
+                                    <th scope="col">Reach Client Time</th>
                                     <th scope="col">Type</th>
                                     {{-- <th scope="col">Delivery Address</th> --}}
                                     <th scope="col">Status</th>

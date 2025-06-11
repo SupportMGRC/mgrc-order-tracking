@@ -158,7 +158,7 @@
 
         <div style="text-align: center;">
             <a href="{{ $markReadyUrl }}" class="btn-primary">Mark as Ready</a>
-            <a href="{{ route('orderdetails', $order->id) }}" class="button">View Order Details</a>
+            {{-- <a href="{{ route('orderdetails', $order->id) }}" class="button">View Order Details</a> --}}
         </div>
 
         <p>Thank you,<br>MGRC Order Management System</p>

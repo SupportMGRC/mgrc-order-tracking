@@ -382,7 +382,7 @@
                                     </div>
                                     <div class="col-lg-6">
                                         <div class="mb-3">
-                                            <label for="pickup_delivery_time" class="form-label"><span id="time_label">Delivery</span> Time <span class="text-danger">*</span></label>
+                                            <label for="pickup_delivery_time" class="form-label"><span id="time_label">Reach Client</span> Time <span class="text-danger">*</span></label>
                                             <input type="text" class="form-control @error('pickup_delivery_time') is-invalid @enderror" 
                                                 id="pickup_delivery_time" name="pickup_delivery_time" 
                                                 data-provider="timepickr" 
@@ -392,6 +392,7 @@
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
                                             <div class="invalid-feedback">Please select a time</div>
+                                            {{-- <small class="text-muted">Time reach at client</small> --}}
                                         </div>
                                     </div>
                                 </div>
