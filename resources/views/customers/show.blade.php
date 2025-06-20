@@ -222,7 +222,6 @@
                                 <th scope="col">Order ID</th>
                                 <th scope="col">Date</th>
                                 <th scope="col">Status</th>
-                                <th scope="col">Total</th>
                                 <th scope="col">Products</th>
                                 <th scope="col">Action</th>
                             </tr>
@@ -235,7 +234,16 @@
                                 </td>
                                 <td>{{ $order->created_at->format('M d, Y') }}</td>
                                 <td>
-                                    <span class="badge bg-{{ $order->status_color }} fs-12">
+                                    @php
+                                        $statusColors = [
+                                            'new' => 'primary',
+                                            'preparing' => 'warning',
+                                            'ready' => 'info',
+                                            'delivered' => 'success'
+                                        ];
+                                        $statusColor = $statusColors[$order->status] ?? 'secondary';
+                                    @endphp
+                                    <span class="badge bg-{{ $statusColor }} fs-12">
                                         <i class="ri-{{ 
                                             $order->status == 'new' ? 'shopping-bag-3-line' : 
                                             ($order->status == 'preparing' ? 'tools-line' : 
@@ -244,7 +252,6 @@
                                         {{ ucfirst($order->status) }}
                                     </span>
                                 </td>
-                                <td>₱{{ number_format($order->total, 2) }}</td>
                                 <td>
                                     <span class="badge bg-soft-primary text-primary">
                                         {{ $order->products->count() }} items
@@ -255,11 +262,6 @@
                                         <a href="{{ route('orders.show', $order->id) }}" class="btn btn-sm btn-soft-info" data-bs-toggle="tooltip" data-bs-placement="top" title="View Details">
                                             <i class="ri-eye-fill"></i>
                                         </a>
-                                        @if($order->status != 'delivered')
-                                        <a href="{{ route('orders.edit', $order->id) }}" class="btn btn-sm btn-soft-warning" data-bs-toggle="tooltip" data-bs-placement="top" title="Edit Order">
-                                            <i class="ri-pencil-fill"></i>
-                                        </a>
-                                        @endif
                                         <a href="{{ route('orders.prf', $order->id) }}" class="btn btn-sm btn-soft-primary" data-bs-toggle="tooltip" data-bs-placement="top" title="View PRF">
                                             <i class="ri-file-list-3-line"></i>
                                         </a>
@@ -268,7 +270,7 @@
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="6" class="text-center">
+                                <td colspan="5" class="text-center">
                                     <div class="py-4">
                                         <lord-icon src="https://cdn.lordicon.com/msoeawqm.json" trigger="loop" colors="primary:#405189,secondary:#0ab39c" style="width:72px;height:72px"></lord-icon>
                                         <h5 class="mt-4">No Orders Found</h5>

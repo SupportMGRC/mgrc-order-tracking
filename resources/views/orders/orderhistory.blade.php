@@ -153,7 +153,7 @@
                                             <label class="form-check-label" for="checkAll"></label>
                                         </div>
                                     </th> --}}
-                                    <th class="sort" data-sort="order_id">Order ID</th>
+                                    <th class="sort" data-sort="order_id">ID</th>
                                     <th class="sort" data-sort="customer">Customer</th>
                                     <th class="sort" data-sort="product">Product</th>
                                     <th class="sort" data-sort="placed_by">Placed By</th>

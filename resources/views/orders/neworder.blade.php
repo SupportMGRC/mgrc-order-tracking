@@ -929,17 +929,10 @@
                 warningDiv.id = 'duplicate-customer-warning';
                 warningDiv.className = 'alert alert-danger alert-border-left mt-2 mb-0';
                 warningDiv.innerHTML = `
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <i class="ri-error-warning-line me-2"></i>
-                            <strong>Customer Already Exists!</strong> 
-                            <span>This phone number belongs to: <strong>${customer.name}</strong></span>
-                        </div>
-                        <div>
-                            <button type="button" class="btn btn-sm btn-danger" onclick="useExistingCustomer(${customer.id}, '${customer.name}', '${customer.email || ''}', '${customer.phoneNo}', '${customer.address}')">
-                                <i class="ri-user-check-line me-1"></i>Use Existing Customer
-                            </button>
-                        </div>
+                    <div>
+                        <i class="ri-error-warning-line me-2"></i>
+                        <strong>Customer Already Exists!</strong> 
+                        <span>This phone number belongs to: <strong>${customer.name}</strong></span>
                     </div>
                 `;
                 
