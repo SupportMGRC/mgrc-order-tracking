@@ -144,30 +144,30 @@
                     </div>
 
                     <div class="table-responsive table-card mb-2">
-                        <table class="table table-nowrap mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    {{-- <th scope="col">
+                        <table class="table table-nowrap align-middle" id="orderTable">
+                            <thead class="text-muted table-light">
+                                <tr class="text-uppercase">
+                                    {{-- <th scope="col" style="width: 25px;">
                                         <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" value="" id="checkAll">
+                                            <input class="form-check-input" type="checkbox" id="checkAll" value="option">
                                             <label class="form-check-label" for="checkAll"></label>
                                         </div>
                                     </th> --}}
-                                    <th scope="col">Order ID</th>
-                                    <th scope="col">Customer</th>
-                                    <th scope="col">Product</th>
-                                    <th scope="col">Placed By</th>
-                                    <th scope="col">Delivered By</th>
-                                    <th scope="col">Order Date</th>
-                                    <th scope="col">Ready Time</th>
-                                    <th scope="col">Reach Client Time</th>
-                                    <th scope="col">Type</th>
+                                    <th class="sort" data-sort="order_id">Order ID</th>
+                                    <th class="sort" data-sort="customer">Customer</th>
+                                    <th class="sort" data-sort="product">Product</th>
+                                    <th class="sort" data-sort="placed_by">Placed By</th>
+                                    <th class="sort" data-sort="delivered_by">Delivered By</th>
+                                    <th class="sort" data-sort="order_date">Order Date</th>
+                                    <th class="sort" data-sort="ready_time">Ready Time</th>
+                                    <th class="sort" data-sort="reach_client_time">Reach Client Time</th>
+                                    <th class="sort" data-sort="type">Type</th>
                                     {{-- <th scope="col">Delivery Address</th> --}}
-                                    <th scope="col">Status</th>
-                                    <th scope="col">Action</th>
+                                    <th class="sort" data-sort="status">Status</th>
+                                    <th class="sort" data-sort="action">Action</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody class="list form-check-all">
                                 @forelse($orders as $order)
                                     <tr>
                                         {{-- <td>
@@ -176,9 +176,9 @@
                                                 <label class="form-check-label" for="cardtableCheck{{ $order->id }}"></label>
                                             </div>
                                         </td> --}}
-                                        <td><a href="{{ route('orderdetails', $order->id) }}" class="fw-semibold">#{{ $order->id }}</a></td>
-                                        <td>{{ $order->customer->name }}</td>
-                                        <td>
+                                        <td class="order_id"><a href="{{ route('orderdetails', $order->id) }}" class="fw-semibold">#{{ $order->id }}</a></td>
+                                        <td class="customer">{{ $order->customer->name }}</td>
+                                        <td class="product">
                                             @if ($order->products->isNotEmpty())
                                                 <ul class="list-unstyled mb-0">
                                                     @foreach($order->products as $product)
@@ -189,9 +189,9 @@
                                                 No products
                                             @endif
                                         </td>
-                                        <td>{{ $order->order_placed_by ?? 'N/A' }}</td>
-                                        <td>{{ $order->delivered_by ?? 'N/A' }}</td>
-                                        <td>
+                                        <td class="placed_by">{{ $order->order_placed_by ?? 'N/A' }}</td>
+                                        <td class="delivered_by">{{ $order->delivered_by ?? 'N/A' }}</td>
+                                        <td class="order_date">
                                             @if($order->order_date)
                                                 {{ $order->order_date->format('d M, Y') }}
                                                 @if($order->order_time)
@@ -201,14 +201,14 @@
                                                 <span class="text-muted">N/A</span>
                                             @endif
                                         </td>
-                                        <td>
+                                        <td class="ready_time">
                                             @if($order->item_ready_at)
                                                 {{ $order->item_ready_at->format('h:i A') }}
                                             @else
                                                 <span class="text-muted">-</span>
                                             @endif
                                         </td>
-                                        <td>
+                                        <td class="reach_client_time">
                                             @if ($order->pickup_delivery_date && $order->pickup_delivery_time)
                                                 {{ $order->pickup_delivery_date->format('d M, Y') }}
                                                 <br><small class="text-muted">{{ $order->pickup_delivery_time->format('h:i A') }}</small>
@@ -216,7 +216,7 @@
                                                 <span class="text-muted">Not scheduled</span>
                                             @endif
                                         </td>
-                                        <td>
+                                        <td class="type">
                                             @if($order->delivery_type === 'delivery')
                                                 <div class="text-success">
                                                     <i class="ri-truck-line align-bottom me-1"></i> Delivery
@@ -230,7 +230,7 @@
                                         {{-- <td>
                                             {{ $order->delivery_address ?? 'N/A' }}
                                         </td> --}}
-                                        <td>
+                                        <td class="status">
                                             @php
                                                 $statusClass =
                                                     [
@@ -243,12 +243,12 @@
                                             @endphp
                                             <span class="badge {{ $statusClass }}">{{ ucfirst($order->status) }}</span>
                                         </td>
-                                        <td>
+                                        <td class="action">
                                             <div class="d-flex flex-column flex-sm-row gap-1">
                                                 <a href="{{ route('orderdetails', $order->id) }}" class="btn btn-sm btn-info d-flex align-items-center justify-content-center" data-bs-toggle="tooltip" data-bs-trigger="hover" data-bs-placement="top" title="View Details">
                                                     <i class="ri-eye-fill"></i>
                                                 </a>
-                                                @if(Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
+                                                @if(Auth::user()->role === 'superadmin')
                                                 <a href="javascript:void(0);" class="btn btn-sm btn-danger d-flex align-items-center justify-content-center remove-item-btn" data-bs-toggle="modal" data-bs-target="#deleteOrder" data-order-id="{{ $order->id }}" data-bs-toggle="tooltip" data-bs-trigger="hover" data-bs-placement="top" title="Delete">
                                                     <i class="ri-delete-bin-5-fill"></i>
                                                 </a>
@@ -258,7 +258,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="10" class="text-center">No orders found</td>
+                                        <td colspan="11" class="text-center">No orders found</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -466,6 +466,23 @@
 @section('script')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Initialize List.js for table filtering and sorting
+            var orderList = new List('orderList', {
+                valueNames: [
+                    'order_id',
+                    'customer', 
+                    'product',
+                    'placed_by',
+                    'delivered_by',
+                    'order_date',
+                    'ready_time',
+                    'reach_client_time',
+                    'type',
+                    'status',
+                    'action'
+                ]
+            });
+
             // Handle delete order
             const deleteButtons = document.querySelectorAll('[data-order-id]');
             const deleteForm = document.getElementById('deleteOrderForm');

@@ -50,7 +50,7 @@
 
     <div class="row">
         <div class="col-lg-12">
-            <div class="card" id="customerList">
+            <div class="card" id="customerListCustom">
                 <div class="card-header border-0">
                     <div class="row align-items-center gy-3">
                         <div class="col-sm">
@@ -181,9 +181,9 @@
                             </tbody>
                         </table>
                     </div>
-                    <div class="d-flex justify-content-end">
+                    <div class="d-flex justify-content-center justify-content-sm-end">
                         <div class="pagination-wrap hstack gap-2">
-                            {{ $customers->appends(request()->query())->links('vendor.pagination.bootstrap-4') }}
+                            {{ $customers->links('vendor.pagination.bootstrap-4') }}
                         </div>
                     </div>
                 </div>

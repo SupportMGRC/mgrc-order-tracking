@@ -413,7 +413,7 @@
                                         <i class="ri-arrow-left-line label-icon align-middle fs-16 me-2"></i>
                                         Back to Customer Details
                                     </button>
-                                    <button type="submit" class="btn btn-success btn-label right ms-auto w-100 w-sm-auto">
+                                    <button type="button" id="saveOrderBtn" class="btn btn-success btn-label right ms-auto w-100 w-sm-auto">
                                         <i class="ri-save-line label-icon align-middle fs-16 ms-2"></i>
                                         Save Order
                                     </button>
@@ -430,6 +430,109 @@
         <!-- end col -->
     </div>
     <!-- end row -->
+
+    <!-- Order Confirmation Modal -->
+    <div class="modal fade" id="orderConfirmationModal" tabindex="-1" aria-labelledby="orderConfirmationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-black">
+                    <h5 class="modal-title" id="orderConfirmationModalLabel">
+                        <i class="ri-clipboard-line me-2"></i>Confirm Order Details
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body py-3">
+                    <div class="alert alert-info alert-border-left mb-3">
+                        <i class="ri-information-line me-2"></i>
+                        <strong>Please review your order details carefully before confirming.</strong>
+                    </div>
+                    
+                    <!-- Customer Information -->
+                    <div class="mb-3">
+                        <h6 class="fw-bold text-dark mb-2">
+                            <i class="ri-user-2-line me-2"></i>Customer Information
+                        </h6>
+                        <div class="border p-3 rounded bg-light">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <strong>Name:</strong> <span id="confirm-customer-name">-</span>
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>Phone:</strong> <span id="confirm-customer-phone">-</span>
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-md-6">
+                                    <strong>Email:</strong> <span id="confirm-customer-email">-</span>
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>Address:</strong> <span id="confirm-customer-address">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Order Items -->
+                    <div class="mb-3">
+                        <h6 class="fw-bold text-dark mb-2">
+                            <i class="ri-medicine-bottle-line me-2"></i>Order Items
+                        </h6>
+                        <div id="confirm-order-items" class="border p-3 rounded bg-light">
+                            <!-- Order items will be populated here -->
+                        </div>
+                    </div>
+
+                    <!-- Delivery Information -->
+                    <div class="mb-3">
+                        <h6 class="fw-bold text-dark mb-2">
+                            <i class="ri-truck-line me-2"></i>Delivery Information
+                        </h6>
+                        <div class="border p-3 rounded bg-light">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <strong>Type:</strong> <span id="confirm-delivery-type">-</span>
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>Date:</strong> <span id="confirm-delivery-date">-</span>
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-md-6">
+                                    <strong>Time:</strong> <span id="confirm-delivery-time">-</span>
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>Item Ready:</strong> <span id="confirm-item-ready">-</span>
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-12">
+                                    <strong>Address:</strong> <span id="confirm-delivery-address">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- General Remarks -->
+                    <div class="mb-2">
+                        <h6 class="fw-bold text-dark mb-2">
+                            <i class="ri-chat-3-line me-2"></i>General Remarks
+                        </h6>
+                        <div class="border p-3 rounded bg-light">
+                            <span id="confirm-general-remarks">No remarks</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="ri-close-line me-1"></i>Cancel
+                    </button>
+                    <button type="button" id="confirmOrderBtn" class="btn btn-success">
+                        <i class="ri-check-line me-1"></i>Confirm & Place Order
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Minimal JavaScript -->
     <script>
@@ -794,6 +897,108 @@
                 handleInfusionSetLogic(this);
             });
 
+            // Phone number duplicate check
+            document.getElementById('customer_phone').addEventListener('input', function() {
+                checkDuplicatePhone(this.value);
+            });
+
+            function checkDuplicatePhone(phoneNumber) {
+                if (phoneNumber.length < 8) return; // Only check when phone has reasonable length
+                
+                // Get all customers data
+                const customers = @json($customers);
+                const existingCustomer = customers.find(customer => 
+                    customer.phoneNo === phoneNumber
+                );
+                
+                if (existingCustomer) {
+                    // Show warning and auto-populate
+                    showDuplicateCustomerWarning(existingCustomer);
+                } else {
+                    // Remove any existing warnings
+                    removeDuplicateCustomerWarning();
+                }
+            }
+
+            function showDuplicateCustomerWarning(customer) {
+                // Remove existing warning first
+                removeDuplicateCustomerWarning();
+                
+                // Create warning alert
+                const warningDiv = document.createElement('div');
+                warningDiv.id = 'duplicate-customer-warning';
+                warningDiv.className = 'alert alert-danger alert-border-left mt-2 mb-0';
+                warningDiv.innerHTML = `
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <i class="ri-error-warning-line me-2"></i>
+                            <strong>Customer Already Exists!</strong> 
+                            <span>This phone number belongs to: <strong>${customer.name}</strong></span>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-danger" onclick="useExistingCustomer(${customer.id}, '${customer.name}', '${customer.email || ''}', '${customer.phoneNo}', '${customer.address}')">
+                                <i class="ri-user-check-line me-1"></i>Use Existing Customer
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                // Insert after phone field
+                const phoneField = document.getElementById('customer_phone');
+                phoneField.parentNode.insertBefore(warningDiv, phoneField.nextSibling);
+            }
+
+            function removeDuplicateCustomerWarning() {
+                const existingWarning = document.getElementById('duplicate-customer-warning');
+                if (existingWarning) {
+                    existingWarning.remove();
+                }
+            }
+
+            // Make useExistingCustomer function global
+            window.useExistingCustomer = function(id, name, email, phone, address) {
+                // Populate all fields with existing customer data
+                document.getElementById('customer_id').value = id;
+                document.getElementById('customer_name').value = name;
+                document.getElementById('customer_email').value = email;
+                document.getElementById('customer_phone').value = phone;
+                document.getElementById('customer_address').value = address;
+                
+                // Validate fields
+                validateField(document.getElementById('customer_name'));
+                validateField(document.getElementById('customer_phone'));
+                validateField(document.getElementById('customer_address'));
+                
+                // Remove warning
+                removeDuplicateCustomerWarning();
+                
+                // Show success message
+                showSuccessMessage('Customer information loaded successfully!');
+            };
+
+            function showSuccessMessage(message) {
+                // Remove existing success messages
+                const existingSuccess = document.querySelectorAll('.success-message');
+                existingSuccess.forEach(msg => msg.remove());
+                
+                const successDiv = document.createElement('div');
+                successDiv.className = 'alert alert-success alert-dismissible fade show success-message mt-2';
+                successDiv.innerHTML = `
+                    <i class="ri-check-line me-2"></i>${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `;
+                
+                const phoneField = document.getElementById('customer_phone');
+                phoneField.parentNode.insertBefore(successDiv, phoneField.nextSibling);
+                
+                // Auto-dismiss after 3 seconds
+                setTimeout(() => {
+                    if (successDiv && successDiv.parentNode) {
+                        successDiv.remove();
+                    }
+                }, 3000);
+            }
+
             // Add validation listeners to all required fields
             document.querySelectorAll('[required]').forEach(function(field) {
                 field.addEventListener('blur', function() {
@@ -831,7 +1036,9 @@
                 });
             });
             
-            form.addEventListener('submit', function(event) {
+            // Handle Save Order button click - show confirmation modal instead of direct submit
+            document.getElementById('saveOrderBtn').addEventListener('click', function() {
+                // First validate the form
                 let errors = [];
                 
                 const requiredFields = form.querySelectorAll('[required]');
@@ -864,12 +1071,96 @@
                 }
                 
                 if (errors.length > 0) {
-                    event.preventDefault();
-                    event.stopPropagation();
                     showValidationAlert(errors);
                     form.classList.add('was-validated');
+                    return;
                 }
+
+                // If validation passes, populate and show confirmation modal
+                populateConfirmationModal();
+                const modal = new bootstrap.Modal(document.getElementById('orderConfirmationModal'));
+                modal.show();
             });
+
+            // Handle confirmation modal confirm button
+            document.getElementById('confirmOrderBtn').addEventListener('click', function() {
+                // Disable the button to prevent double submission
+                this.disabled = true;
+                this.innerHTML = '<i class="ri-loader-4-line me-1 spinner-border spinner-border-sm"></i>Processing...';
+                
+                // Hide the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('orderConfirmationModal'));
+                modal.hide();
+                
+                // Submit the form
+                form.submit();
+            });
+
+            // Function to populate confirmation modal with order details
+            function populateConfirmationModal() {
+                // Customer Information
+                document.getElementById('confirm-customer-name').textContent = 
+                    document.getElementById('customer_name').value || '-';
+                document.getElementById('confirm-customer-phone').textContent = 
+                    document.getElementById('customer_phone').value || '-';
+                document.getElementById('confirm-customer-email').textContent = 
+                    document.getElementById('customer_email').value || 'Not provided';
+                document.getElementById('confirm-customer-address').textContent = 
+                    document.getElementById('customer_address').value || '-';
+
+                // Order Items
+                const orderItemsContainer = document.getElementById('confirm-order-items');
+                orderItemsContainer.innerHTML = '';
+                
+                const productItems = document.querySelectorAll('.order-item');
+                productItems.forEach(function(item, index) {
+                    const productType = item.querySelector('select').value;
+                    const patientName = item.querySelector('.patient-name-field').value;
+                    const quantity = item.querySelector('input[type="number"]').value;
+                    const remarks = item.querySelector('.remarks-field').value;
+                    
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'mb-3 pb-3';
+                    if (index < productItems.length - 1) {
+                        itemDiv.className += ' border-bottom';
+                    }
+                    
+                    itemDiv.innerHTML = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>Product:</strong> ${productType || '-'}
+                            </div>
+                            <div class="col-md-3">
+                                <strong>Quantity:</strong> ${quantity || '-'}
+                            </div>
+                            <div class="col-md-3">
+                                <strong>Patient:</strong> ${patientName || 'Not specified'}
+                            </div>
+                        </div>
+                        ${remarks ? `<div class="row mt-1"><div class="col-12"><strong>Remarks:</strong> ${remarks}</div></div>` : ''}
+                    `;
+                    
+                    orderItemsContainer.appendChild(itemDiv);
+                });
+
+                // Delivery Information
+                const deliveryType = document.querySelector('input[name="delivery_type"]:checked').value;
+                document.getElementById('confirm-delivery-type').textContent = 
+                    deliveryType === 'delivery' ? 'Delivery' : 'Self Collect';
+                document.getElementById('confirm-delivery-date').textContent = 
+                    document.getElementById('pickup_delivery_date').value || '-';
+                document.getElementById('confirm-delivery-time').textContent = 
+                    document.getElementById('pickup_delivery_time').value || '-';
+                document.getElementById('confirm-item-ready').textContent = 
+                    document.getElementById('item_ready_at').value || '-';
+                document.getElementById('confirm-delivery-address').textContent = 
+                    document.getElementById('delivery_address').value || 'Not specified';
+
+                // General Remarks
+                const generalRemarks = document.getElementById('remarks').value;
+                document.getElementById('confirm-general-remarks').textContent = 
+                    generalRemarks || 'No remarks';
+            }
         });
     </script>
 @endsection
