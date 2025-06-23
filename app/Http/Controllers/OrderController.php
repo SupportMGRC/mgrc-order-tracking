@@ -1477,6 +1477,7 @@ class OrderController extends Controller
         $request->validate([
             'pickup_delivery_date' => 'required|date',
             'pickup_delivery_time' => 'required|date_format:H:i',
+            'item_ready_time' => 'required|date_format:H:i',
         ]);
 
         DB::beginTransaction();
@@ -1490,26 +1491,34 @@ class OrderController extends Controller
                 $originalDateTime = Carbon::parse($order->pickup_delivery_date->format('Y-m-d') . ' ' . $order->pickup_delivery_time->format('H:i:s'));
             }
             
-            // Update delivery date and time
+            // Store original ready time for comparison
+            $originalReadyTime = null;
+            if ($order->item_ready_at) {
+                $originalReadyTime = Carbon::parse($order->item_ready_at)->format('g:i A');
+            }
+            
+            // Update delivery date, time, and ready time
             $order->pickup_delivery_date = $request->pickup_delivery_date;
             $order->pickup_delivery_time = $request->pickup_delivery_time;
+            $order->item_ready_at = $request->item_ready_time;
             $order->save();
             
-            // Create new datetime for comparison
+            // Create new datetime and ready time for comparison
             $newDateTime = Carbon::parse($request->pickup_delivery_date . ' ' . $request->pickup_delivery_time);
+            $newReadyTime = Carbon::parse($request->item_ready_time)->format('g:i A');
             
             DB::commit();
             
             // Send delivery update notification emails
             $emailController = new EmailController();
-            $emailController->sendDeliveryUpdateNotification($order, $originalDateTime, $newDateTime);
+            $emailController->sendDeliveryUpdateNotification($order, $originalDateTime, $newDateTime, $originalReadyTime, $newReadyTime);
             
             return redirect()->route('orderdetails', $order->id)
-                ->with('success', 'Delivery date and time updated successfully!');
+                ->with('success', 'Delivery schedule and ready time updated successfully!');
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()
-                ->with('error', 'Error updating delivery date and time: ' . $e->getMessage());
+                ->with('error', 'Error updating delivery schedule: ' . $e->getMessage());
         }
     }
 

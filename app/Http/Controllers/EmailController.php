@@ -53,9 +53,11 @@ class EmailController extends Controller
      * @param Order $order
      * @param string $originalDateTime
      * @param string $newDateTime
+     * @param string $originalReadyTime
+     * @param string $newReadyTime
      * @return void
      */
-    public function sendDeliveryUpdateNotification(Order $order, $originalDateTime = null, $newDateTime = null)
+    public function sendDeliveryUpdateNotification(Order $order, $originalDateTime = null, $newDateTime = null, $originalReadyTime = null, $newReadyTime = null)
     {
         try {
             // Get all users who want to receive new order emails (same users for updates)
@@ -68,18 +70,32 @@ class EmailController extends Controller
                 return;
             }
 
+            // Prepare field changes array
+            $fieldChanges = [];
+            
+            // Add delivery datetime changes if provided
+            if ($originalDateTime && $newDateTime) {
+                $fieldChanges['delivery_datetime'] = [
+                    'from' => $originalDateTime->format('F j, Y g:i A'),
+                    'to' => $newDateTime->format('F j, Y g:i A')
+                ];
+            }
+            
+            // Add ready time changes if provided
+            if ($originalReadyTime && $newReadyTime) {
+                $fieldChanges['ready_time'] = [
+                    'from' => $originalReadyTime,
+                    'to' => $newReadyTime
+                ];
+            }
+
             // Prepare update data for the email
             $updateData = [
                 [
                     'name' => 'Delivery Schedule',
                     'quantity' => 1,
                     'is_new' => false,
-                    'field_changes' => [
-                        'delivery_date_time' => [
-                            'from' => $originalDateTime ? $originalDateTime->format('F j, Y g:i A') : 'Not set',
-                            'to' => $newDateTime ? $newDateTime->format('F j, Y g:i A') : 'Not set'
-                        ]
-                    ]
+                    'field_changes' => $fieldChanges
                 ]
             ];
 

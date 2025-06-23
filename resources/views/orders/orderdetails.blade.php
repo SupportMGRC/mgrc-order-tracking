@@ -1339,7 +1339,7 @@
                 @method('PATCH')
                 <div class="modal-body">
                     <div class="alert alert-info mb-3">
-                        <i class="ri-information-line me-2"></i> Update the delivery date and reach client time for this order.
+                        <i class="ri-information-line me-2"></i> Update the delivery date, reach client time, and ready time for this order.
                     </div>
                     <div class="row">
                         <div class="col-lg-12">
@@ -1349,14 +1349,30 @@
                                     id="pickup_delivery_date" name="pickup_delivery_date" 
                                     data-provider="flatpickr" data-date-format="Y-m-d" 
                                     data-mindate="today"
-                                    value="{{ $order->pickup_delivery_date }}" required>
+                                    value="{{ $order->pickup_delivery_date ? $order->pickup_delivery_date->format('Y-m-d') : '' }}" required>
                                 @error('pickup_delivery_date')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                                 <div class="invalid-feedback">Please select a date</div>
                             </div>
                         </div>
-                        <div class="col-lg-12">
+                        <div class="col-lg-6">
+                            <div class="mb-3">
+                                <label for="item_ready_time_display" class="form-label">Ready Time <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control @error('item_ready_time') is-invalid @enderror" 
+                                    id="item_ready_time_display" 
+                                    data-provider="timepickr" 
+                                    placeholder="Select ready time"
+                                    value="{{ $order->item_ready_at ? \Carbon\Carbon::parse($order->item_ready_at)->format('h:i A') : '' }}" required>
+                                <input type="hidden" name="item_ready_time" id="item_ready_time" 
+                                    value="{{ $order->item_ready_at ? \Carbon\Carbon::parse($order->item_ready_at)->format('H:i') : '' }}">
+                                @error('item_ready_time')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <div class="invalid-feedback">Please select a ready time</div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
                             <div class="mb-3">
                                 <label for="pickup_delivery_time_display" class="form-label">{{ $order->delivery_type === 'delivery' ? 'Reach Client' : 'Self Collect' }} Time <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control @error('pickup_delivery_time') is-invalid @enderror" 
@@ -1389,13 +1405,15 @@
     document.addEventListener('DOMContentLoaded', function() {
         // Initialize date and time pickers
         if (typeof flatpickr !== 'undefined') {
-            flatpickr("#pickup_delivery_date", {
+                                        flatpickr("#pickup_delivery_date", {
                 dateFormat: "Y-m-d",
                 minDate: "today",
-                allowInput: true
+                allowInput: true,
+                enableTime: false,
+                time_24hr: false
             });
             
-            // Initialize time picker with AM/PM format
+            // Initialize time picker with AM/PM format for pickup/delivery time
             const timePicker = flatpickr("#pickup_delivery_time_display", {
                 enableTime: true,
                 noCalendar: true,
@@ -1414,6 +1432,25 @@
                 }
             });
             
+            // Initialize time picker with AM/PM format for ready time
+            const readyTimePicker = flatpickr("#item_ready_time_display", {
+                enableTime: true,
+                noCalendar: true,
+                dateFormat: "h:i K",
+                time_24hr: false,
+                minuteIncrement: 15,
+                allowInput: true,
+                onChange: function(selectedDates, dateStr, instance) {
+                    // Convert 12-hour format to 24-hour format for the hidden input
+                    const date = selectedDates[0];
+                    if (date) {
+                        const hours = date.getHours().toString().padStart(2, '0');
+                        const minutes = date.getMinutes().toString().padStart(2, '0');
+                        document.getElementById('item_ready_time').value = `${hours}:${minutes}`;
+                    }
+                }
+            });
+            
             // Initialize delivery_datetime picker for Mark as Delivered modal
             flatpickr("#delivery_datetime", {
                 enableTime: true,
@@ -1428,12 +1465,27 @@
         document.getElementById('deliveryDateTimeForm').addEventListener('submit', function(e) {
             const timeDisplay = document.getElementById('pickup_delivery_time_display');
             const timeHidden = document.getElementById('pickup_delivery_time');
+            const readyTimeDisplay = document.getElementById('item_ready_time_display');
+            const readyTimeHidden = document.getElementById('item_ready_time');
+            
+            let isValid = true;
             
             if (!timeDisplay.value) {
                 timeDisplay.classList.add('is-invalid');
-                e.preventDefault();
+                isValid = false;
             } else {
                 timeDisplay.classList.remove('is-invalid');
+            }
+            
+            if (!readyTimeDisplay.value) {
+                readyTimeDisplay.classList.add('is-invalid');
+                isValid = false;
+            } else {
+                readyTimeDisplay.classList.remove('is-invalid');
+            }
+            
+            if (!isValid) {
+                e.preventDefault();
             }
         });
 

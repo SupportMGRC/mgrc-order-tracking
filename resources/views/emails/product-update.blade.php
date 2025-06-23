@@ -144,12 +144,21 @@
                     @if($product['name'] === 'Delivery Schedule' && isset($product['field_changes']))
                         @foreach($product['field_changes'] as $field => $change)
                             @if($change['from'] !== $change['to'])
-                                <p><strong>{{ $order->delivery_type === 'delivery' ? 'Delivery' : 'Self Collect' }} Date & Time:</strong></p>
-                                <p style="padding: 10px; background-color: #fff3cd; border-radius: 5px; margin: 10px 0;">
-                                    <span style="color: #721c24; text-decoration: line-through;">{{ $change['from'] }}</span>
-                                    <br>
-                                    <span style="color: #155724; font-weight: bold;">→ {{ $change['to'] }}</span>
-                                </p>
+                                @if($field === 'delivery_datetime')
+                                    <p><strong>{{ $order->delivery_type === 'delivery' ? 'Delivery' : 'Self Collect' }} Date & Time:</strong></p>
+                                    <p style="padding: 10px; background-color: #fff3cd; border-radius: 5px; margin: 10px 0;">
+                                        <span style="color: #721c24; text-decoration: line-through;">{{ $change['from'] }}</span>
+                                        <br>
+                                        <span style="color: #155724; font-weight: bold;">→ {{ $change['to'] }}</span>
+                                    </p>
+                                @elseif($field === 'ready_time')
+                                    <p><strong>🕐 Ready Time:</strong></p>
+                                    <p style="padding: 10px; background-color: #e7f3ff; border-radius: 5px; margin: 10px 0;">
+                                        <span style="color: #721c24; text-decoration: line-through;">{{ $change['from'] }}</span>
+                                        <br>
+                                        <span style="color: #155724; font-weight: bold;">→ {{ $change['to'] }}</span>
+                                    </p>
+                                @endif
                             @endif
                         @endforeach
                     @endif
