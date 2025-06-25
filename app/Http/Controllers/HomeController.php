@@ -106,6 +106,40 @@ class HomeController extends Controller
             $labels[] = date('M', mktime(0, 0, 0, $i + 1, 1));
         }
         
+        // Calendar events - orders with delivery dates
+        $calendarEvents = Order::with(['customer', 'products'])
+            ->whereNotNull('pickup_delivery_date')
+            ->where('status', '!=', 'cancel')
+            ->get()
+            ->map(function ($order) {
+                $statusColors = [
+                    'new' => '#f06548',
+                    'preparing' => '#f1b44c',
+                    'ready' => '#405189',
+                    'delivered' => '#0ab39c'
+                ];
+                
+                return [
+                    'id' => $order->id,
+                    'title' => '#' . $order->id . ' - ' . ($order->customer->name ?? 'N/A'),
+                    'start' => $order->pickup_delivery_date->format('Y-m-d'),
+                    'backgroundColor' => $statusColors[$order->status] ?? '#6c757d',
+                    'borderColor' => $statusColors[$order->status] ?? '#6c757d',
+                    'status' => $order->status,
+                    'customer' => $order->customer->name ?? 'N/A',
+                    'products_count' => $order->products->count(),
+                    'delivery_type' => $order->delivery_type
+                ];
+            });
+        
+        // Upcoming deliveries (next 7 days) - exclude delivered and canceled orders
+        $upcomingDeliveries = Order::with(['customer', 'products'])
+            ->whereNotNull('pickup_delivery_date')
+            ->whereBetween('pickup_delivery_date', [Carbon::now(), Carbon::now()->addDays(7)])
+            ->whereNotIn('status', ['delivered', 'canceled'])
+            ->orderBy('pickup_delivery_date')
+            ->get();
+        
         return view('dashboard', compact(
             'todayNewCount',
             'todayPreparingCount',
@@ -126,7 +160,9 @@ class HomeController extends Controller
             'recentOrders',
             'labels',
             'data',
-            'currentYear'
+            'currentYear',
+            'calendarEvents',
+            'upcomingDeliveries'
         ));
     }
 }
