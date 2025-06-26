@@ -352,6 +352,12 @@ class OrderController extends Controller
             }
         }
         
+        // Filter by reach client date if provided
+        if ($request->has('reach_client_date') && !empty($request->reach_client_date)) {
+            $reachClientDate = $request->reach_client_date;
+            $query->whereDate('pickup_delivery_date', $reachClientDate);
+        }
+        
         // Search by ID, customer name, product name, or status
         if ($request->has('search') && !empty($request->search)) {
             $search = $request->search;

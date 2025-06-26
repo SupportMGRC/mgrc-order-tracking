@@ -185,10 +185,12 @@
     <div class="row">
         <div class="col-xl-3">
             <div class="card card-h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Upcoming Deliveries</h5>
+                    <p class="text-muted mb-0">Orders scheduled for delivery</p>
+                </div>
                 <div class="card-body">
                     <div>
-                        <h5 class="mb-1">Upcoming Deliveries</h5>
-                        <p class="text-muted">Orders scheduled for delivery</p>
                         <div class="pe-2 me-n1 mb-3" data-simplebar style="height: 400px">
                             <div id="upcoming-delivery-list">
                                 @forelse($upcomingDeliveries as $delivery)
@@ -196,7 +198,7 @@
                                     <div class="d-flex">
                                         <div class="flex-shrink-0">
                                             @if($delivery->status == 'new')
-                                                <span class="badge bg-danger-subtle text-danger">New</span>
+                                                <span class="badge bg-light text-dark">New</span>
                                             @elseif($delivery->status == 'preparing')
                                                 <span class="badge bg-warning-subtle text-warning">Preparing</span>
                                             @elseif($delivery->status == 'ready')
@@ -231,8 +233,65 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    <div class="card">
+            <!-- Overdue Deliveries Card -->
+            <div class="card card-h-100 mt-3">
+                <div class="card-header">
+                    <h5 class="mb-1 text-danger">Overdue Deliveries</h5>
+                    <p class="text-muted mb-0">Orders that passed delivery date</p>
+                </div>
+                <div class="card-body">
+                    <div>
+                        <div class="pe-2 me-n1 mb-3" data-simplebar style="height: 300px">
+                            <div id="overdue-delivery-list">
+                                @forelse($overdueDeliveries as $overdue)
+                                <div class="border-bottom border-bottom-dashed py-2 ">
+                                    <div class="d-flex">
+                                        <div class="flex-shrink-0">
+                                            @if($overdue->status == 'new')
+                                                <span class="badge bg-light text-dark">New</span>
+                                            @elseif($overdue->status == 'preparing')
+                                                <span class="badge bg-warning-subtle text-warning">Preparing</span>
+                                            @elseif($overdue->status == 'ready')
+                                                <span class="badge bg-primary-subtle text-primary">Ready</span>
+                                            @endif
+                                        </div>
+                                        <div class="flex-grow-1 ms-2">
+                                            <h6 class="mb-1 fs-13">
+                                                <a href="{{ route('orderdetails', $overdue->id) }}" class="text-dark">
+                                                    Order #{{ $overdue->id }}
+                                                </a>
+                                                <span class="text-danger fs-11 ms-2">
+                                                    <i class="ri-error-warning-line"></i> OVERDUE
+                                                </span>
+                                            </h6>
+                                            <p class="text-muted fs-12 mb-0">{{ $overdue->customer->name ?? 'N/A' }}</p>
+                                            <p class="text-danger fs-11 mb-0">
+                                                <i class="ri-calendar-line"></i> {{ $overdue->pickup_delivery_date->format('M d, Y') }}
+                                                @if($overdue->pickup_delivery_time)
+                                                    <br><i class="ri-time-line"></i> {{ $overdue->pickup_delivery_time->format('H:i') }}
+                                                @endif
+                                                <br><small class="text-muted">{{ $overdue->pickup_delivery_date->diffForHumans() }}</small>
+                                            </p>
+                                            <p class="text-muted fs-11 mb-0">
+                                                <i class="ri-truck-line"></i> {{ ucfirst($overdue->delivery_type) }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                @empty
+                                <div class="text-center text-muted py-4">
+                                    <i class="ri-check-double-line fs-48 text-success"></i>
+                                    <p class="mt-2 text-success">No overdue deliveries</p>
+                                </div>
+                                @endforelse
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- <div class="card">
                         <div class="card-body bg-soft-info">
                             <div class="d-flex">
                                 <div class="flex-shrink-0">
@@ -244,7 +303,7 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </div> --}}
                 </div>
             </div>
         </div>
@@ -256,7 +315,7 @@
                     <div class="d-flex align-items-center gap-3">
                         <small class="text-muted me-2">Status Colors:</small>
                         <div class="d-flex align-items-center gap-2">
-                            <span class="badge" style="background-color: #f06548; color: white; font-size: 10px;">New</span>
+                            <span class="badge" style="background-color: #f8f9fa; color: #212529; font-size: 10px;">New</span>
                             <span class="badge" style="background-color: #f1b44c; color: white; font-size: 10px;">Preparing</span>
                             <span class="badge" style="background-color: #405189; color: white; font-size: 10px;">Ready</span>
                             <span class="badge" style="background-color: #0ab39c; color: white; font-size: 10px;">Delivered</span>
@@ -346,6 +405,7 @@
                 },
                 weekNumbers: true,
                 dayMaxEvents: true,
+                fixedWeekCount: false,
                 events: calendarEvents,
                 eventClick: function(info) {
                     // Navigate to order details when event is clicked
@@ -353,12 +413,15 @@
                 },
                 eventDidMount: function(info) {
                     // Add custom styling and tooltips
+                    var productsList = info.event.extendedProps.products_list || [];
+                    var productsText = productsList.length > 0 ? productsList.join('\n• ') : 'No products';
+                    
                     info.el.setAttribute('title', 
                         'Order #' + info.event.id + '\n' +
                         'Customer: ' + info.event.extendedProps.customer + '\n' +
                         'Status: ' + info.event.extendedProps.status.charAt(0).toUpperCase() + info.event.extendedProps.status.slice(1) + '\n' +
-                        'Products: ' + info.event.extendedProps.products_count + ' item(s)' + '\n' +
-                        'Type: ' + (info.event.extendedProps.delivery_type || 'N/A')
+                        'Type: ' + (info.event.extendedProps.delivery_type || 'N/A') + '\n' +
+                        'Products (' + info.event.extendedProps.products_count + ' item(s)):\n• ' + productsText
                     );
                 },
                 eventContent: function(arg) {

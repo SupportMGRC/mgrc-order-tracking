@@ -42,7 +42,7 @@
                     </div>
                 </div>
                 <div class="card-body border border-dashed border-end-0 border-start-0">
-                    <form action="{{ route('orderhistory') }}" method="GET">
+                    <form action="{{ route('orderhistory') }}" method="GET" id="filterForm">
                         <div class="row g-3">
                             <div class="col-lg-8 col-12">
                                 <div class="search-box">
@@ -80,6 +80,8 @@
                                     @if(request('status') && request('status') != 'all')
                                     <input type="hidden" name="status" value="{{ request('status') }}">
                                     @endif
+                                    <!-- Hidden input for reach client date filter -->
+                                    <input type="hidden" name="reach_client_date" id="reachClientDateFilter" value="{{ request('reach_client_date') }}">
                                 </div>
                             </div>
                         </div>
@@ -94,20 +96,20 @@
                                         <ul class="nav nav-tabs nav-tabs-custom nav-primary gap-1 flex-nowrap overflow-auto" role="tablist" style="white-space: nowrap;">
                                             <li class="nav-item flex-shrink-0">
                                                 <a class="nav-link {{ request('status') == 'all' || !request('status') ? 'active' : '' }} py-3 All"
-                                                    href="{{ route('orderhistory', ['status' => 'all', 'date_range' => request('date_range', 'all'), 'search' => request('search')]) }}" role="tab">
+                                                    href="{{ route('orderhistory', ['status' => 'all', 'date_range' => request('date_range', 'all'), 'search' => request('search'), 'reach_client_date' => request('reach_client_date')]) }}" role="tab">
                                                     <i class="ri-shopping-bag-3-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> All Orders</span><span class="d-sm-none">All</span>
                                                 </a>
                                             </li>
                                             <li class="nav-item flex-shrink-0">
                                                 <a class="nav-link {{ request('status') == 'new' ? 'active' : '' }} py-3 Pending"
-                                                    href="{{ route('orderhistory', ['status' => 'new', 'search' => request('search')]) }}" role="tab">
+                                                    href="{{ route('orderhistory', ['status' => 'new', 'search' => request('search'), 'reach_client_date' => request('reach_client_date')]) }}" role="tab">
                                                     <i class="ri-add-circle-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> New</span><span class="d-sm-none">New</span>
-                                                    <span class="badge bg-danger align-middle ms-1">{{ $newCount }}</span>
+                                                    <span class="badge bg-light text-dark align-middle ms-1">{{ $newCount }}</span>
                                                 </a>
                                             </li>
                                             <li class="nav-item flex-shrink-0">
                                                 <a class="nav-link {{ request('status') == 'preparing' ? 'active' : '' }} py-3 Inprogress"
-                                                    href="{{ route('orderhistory', ['status' => 'preparing', 'search' => request('search')]) }}"
+                                                    href="{{ route('orderhistory', ['status' => 'preparing', 'search' => request('search'), 'reach_client_date' => request('reach_client_date')]) }}"
                                                     role="tab">
                                                     <i class="ri-loader-4-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> Preparing</span><span class="d-sm-none">Prep</span>
                                                     <span
@@ -116,14 +118,14 @@
                                             </li>
                                             <li class="nav-item flex-shrink-0">
                                                 <a class="nav-link {{ request('status') == 'ready' ? 'active' : '' }} py-3 Ready"
-                                                    href="{{ route('orderhistory', ['status' => 'ready', 'search' => request('search')]) }}" role="tab">
+                                                    href="{{ route('orderhistory', ['status' => 'ready', 'search' => request('search'), 'reach_client_date' => request('reach_client_date')]) }}" role="tab">
                                                     <i class="ri-checkbox-circle-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> Ready</span><span class="d-sm-none">Ready</span>
-                                                    <span class="badge bg-info align-middle ms-1">{{ $readyCount }}</span>
+                                                    <span class="badge bg-primary align-middle ms-1">{{ $readyCount }}</span>
                                                 </a>
                                             </li>
                                             <li class="nav-item flex-shrink-0">
                                                 <a class="nav-link {{ request('status') == 'delivered' ? 'active' : '' }} py-3 Delivered"
-                                                    href="{{ route('orderhistory', ['status' => 'delivered', 'date_range' => request('date_range', 'all'), 'search' => request('search')]) }}"
+                                                    href="{{ route('orderhistory', ['status' => 'delivered', 'date_range' => request('date_range', 'all'), 'search' => request('search'), 'reach_client_date' => request('reach_client_date')]) }}"
                                                     role="tab">
                                                     <i class="ri-truck-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> Delivered</span><span class="d-sm-none">Deliv</span>
                                                     <span
@@ -132,7 +134,7 @@
                                             </li>
                                             <li class="nav-item flex-shrink-0">
                                                 <a class="nav-link {{ request('status') == 'cancel' ? 'active' : '' }} py-3 text-muted"
-                                                    href="{{ route('orderhistory', ['status' => 'cancel', 'date_range' => request('date_range', 'all'), 'search' => request('search')]) }}" role="tab">
+                                                    href="{{ route('orderhistory', ['status' => 'cancel', 'date_range' => request('date_range', 'all'), 'search' => request('search'), 'reach_client_date' => request('reach_client_date')]) }}" role="tab">
                                                     <i class="ri-close-circle-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> Canceled</span><span class="d-sm-none">Cancel</span>
                                                 </a>
                                             </li>
@@ -143,10 +145,19 @@
                         </div>
                     </div>
 
+                    <!-- Display active filters -->
+                    @if(request('reach_client_date'))
+                    <div class="alert alert-info alert-dismissible fade show mb-4" role="alert">
+                        <i class="ri-calendar-line me-1"></i>
+                        <strong>Active Filter:</strong> Reach Client Date - {{ \Carbon\Carbon::parse(request('reach_client_date'))->format('d M, Y') }}
+                        <a href="{{ route('orderhistory', ['status' => request('status'), 'date_range' => request('date_range'), 'search' => request('search')]) }}" class="btn-close" aria-label="Close"></a>
+                    </div>
+                    @endif
+
                     <div class="table-responsive table-card mb-2">
                         <table class="table table-nowrap align-middle" id="orderTable">
                             <thead class="text-muted table-light">
-                                <tr class="text-uppercase">
+                                <tr class="align-middle">
                                     {{-- <th scope="col" style="width: 25px;">
                                         <div class="form-check">
                                             <input class="form-check-input" type="checkbox" id="checkAll" value="option">
@@ -160,7 +171,12 @@
                                     <th class="sort" data-sort="delivered_by">Delivered By</th>
                                     <th class="sort" data-sort="order_date">Order Date</th>
                                     <th class="sort" data-sort="ready_time">Ready Time</th>
-                                    <th class="sort" data-sort="reach_client_time">Reach Client Time</th>
+                                    <th class="sort position-relative" data-sort="reach_client_time">
+                                        Reach Client 
+                                        <button type="button" class="btn btn-sm btn-outline-primary ms-2" id="reachClientDateBtn" data-bs-toggle="tooltip" title="Filter by Reach Client Date">
+                                            <i class="ri-calendar-line"></i>
+                                        </button>
+                                    </th>
                                     <th class="sort" data-sort="type">Type</th>
                                     {{-- <th scope="col">Delivery Address</th> --}}
                                     <th class="sort" data-sort="status">Status</th>
@@ -234,11 +250,11 @@
                                             @php
                                                 $statusClass =
                                                     [
-                                                        'new' => 'bg-danger',
+                                                        'new' => 'bg-light text-dark',
                                                         'preparing' => 'bg-warning',
-                                                        'ready' => 'bg-info',
+                                                        'ready' => 'bg-primary',
                                                         'delivered' => 'bg-success',
-                                                        'cancel' => 'bg-secondary',
+                                                        'cancel' => 'bg-danger',
                                                     ][$order->status] ?? 'bg-warning';
                                             @endphp
                                             <span class="badge {{ $statusClass }}">{{ ucfirst($order->status) }}</span>
@@ -278,6 +294,30 @@
                     <div class="d-flex justify-content-center justify-content-sm-end">
                         <div class="pagination-wrap hstack gap-2">
                             {{ $orders->links('vendor.pagination.bootstrap-4') }}
+                        </div>
+                    </div>
+
+                    <!-- Date picker modal for reach client date filter -->
+                    <div class="modal fade" id="reachClientDateModal" tabindex="-1" aria-labelledby="reachClientDateModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered modal-sm">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="reachClientDateModalLabel">Filter by Reach Client Date</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="mb-3">
+                                        <label for="reachClientDatePicker" class="form-label">Select Date</label>
+                                        <input type="text" class="form-control" id="reachClientDatePicker" 
+                                               placeholder="Select reach client date" 
+                                               value="{{ request('reach_client_date') ? \Carbon\Carbon::parse(request('reach_client_date'))->format('d/m/Y') : '' }}">
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-sm btn-danger" id="clearReachClientFilter">Clear Filter</button>
+                                    <button type="button" class="btn btn-sm btn-primary" id="applyReachClientFilter">Apply Filter</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -517,6 +557,41 @@
                     noCalendar: true,
                     dateFormat: "H:i",
                     time_24hr: true
+                });
+
+                // Initialize Flatpickr for reach client date filter
+                const reachClientDatePicker = flatpickr("#reachClientDatePicker", {
+                    dateFormat: "d/m/Y",
+                    allowInput: true,
+                    clickOpens: true
+                });
+
+                // Handle reach client date filter button click
+                document.getElementById('reachClientDateBtn').addEventListener('click', function() {
+                    var modal = new bootstrap.Modal(document.getElementById('reachClientDateModal'));
+                    modal.show();
+                });
+
+                // Handle apply filter button
+                document.getElementById('applyReachClientFilter').addEventListener('click', function() {
+                    const selectedDate = document.getElementById('reachClientDatePicker').value;
+                    if (selectedDate) {
+                        // Convert date format from d/m/Y to Y-m-d for URL parameter
+                        const dateParts = selectedDate.split('/');
+                        if (dateParts.length === 3) {
+                            const formattedDate = dateParts[2] + '-' + dateParts[1].padStart(2, '0') + '-' + dateParts[0].padStart(2, '0');
+                            document.getElementById('reachClientDateFilter').value = formattedDate;
+                            document.getElementById('filterForm').submit();
+                        }
+                    } else {
+                        alert('Please select a date');
+                    }
+                });
+
+                // Handle clear filter button
+                document.getElementById('clearReachClientFilter').addEventListener('click', function() {
+                    document.getElementById('reachClientDateFilter').value = '';
+                    document.getElementById('filterForm').submit();
                 });
             }
         });

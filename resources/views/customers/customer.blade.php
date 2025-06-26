@@ -407,7 +407,13 @@
                                                                     </td>
                                                                     <td>
                                                                         @if($order->status)
-                                                                            <span class="badge bg-{{ $order->status == 'completed' ? 'success' : ($order->status == 'pending' ? 'warning' : 'info') }}">
+                                                                            <span class="badge bg-{{ 
+                                                                                $order->status == 'completed' || $order->status == 'delivered' ? 'success' : 
+                                                                                ($order->status == 'pending' || $order->status == 'preparing' ? 'warning' : 
+                                                                                ($order->status == 'new' ? 'light text-dark' : 
+                                                                                ($order->status == 'ready' ? 'primary' :
+                                                                                ($order->status == 'cancel' ? 'danger' : 'secondary')))) 
+                                                                            }}">
                                                                                 {{ ucfirst($order->status) }}
                                                                             </span>
                                                                         @else

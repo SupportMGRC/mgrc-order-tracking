@@ -236,10 +236,11 @@
                                 <td>
                                     @php
                                         $statusColors = [
-                                            'new' => 'primary',
+                                            'new' => 'light text-dark',
                                             'preparing' => 'warning',
-                                            'ready' => 'info',
-                                            'delivered' => 'success'
+                                            'ready' => 'primary',
+                                            'delivered' => 'success',
+                                            'cancel' => 'danger'
                                         ];
                                         $statusColor = $statusColors[$order->status] ?? 'secondary';
                                     @endphp

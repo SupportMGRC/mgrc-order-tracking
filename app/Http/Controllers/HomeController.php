@@ -113,11 +113,23 @@ class HomeController extends Controller
             ->get()
             ->map(function ($order) {
                 $statusColors = [
-                    'new' => '#f06548',
+                    'new' => '#f8f9fa',
                     'preparing' => '#f1b44c',
                     'ready' => '#405189',
                     'delivered' => '#0ab39c'
                 ];
+                
+                $textColors = [
+                    'new' => '#212529',
+                    'preparing' => '#ffffff',
+                    'ready' => '#ffffff',
+                    'delivered' => '#ffffff'
+                ];
+                
+                // Get product list with quantities
+                $productList = $order->products->map(function ($product) {
+                    return $product->name . ' (Qty: ' . $product->pivot->quantity . ')';
+                })->toArray();
                 
                 return [
                     'id' => $order->id,
@@ -125,9 +137,11 @@ class HomeController extends Controller
                     'start' => $order->pickup_delivery_date->format('Y-m-d'),
                     'backgroundColor' => $statusColors[$order->status] ?? '#6c757d',
                     'borderColor' => $statusColors[$order->status] ?? '#6c757d',
+                    'textColor' => $textColors[$order->status] ?? '#ffffff',
                     'status' => $order->status,
                     'customer' => $order->customer->name ?? 'N/A',
                     'products_count' => $order->products->count(),
+                    'products_list' => $productList,
                     'delivery_type' => $order->delivery_type
                 ];
             });
@@ -137,6 +151,14 @@ class HomeController extends Controller
             ->whereNotNull('pickup_delivery_date')
             ->whereBetween('pickup_delivery_date', [Carbon::now(), Carbon::now()->addDays(7)])
             ->whereNotIn('status', ['delivered', 'canceled'])
+            ->orderBy('pickup_delivery_date')
+            ->get();
+            
+        // Overdue deliveries - orders that passed delivery date but not delivered
+        $overdueDeliveries = Order::with(['customer', 'products'])
+            ->whereNotNull('pickup_delivery_date')
+            ->where('pickup_delivery_date', '<', Carbon::now())
+            ->whereNotIn('status', ['delivered', 'cancel'])
             ->orderBy('pickup_delivery_date')
             ->get();
         
@@ -162,7 +184,8 @@ class HomeController extends Controller
             'data',
             'currentYear',
             'calendarEvents',
-            'upcomingDeliveries'
+            'upcomingDeliveries',
+            'overdueDeliveries'
         ));
     }
 }

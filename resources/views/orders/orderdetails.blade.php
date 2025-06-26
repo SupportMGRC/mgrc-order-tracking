@@ -432,10 +432,10 @@
 
                 <!-- Current Status Badge -->
                 <span class="badge fs-13 bg-{{ 
-                    $order->status == 'new' ? 'info' : 
+                    $order->status == 'new' ? 'light text-dark' : 
                     ($order->status == 'preparing' ? 'warning' : 
                     ($order->status == 'ready' ? 'primary' : 
-                    ($order->status == 'delivered' ? 'success' : ($order->status == 'cancel' ? 'secondary' : 'secondary')))) 
+                    ($order->status == 'delivered' ? 'success' : ($order->status == 'cancel' ? 'danger' : 'secondary')))) 
                 }} px-3 py-2">
                     <i class="ri-{{ 
                         $order->status == 'new' ? 'shopping-bag-3-line' : 
@@ -455,10 +455,10 @@
             <div class="track-line"></div>
             <div style="height: 5px;">
                 <div class="progress-bar {{ 
-                    $order->status == 'new' ? 'bg-info' : 
+                    $order->status == 'new' ? 'bg-light' : 
                     ($order->status == 'preparing' ? 'bg-warning' : 
                     ($order->status == 'ready' ? 'bg-primary' : 
-                    ($order->status == 'delivered' ? 'bg-success' : ($order->status == 'cancel' ? 'bg-secondary' : 'bg-secondary')))) 
+                    ($order->status == 'delivered' ? 'bg-success' : ($order->status == 'cancel' ? 'bg-danger' : 'bg-secondary')))) 
                 }}" role="progressbar" style="width: {{ 
                     $order->status == 'new' ? '0%' : 
                     ($order->status == 'preparing' ? '33%' : 
