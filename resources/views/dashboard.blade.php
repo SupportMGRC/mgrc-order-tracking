@@ -187,7 +187,7 @@
             <div class="card card-h-100">
                 <div class="card-header">
                     <h5 class="card-title mb-0">Upcoming Deliveries</h5>
-                    <p class="text-muted mb-0">Orders scheduled for delivery</p>
+                    <p class="text-muted mb-0">Orders scheduled for today and tomorrow</p>
                 </div>
                 <div class="card-body">
                     <div>
@@ -346,6 +346,99 @@
 @endsection
 
 @section('script')
+<style>
+/* Custom Bootstrap Tooltip Styles */
+.custom-calendar-tooltip {
+    opacity: 1 !important;
+}
+
+.custom-calendar-tooltip .tooltip-inner {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 16px;
+    max-width: 280px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #495057;
+}
+
+.custom-calendar-tooltip .tooltip-arrow::before {
+    border-left-color: #e9ecef !important;
+}
+
+.custom-calendar-tooltip .tooltip-inner .tooltip-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f1f3f4;
+}
+
+.custom-calendar-tooltip .tooltip-inner .order-id {
+    font-weight: 600;
+    color: #495057;
+    font-size: 14px;
+}
+
+.custom-calendar-tooltip .tooltip-inner .status-badge {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.custom-calendar-tooltip .tooltip-inner .tooltip-body {
+    color: #6c757d;
+}
+
+.custom-calendar-tooltip .tooltip-inner .info-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.custom-calendar-tooltip .tooltip-inner .info-row:last-child {
+    margin-bottom: 0;
+}
+
+.custom-calendar-tooltip .tooltip-inner .info-icon {
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+    color: #8a92b2;
+}
+
+.custom-calendar-tooltip .tooltip-inner .info-text {
+    flex: 1;
+    font-size: 13px;
+}
+
+.custom-calendar-tooltip .tooltip-inner .products-list {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #f1f3f4;
+}
+
+.custom-calendar-tooltip .tooltip-inner .product-item {
+    font-size: 12px;
+    color: #8a92b2;
+    margin-bottom: 2px;
+    padding-left: 8px;
+    position: relative;
+}
+
+.custom-calendar-tooltip .tooltip-inner .product-item:before {
+    content: "•";
+    position: absolute;
+    left: 0;
+    color: #ced4da;
+}
+</style>
+
 <script>
         // Monthly Trends Chart
         var monthlyTrendsOptions = {
@@ -390,6 +483,62 @@
         var monthlyTrendsChart = new ApexCharts(document.querySelector("#monthlyTrendsChart"), monthlyTrendsOptions);
         monthlyTrendsChart.render();
 
+        // Helper function to create tooltip content
+        function createTooltipContent(eventInfo) {
+            const eventData = eventInfo.event.extendedProps;
+            const productsList = eventData.products_list || [];
+            
+            // Format delivery date and time
+            const deliveryDate = eventInfo.event.start;
+            const deliveryTime = eventData.delivery_time || '';
+            
+            let reachClientText = '';
+            if (deliveryDate) {
+                const dateObj = new Date(deliveryDate);
+                const formattedDate = dateObj.toLocaleDateString('en-US', { 
+                    month: 'long', 
+                    day: 'numeric', 
+                    year: 'numeric' 
+                });
+                reachClientText = formattedDate;
+                if (deliveryTime) {
+                    reachClientText += ` at ${deliveryTime}`;
+                }
+            } else {
+                reachClientText = 'Not scheduled';
+            }
+            
+            return `
+                <div class="tooltip-header">
+                    <div class="order-id">Order #${eventInfo.event.id}</div>
+                </div>
+                <div class="tooltip-body">
+                    <div class="info-row">
+                        <i class="ri-user-line info-icon"></i>
+                        <span class="info-text">${eventData.customer}</span>
+                    </div>
+                    <div class="info-row">
+                        <i class="ri-calendar-check-line info-icon"></i>
+                        <span class="info-text">${reachClientText}</span>
+                    </div>
+                    <div class="info-row">
+                        <i class="ri-truck-line info-icon"></i>
+                        <span class="info-text">${eventData.delivery_type || 'N/A'}</span>
+                    </div>
+                    <div class="info-row">
+                        <i class="ri-shopping-bag-line info-icon"></i>
+                        <span class="info-text">${eventData.products_count} item(s)</span>
+                    </div>
+                    ${productsList.length > 0 ? `
+                        <div class="products-list">
+                            ${productsList.slice(0, 3).map(product => `<div class="product-item">${product}</div>`).join('')}
+                            ${productsList.length > 3 ? `<div class="product-item text-muted">+${productsList.length - 3} more items</div>` : ''}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
         // Delivery Calendar
         document.addEventListener('DOMContentLoaded', function() {
             var calendarEl = document.getElementById('delivery-calendar');
@@ -412,17 +561,18 @@
                     window.location.href = '{{ route("orderdetails", ":id") }}'.replace(':id', info.event.id);
                 },
                 eventDidMount: function(info) {
-                    // Add custom styling and tooltips
-                    var productsList = info.event.extendedProps.products_list || [];
-                    var productsText = productsList.length > 0 ? productsList.join('\n• ') : 'No products';
+                    // Set up Bootstrap tooltip with custom HTML content
+                    const tooltipContent = createTooltipContent(info);
                     
-                    info.el.setAttribute('title', 
-                        'Order #' + info.event.id + '\n' +
-                        'Customer: ' + info.event.extendedProps.customer + '\n' +
-                        'Status: ' + info.event.extendedProps.status.charAt(0).toUpperCase() + info.event.extendedProps.status.slice(1) + '\n' +
-                        'Type: ' + (info.event.extendedProps.delivery_type || 'N/A') + '\n' +
-                        'Products (' + info.event.extendedProps.products_count + ' item(s)):\n• ' + productsText
-                    );
+                    // Initialize Bootstrap tooltip
+                    const tooltip = new bootstrap.Tooltip(info.el, {
+                        title: tooltipContent,
+                        html: true,
+                        placement: 'left',
+                        trigger: 'hover',
+                        container: 'body',
+                        customClass: 'custom-calendar-tooltip'
+                    });
                 },
                 eventContent: function(arg) {
                     // Custom event content

@@ -142,14 +142,15 @@ class HomeController extends Controller
                     'customer' => $order->customer->name ?? 'N/A',
                     'products_count' => $order->products->count(),
                     'products_list' => $productList,
-                    'delivery_type' => $order->delivery_type
+                    'delivery_type' => $order->delivery_type,
+                    'delivery_time' => $order->pickup_delivery_time ? $order->pickup_delivery_time->format('H:i') : null
                 ];
             });
         
-        // Upcoming deliveries (next 7 days) - exclude delivered and canceled orders
+        // Upcoming deliveries (today and tomorrow) - exclude delivered and canceled orders
         $upcomingDeliveries = Order::with(['customer', 'products'])
             ->whereNotNull('pickup_delivery_date')
-            ->whereBetween('pickup_delivery_date', [Carbon::now(), Carbon::now()->addDays(7)])
+            ->whereBetween('pickup_delivery_date', [Carbon::now()->startOfDay(), Carbon::now()->addDay()->endOfDay()])
             ->whereNotIn('status', ['delivered', 'canceled'])
             ->orderBy('pickup_delivery_date')
             ->get();

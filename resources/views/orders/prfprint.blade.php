@@ -163,7 +163,10 @@
                                     <td width="30%" class="small-text border-bottom border-dark">
                                         {{ $order->order_date ? $order->order_date->format('d/m/Y') : 'N/A' }}
                                     </td>
-                                    <td colspan="2"></td>
+                                    <td width="10%" class="small-text text-center">Order<br>ID</td>
+                                    <td width="40%" class="small-text border-bottom border-dark">
+                                        {{ $order->id }}
+                                    </td>
                                 </tr>
                             </table>
                         </div>
