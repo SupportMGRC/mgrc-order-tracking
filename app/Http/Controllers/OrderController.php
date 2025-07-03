@@ -1338,6 +1338,9 @@ class OrderController extends Controller
         try {
             $order = Order::findOrFail($orderId);
 
+            // Check if user is admin or superadmin
+            $isAdmin = Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin';
+
             // Check if all products are ready
             $allProductsReady = true;
             $totalProducts = count($order->products);
@@ -1348,8 +1351,10 @@ class OrderController extends Controller
                 }
             }
 
-            // Only allow upload if order is ready or if all products are ready in preparing status
-            if ($order->status !== 'ready' && !($order->status === 'preparing' && $allProductsReady && $totalProducts > 0)) {
+            // Allow upload if:
+            // 1. Order is ready OR all products are ready in preparing status (normal flow)
+            // 2. Admin/superadmin can upload for any status including delivered/canceled
+            if (!$isAdmin && $order->status !== 'ready' && !($order->status === 'preparing' && $allProductsReady && $totalProducts > 0)) {
                 return redirect()->back()->with('error', 'Photo can only be uploaded when all products are ready.');
             }
 
@@ -1419,8 +1424,13 @@ class OrderController extends Controller
             Log::info('Photo uploaded successfully for Order #' . $order->id . ' - File: ' . $filename . ' - Size: ' . round($file->getSize() / 1024 / 1024, 2) . 'MB');
 
             // Send photo upload notification to the person who placed the order
-            $emailController = new EmailController();
-            $emailController->sendPhotoUploadNotification($order);
+            // Skip email notifications if admin uploads photo for delivered/canceled orders
+            $shouldSendEmail = !($isAdmin && in_array($order->status, ['delivered', 'cancel']));
+            
+            if ($shouldSendEmail) {
+                $emailController = new EmailController();
+                $emailController->sendPhotoUploadNotification($order);
+            }
 
             return redirect()->back()->with('success', 'Order photo uploaded successfully! (' . round($file->getSize() / 1024 / 1024, 2) . 'MB)');
             

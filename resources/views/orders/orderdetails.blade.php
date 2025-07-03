@@ -833,16 +833,123 @@
 @endif
 
 @if($order->status === 'delivered' || $order->status === 'cancel')
-@if($order->order_photo)
 <div class="card mb-4">
     <div class="card-header">
         <h5 class="card-title mb-0"><i class="ri-image-line align-middle me-1 text-muted"></i> Order Photo</h5>
     </div>
     <div class="card-body">
-        <div class="mb-3">
-            <img src="{{ asset('storage/order_photos/' . $order->order_photo) }}" alt="Order Photo" class="img-fluid rounded shadow-sm" style="max-width: 300px; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewOrderPhotoModal">
-        </div>
+        @if($order->order_photo)
+            <div class="mb-3">
+                <img src="{{ asset('storage/order_photos/' . $order->order_photo) }}" alt="Order Photo" class="img-fluid rounded shadow-sm" style="max-width: 300px; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewOrderPhotoModal">
+            </div>
+            
+            @if(Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
+            <div class="d-flex gap-2 mb-2">
+                <!-- Edit button shows upload form -->
+                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#editPhotoFormDelivered">Edit</button>
+                <!-- Delete button shows modal -->
+                <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deletePhotoModalDelivered">Delete</button>
+            </div>
+            <div class="collapse" id="editPhotoFormDelivered">
+                <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="editPhotoUploadFormDelivered">
+                    @csrf
+                    <div class="mb-3">
+                        <label for="order_photo_edit_delivered" class="form-label">Replace Photo <span class="text-danger">*</span></label>
+                        <div class="position-relative">
+                            <input type="file" 
+                                   class="form-control" 
+                                   id="order_photo_edit_delivered" 
+                                   name="order_photo" 
+                                   accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
+                                   required>
+                            <div class="form-text text-muted">
+                                <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Image Preview for Edit -->
+                        <div id="edit-image-preview-delivered" class="mt-3" style="display: none;">
+                            <img id="edit-preview-img-delivered" src="" alt="Preview" class="img-fluid rounded shadow-sm" style="max-width: 200px; max-height: 200px;">
+                            <div class="mt-2">
+                                <small class="text-muted">New photo preview</small>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload New Photo
+                    </button>
+                </form>
+            </div>
+            
+            <!-- Modal for deleting order photo (delivered) -->
+            <div class="modal fade" id="deletePhotoModalDelivered" tabindex="-1" aria-labelledby="deletePhotoModalDeliveredLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-soft-danger">
+                            <h5 class="modal-title" id="deletePhotoModalDeliveredLabel">Delete Order Photo</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <form action="{{ route('orders.delete.photo', $order->id) }}" method="POST">
+                            @csrf
+                            @method('DELETE')
+                            <div class="modal-body">
+                                <p>Are you sure you want to delete this photo? This action cannot be undone.</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-danger">Delete Photo</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            @endif
+        @else
+            @if(Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
+            <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="photoUploadFormDelivered">
+                @csrf
+                <div class="mb-3">
+                    <label for="order_photo_delivered" class="form-label">Upload Photo <span class="text-danger">*</span></label>
+                    <div class="position-relative">
+                        <input type="file" 
+                               class="form-control" 
+                               id="order_photo_delivered" 
+                               name="order_photo" 
+                               accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
+                               required>
+                        <div id="file-size-info-delivered" class="form-text text-muted">
+                            <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Image Preview -->
+                    <div id="image-preview-delivered" class="mt-3" style="display: none;">
+                        <img id="preview-img-delivered" src="" alt="Preview" class="img-fluid rounded shadow-sm" style="max-width: 300px; max-height: 300px;">
+                        <div class="mt-2">
+                            <small class="text-muted">Preview - Image will be uploaded when you click submit</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Upload Progress -->
+                    <div id="upload-progress-delivered" class="mt-3" style="display: none;">
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <small class="text-muted">Uploading photo...</small>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary" id="upload-btn-delivered">
+                    <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo
+                </button>
+            </form>
+            @else
+            <div class="alert alert-info">
+                <i class="ri-information-line me-2"></i> No photo available for this order.
+            </div>
+            @endif
+        @endif
         
+        @if($order->order_photo)
         <!-- Modal for viewing order photo -->
         <div class="modal fade" id="viewOrderPhotoModal" tabindex="-1" aria-labelledby="viewOrderPhotoModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -857,9 +964,9 @@
                 </div>
             </div>
         </div>
+        @endif
     </div>
 </div>
-@endif
 @endif
 
 <div class="row">
@@ -1620,6 +1727,8 @@
         setupPhotoUpload('order_photo', 'image-preview', 'upload-progress', 'photoUploadForm');
         setupPhotoUpload('order_photo_ready', 'image-preview-2', 'upload-progress-2', 'photoUploadForm2');
         setupPhotoUpload('order_photo_edit', 'edit-image-preview', null, 'editPhotoUploadForm');
+        setupPhotoUpload('order_photo_delivered', 'image-preview-delivered', 'upload-progress-delivered', 'photoUploadFormDelivered');
+        setupPhotoUpload('order_photo_edit_delivered', 'edit-image-preview-delivered', null, 'editPhotoUploadFormDelivered');
 
         // Mobile-specific optimizations
         if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
