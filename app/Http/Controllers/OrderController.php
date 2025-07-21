@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Carbon;
+use App\Models\BlockedDate;
 
 class OrderController extends Controller
 {
@@ -457,7 +458,10 @@ class OrderController extends Controller
         $customers = Customer::all();
         $products = Product::where('stock', '>', 0)->get();
         $dispatchers = User::all();
-        return view('orders.neworder', compact('customers', 'products', 'dispatchers'));
+        $blockedDates = BlockedDate::getBlockedDatesArray();
+        $blockedDatesWithReasons = BlockedDate::getBlockedDatesWithReasons();
+        
+        return view('orders.neworder', compact('customers', 'products', 'dispatchers', 'blockedDates', 'blockedDatesWithReasons'));
     }
 
     /**
@@ -465,6 +469,18 @@ class OrderController extends Controller
      */
     public function storeNewOrder(Request $request)
     {
+        // Check if the selected date is blocked
+        if (BlockedDate::isDateBlocked($request->pickup_delivery_date)) {
+            $blockedDate = BlockedDate::where('blocked_date', $request->pickup_delivery_date)
+                ->where('is_active', true)
+                ->first();
+            
+            $reason = $blockedDate ? $blockedDate->reason : 'Holiday/Maintenance';
+            return redirect()->back()
+                ->withInput()
+                ->with('error', "Orders cannot be placed for " . Carbon::parse($request->pickup_delivery_date)->format('d/m/Y') . ". Reason: {$reason}");
+        }
+
         // Validate request data
         $validator = Validator::make($request->all(), [
             'customer_id' => 'nullable|exists:customers,id',
@@ -473,7 +489,7 @@ class OrderController extends Controller
             'customer_phone' => 'required|string|max:20',
             'customer_address' => 'required|string',
             'order_placed_by' => 'nullable|string|max:255',
-            'pickup_delivery_date' => 'required|date',
+            'pickup_delivery_date' => 'required|date|after_or_equal:today',
             'pickup_delivery_time' => 'required',
             'delivery_type' => 'required|in:delivery,self_collect',
             'remarks' => 'nullable|string',
@@ -488,6 +504,7 @@ class OrderController extends Controller
             'customer_phone.required' => 'The customer phone number is required.',
             'customer_address.required' => 'The customer address is required.',
             'pickup_delivery_date.required' => 'The delivery date is required.',
+            'pickup_delivery_date.after_or_equal' => 'The delivery date cannot be in the past.',
             'pickup_delivery_time.required' => 'The delivery time is required.',
             'products.required' => 'At least one product is required.',
             'products.min' => 'You need at least one product item.',

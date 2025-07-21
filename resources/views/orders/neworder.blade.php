@@ -378,6 +378,15 @@
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
                                             <div class="invalid-feedback">Please select a date</div>
+                                            @if(!empty($blockedDatesWithReasons) && count($blockedDatesWithReasons) > 0)
+                                                <div class="form-text text-warning">
+                                                    <i class="ri-information-line me-1"></i>
+                                                    <strong>Note:</strong> Some dates are not available for orders
+                                                    <button type="button" class="btn btn-link btn-sm p-0 ms-1" data-bs-toggle="modal" data-bs-target="#blockedDatesModal">
+                                                        View blocked dates
+                                                    </button>
+                                                </div>
+                                            @endif
                                         </div>
                                     </div>
                                     <div class="col-lg-6">
@@ -430,6 +439,39 @@
         <!-- end col -->
     </div>
     <!-- end row -->
+
+    <!-- Blocked Dates Modal -->
+    @if(!empty($blockedDatesWithReasons) && count($blockedDatesWithReasons) > 0)
+    <div class="modal fade" id="blockedDatesModal" tabindex="-1" aria-labelledby="blockedDatesModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title" id="blockedDatesModalLabel">
+                        <i class="ri-calendar-event-line me-2"></i>Blocked Dates
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">The following dates are not available for placing orders:</p>
+                    <div class="list-group">
+                        @foreach($blockedDatesWithReasons as $blockedDate)
+                            <div class="list-group-item d-flex justify-content-between align-items-start">
+                                <div class="me-auto">
+                                    <div class="fw-bold text-danger">{{ $blockedDate['formatted_date'] }}</div>
+                                    <small class="text-muted">{{ $blockedDate['reason'] }}</small>
+                                </div>
+                                <span class="badge bg-secondary rounded-pill">{{ ucfirst($blockedDate['type']) }}</span>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
 
     <!-- Order Confirmation Modal -->
     <div class="modal fade" id="orderConfirmationModal" tabindex="-1" aria-labelledby="orderConfirmationModalLabel" aria-hidden="true">
@@ -539,10 +581,46 @@
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize date and time pickers
             if (typeof flatpickr !== 'undefined') {
+                // Get blocked dates from PHP
+                const blockedDates = @json($blockedDates);
+                
                 flatpickr("#pickup_delivery_date", {
                     dateFormat: "Y-m-d",
                     minDate: "today",
-                    allowInput: true
+                    allowInput: true,
+                    disable: [
+                        function(date) {
+                            // Convert date to YYYY-MM-DD format
+                            const dateStr = date.toISOString().split('T')[0];
+                            return blockedDates.includes(dateStr);
+                        }
+                    ],
+                    onDayCreate: function(dObj, dStr, fp, dayElem) {
+                        // Add visual indication for blocked dates
+                        const dateStr = dayElem.dateObj.toISOString().split('T')[0];
+                        if (blockedDates.includes(dateStr)) {
+                            dayElem.classList.add('blocked-date');
+                            dayElem.style.backgroundColor = '#ffebee';
+                            dayElem.style.color = '#c62828';
+                            dayElem.style.cursor = 'not-allowed';
+                            dayElem.title = 'This date is not available for orders';
+                        }
+                    },
+                    // Prevent selecting blocked dates
+                    onChange: function(selectedDates, dateStr, instance) {
+                        const dateObj = new Date(dateStr);
+                        if (blockedDates.includes(dateStr)) {
+                            instance.clear();
+                            Toastify({
+                                text: "Selected date is not available for orders.",
+                                duration: 3000,
+                                close: true,
+                                gravity: "top",
+                                position: "right",
+                                backgroundColor: "#d32f2f",
+                            }).showToast();
+                        }
+                    }
                 });
                 
                 flatpickr("#pickup_delivery_time", {

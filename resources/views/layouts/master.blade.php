@@ -44,7 +44,10 @@
     <!-- autocomplete css -->
     <link rel="stylesheet" href="{{ asset('assets/libs/@tarekraafat/autocomplete.js/css/autoComplete.css') }}"> 
     
-
+    <!-- Toastify CSS -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    
+    @stack('head-scripts')
 </head>
 
 <body>
@@ -149,6 +152,11 @@
     <script src="{{ asset('assets/js/app.js') }}"></script>
     
     @yield('script')
+
+    <!-- Add Toastify JS before the closing body tag -->
+    @push('footer-scripts')
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    @endpush
 </body>
 
 </html>

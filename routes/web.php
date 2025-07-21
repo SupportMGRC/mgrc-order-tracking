@@ -6,6 +6,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\BlockedDateController;
 use App\Http\Controllers\VisitController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\PRFController;
@@ -100,6 +101,17 @@ Route::middleware(['auth'])->group(function () {
     
     // Order signature route
     Route::post('/orders/{order}/signature', [OrderController::class, 'saveSignature'])->name('orders.signature');
+    
+    // Blocked Dates Management Routes
+    Route::get('/settings/blocked-dates', [BlockedDateController::class, 'index'])->name('blocked-dates.index');
+    Route::post('/settings/blocked-dates', [BlockedDateController::class, 'store'])->name('blocked-dates.store');
+    Route::put('/settings/blocked-dates/{blockedDate}', [BlockedDateController::class, 'update'])->name('blocked-dates.update');
+    Route::patch('/settings/blocked-dates/{blockedDate}/toggle', [BlockedDateController::class, 'toggle'])->name('blocked-dates.toggle');
+    Route::delete('/settings/blocked-dates/{blockedDate}', [BlockedDateController::class, 'destroy'])->name('blocked-dates.destroy');
+    
+    // API route for getting blocked dates (accessible to all authenticated users)
+    Route::get('/api/blocked-dates', [BlockedDateController::class, 'api'])->name('blocked-dates.api');
+    
 });
 
 

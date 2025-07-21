@@ -74,4 +74,6 @@ class User extends Authenticatable
     {
         return $this->hasMany(Visit::class);
     }
+
+    // Equipment-related methods removed
 }

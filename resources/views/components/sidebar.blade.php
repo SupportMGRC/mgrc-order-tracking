@@ -52,6 +52,8 @@
                     </a>
                 </li>
 
+                
+
                 @if(Auth::user()->role == 'admin' || Auth::user()->role == 'superadmin')
                 <li class="menu-title"><span data-key="t-setting">Setting</span></li>
                 <li class="nav-item">
@@ -67,6 +69,11 @@
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="{{ route('customers.index') }}">
                         <i class="las la-users"></i> <span data-key="t-customer">Customer</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link menu-link" href="{{ route('blocked-dates.index') }}">
+                        <i class="las la-calendar-times"></i> <span data-key="t-blocked-dates">Blocked Dates</span>
                     </a>
                 </li>
                 @endif
@@ -100,7 +107,7 @@
                             </li>
                         </ul>
                     </div>
-                </li> <!-- end Dashboard Menu -->
+                </li>
                 {{-- <li class="nav-item">
                     <a class="nav-link menu-link" href="#sidebarApps" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="sidebarApps">
                         <i class="lab la-delicious"></i> <span data-key="t-apps">Apps</span>
