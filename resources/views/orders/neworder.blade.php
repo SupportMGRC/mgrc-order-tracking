@@ -591,13 +591,22 @@
                     disable: [
                         function(date) {
                             // Convert date to YYYY-MM-DD format
-                            const dateStr = date.toISOString().split('T')[0];
+                            const dateStr = date.toLocaleDateString('en-CA', {
+                                year: 'numeric', 
+                                month: '2-digit', 
+                                day: '2-digit'
+                            }).replace(/\//g, '-');
                             return blockedDates.includes(dateStr);
                         }
                     ],
                     onDayCreate: function(dObj, dStr, fp, dayElem) {
                         // Add visual indication for blocked dates
-                        const dateStr = dayElem.dateObj.toISOString().split('T')[0];
+                        const dateStr = dayElem.dateObj.toLocaleDateString('en-CA', {
+                            year: 'numeric', 
+                            month: '2-digit', 
+                            day: '2-digit'
+                        }).replace(/\//g, '-');
+                        
                         if (blockedDates.includes(dateStr)) {
                             dayElem.classList.add('blocked-date');
                             dayElem.style.backgroundColor = '#ffebee';
@@ -608,8 +617,16 @@
                     },
                     // Prevent selecting blocked dates
                     onChange: function(selectedDates, dateStr, instance) {
-                        const dateObj = new Date(dateStr);
-                        if (blockedDates.includes(dateStr)) {
+                        // Use the same date format as backend
+                        const formattedDate = selectedDates[0] ? 
+                            selectedDates[0].toLocaleDateString('en-CA', {
+                                year: 'numeric', 
+                                month: '2-digit', 
+                                day: '2-digit'
+                            }).replace(/\//g, '-') : 
+                            null;
+                        
+                        if (formattedDate && blockedDates.includes(formattedDate)) {
                             instance.clear();
                             Toastify({
                                 text: "Selected date is not available for orders.",
