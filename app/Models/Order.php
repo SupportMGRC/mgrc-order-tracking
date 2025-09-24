@@ -33,6 +33,7 @@ class Order extends Model
         'item_ready_at',
         'delivery_address',
         'order_photo',
+        'order_photos',
     ];
 
     /**
@@ -47,6 +48,7 @@ class Order extends Model
         'pickup_delivery_time' => 'datetime',
         'item_ready_at' => 'datetime',
         'signature_date' => 'datetime',
+        'order_photos' => 'array',
     ];
 
     /**
@@ -73,5 +75,85 @@ class Order extends Model
         return $this->belongsToMany(Product::class, 'order_product')
             ->withPivot('id', 'quantity', 'batch_number', 'patient_name', 'remarks', 'qc_document_number', 'prepared_by', 'status')
             ->withTimestamps();
+    }
+
+    /**
+     * Get all order photos (including single photo for backward compatibility)
+     *
+     * @return array
+     */
+    public function getAllPhotos()
+    {
+        $photos = [];
+        
+        // Include photos from order_photos JSON array
+        if ($this->order_photos && is_array($this->order_photos)) {
+            $photos = array_merge($photos, $this->order_photos);
+        }
+        
+        // Include single photo for backward compatibility if not already in order_photos
+        if ($this->order_photo && !in_array($this->order_photo, $photos)) {
+            $photos[] = $this->order_photo;
+        }
+        
+        return array_unique($photos);
+    }
+
+    /**
+     * Add a photo to the order
+     *
+     * @param string $filename
+     * @return void
+     */
+    public function addPhoto($filename)
+    {
+        $photos = $this->order_photos ?? [];
+        $photos[] = $filename;
+        $this->order_photos = $photos;
+        
+        // Keep backward compatibility by setting first photo as order_photo
+        if (!$this->order_photo) {
+            $this->order_photo = $filename;
+        }
+    }
+
+    /**
+     * Remove a photo from the order
+     *
+     * @param string $filename
+     * @return void
+     */
+    public function removePhoto($filename)
+    {
+        $photos = $this->order_photos ?? [];
+        $photos = array_filter($photos, function($photo) use ($filename) {
+            return $photo !== $filename;
+        });
+        $this->order_photos = array_values($photos);
+        
+        // Update order_photo if it was the removed photo
+        if ($this->order_photo === $filename) {
+            $this->order_photo = !empty($this->order_photos) ? $this->order_photos[0] : null;
+        }
+    }
+
+    /**
+     * Check if order has any photos
+     *
+     * @return bool
+     */
+    public function hasPhotos()
+    {
+        return !empty($this->getAllPhotos());
+    }
+
+    /**
+     * Get the count of photos
+     *
+     * @return int
+     */
+    public function getPhotosCount()
+    {
+        return count($this->getAllPhotos());
     }
 } 

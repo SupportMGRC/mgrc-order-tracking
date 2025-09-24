@@ -93,6 +93,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/orders/{order}/upload-photo', [OrderController::class, 'uploadOrderPhoto'])->name('orders.upload.photo');
 
     Route::delete('/orders/{order}/delete-photo', [OrderController::class, 'deleteOrderPhoto'])->name('orders.delete.photo');
+    
+    Route::delete('/orders/{order}/delete-photo/{filename}', [OrderController::class, 'deleteSpecificOrderPhoto'])->name('orders.delete.specific.photo');
 
     Route::get('/orders/{order}/mark-ready-link', [OrderController::class, 'markReadyLink'])->name('orders.mark.ready.link');
 

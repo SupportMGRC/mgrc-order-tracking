@@ -41,7 +41,7 @@
                             </div>
                         </div>
                         <!-- Controlled Copy Stamp Overlay (always on top) -->
-                        <img src="{{ asset('assets/images/mgrc/controlledcopy.png') }}" alt="Controlled Copy" class="controlled-copy-stamp">
+                        {{-- <img src="{{ asset('assets/images/mgrc/controlledcopy.png') }}" alt="Controlled Copy" class="controlled-copy-stamp"> --}}
 
                         <!-- Customer Details Section -->
                         <div class="prf-section mb-2">
@@ -215,6 +215,10 @@
                                     <button type="button" class="btn btn-sm btn-success ms-2" id="openSignatureModal" style="font-size: 0.7rem;">
                                         <i class="ri-pencil-line"></i> E-Sign Collection
                                     </button>
+                                @else
+                                    <button type="button" class="btn btn-sm btn-warning ms-2" id="openSignatureModal" style="font-size: 0.7rem;">
+                                        <i class="ri-edit-line"></i> Edit Signature
+                                    </button>
                                 @endif
                             </div>
                             
@@ -245,20 +249,20 @@
                                 </tr>
                             </table>
                             
-                            <table class="w-100 doc-footer mt-4 mb-0">
+                            {{-- <table class="w-100 doc-footer mt-4 mb-0">
                                 <tr class="border-top border-dark">
                                     <td width="25%" class="xsmall-text pt-1 pb-0">Document No : LSD/CL/SRL/F03</td>
-                                    {{-- <td width="25%" class="xsmall-text py-1">: LSD/CL/SRL/F03</td> --}}
+                                    <td width="25%" class="xsmall-text py-1">: LSD/CL/SRL/F03</td>
                                 </tr>
                                 <tr>
                                     <td width="25%" class="xsmall-text py-0">Revision : 1</td>
-                                    {{-- <td width="25%" class="xsmall-text py-1">: 0</td> --}}
+                                    <td width="25%" class="xsmall-text py-1">: 0</td>
                                 </tr>
                                 <tr>
                                     <td width="25%" class="xsmall-text py-0">Date : 03/06/2025</td>
-                                    {{-- <td width="25%" class="xsmall-text py-1">: 16/06/2023</td> --}}
+                                    <td width="25%" class="xsmall-text py-1">: 16/06/2023</td>
                                 </tr>
-                            </table>
+                            </table> --}}
                         </div>
                     </div>
                 </div>
@@ -536,9 +540,19 @@
                         <div class="invalid-feedback">Please enter your full name.</div>
                     </div>
                     
-                    <div class="mb-3">
-                        <label class="form-label">Date & Time</label>
-                        <input type="text" class="form-control" id="currentDateTime" readonly>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="signatureDate" class="form-label">Date <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="signatureDate" name="signature_date" 
+                                data-provider="flatpickr" data-date-format="Y-m-d" required>
+                            <div class="invalid-feedback">Please select a date.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="signatureTime" class="form-label">Time <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="signatureTime" name="signature_time" 
+                                data-provider="flatpickr" data-date-format="h:i K" required>
+                            <div class="invalid-feedback">Please select a time.</div>
+                        </div>
                     </div>
                     
                     <div class="mb-3">
@@ -594,8 +608,43 @@ document.addEventListener('DOMContentLoaded', function() {
     // Open modal
     document.getElementById('openSignatureModal')?.addEventListener('click', function() {
         modal.show();
-        updateDateTime();
-        setTimeout(resizeCanvas, 300); // Delay to ensure modal is fully shown
+        
+        // Initialize Flatpickr after modal is shown
+        setTimeout(() => {
+            initializeDateTimePickers();
+            
+            // Check if we're editing existing signature or creating new one
+            const hasExistingSignature = {{ $order->signature_data ? 'true' : 'false' }};
+            
+            if (hasExistingSignature) {
+                // Populate with existing data
+                document.getElementById('collectedBy').value = '{{ $order->collected_by ?? '' }}';
+                
+                @if($order->signature_date)
+                    const existingDate = new Date('{{ $order->signature_date->toISOString() }}');
+                    const existingDateString = existingDate.toISOString().split('T')[0];
+                    const existingTimeString = existingDate.toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true
+                    });
+                    
+                    if (datePickerInstance) {
+                        datePickerInstance.setDate(existingDateString);
+                    }
+                    if (timePickerInstance) {
+                        timePickerInstance.setDate(existingTimeString);
+                    }
+                @else
+                    updateDateTime();
+                @endif
+            } else {
+                // New signature - use current date/time
+                updateDateTime();
+            }
+            
+            resizeCanvas(); // Resize canvas after modal is fully shown
+        }, 300);
     });
 
     // Clear signature
@@ -603,28 +652,71 @@ document.addEventListener('DOMContentLoaded', function() {
         signaturePad.clear();
     });
 
+    // Initialize Flatpickr for date and time fields
+    let datePickerInstance = null;
+    let timePickerInstance = null;
+    
+    function initializeDateTimePickers() {
+        if (typeof flatpickr !== 'undefined') {
+            // Initialize date picker
+            datePickerInstance = flatpickr("#signatureDate", {
+                dateFormat: "Y-m-d",
+                allowInput: true,
+                enableTime: false,
+                time_24hr: false
+            });
+            
+            // Initialize time picker
+            timePickerInstance = flatpickr("#signatureTime", {
+                enableTime: true,
+                noCalendar: true,
+                dateFormat: "h:i K",
+                time_24hr: false,
+                minuteIncrement: 15,
+                allowInput: true
+            });
+        }
+    }
+    
     // Update date/time
     function updateDateTime() {
         const now = new Date();
-        const formatted = now.toLocaleString('en-GB', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
+        const dateString = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+        const timeString = now.toLocaleTimeString('en-US', {
             hour: '2-digit',
             minute: '2-digit',
             hour12: true
-        });
-        document.getElementById('currentDateTime').value = formatted;
+        }); // 12-hour format with AM/PM
+        
+        // Set values using Flatpickr instances if available
+        if (datePickerInstance) {
+            datePickerInstance.setDate(dateString);
+        } else {
+            document.getElementById('signatureDate').value = dateString;
+        }
+        
+        if (timePickerInstance) {
+            timePickerInstance.setDate(timeString);
+        } else {
+            document.getElementById('signatureTime').value = timeString;
+        }
     }
 
     // Save signature
     document.getElementById('saveSignature').addEventListener('click', function() {
         const collectedBy = document.getElementById('collectedBy').value.trim();
+        const signatureDate = document.getElementById('signatureDate').value;
+        const signatureTime = document.getElementById('signatureTime').value;
+        
         const nameInput = document.getElementById('collectedBy');
+        const dateInput = document.getElementById('signatureDate');
+        const timeInput = document.getElementById('signatureTime');
         const signatureError = document.getElementById('signatureError');
         
         // Reset validation states
         nameInput.classList.remove('is-invalid');
+        dateInput.classList.remove('is-invalid');
+        timeInput.classList.remove('is-invalid');
         signatureError.style.display = 'none';
         
         let hasError = false;
@@ -632,6 +724,18 @@ document.addEventListener('DOMContentLoaded', function() {
         // Validate name
         if (!collectedBy) {
             nameInput.classList.add('is-invalid');
+            hasError = true;
+        }
+        
+        // Validate date
+        if (!signatureDate) {
+            dateInput.classList.add('is-invalid');
+            hasError = true;
+        }
+        
+        // Validate time
+        if (!signatureTime) {
+            timeInput.classList.add('is-invalid');
             hasError = true;
         }
         
@@ -663,7 +767,9 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             body: JSON.stringify({
                 collected_by: collectedBy,
-                signature_data: signatureData
+                signature_data: signatureData,
+                signature_date: signatureDate,
+                signature_time: signatureTime
             })
         })
         .then(response => response.json())

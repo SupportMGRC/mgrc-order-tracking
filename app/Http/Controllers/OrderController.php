@@ -1375,15 +1375,32 @@ class OrderController extends Controller
                 return redirect()->back()->with('error', 'Photo can only be uploaded when all products are ready.');
             }
 
-            // Enhanced validation with better error messages
-            $validator = Validator::make($request->all(), [
-                'order_photo' => 'required|image|mimes:jpeg,png,jpg,gif,webp,heic,heif|max:51200', // 50MB limit
-            ], [
-                'order_photo.required' => 'Please select an image to upload.',
-                'order_photo.image' => 'The uploaded file must be an image.',
-                'order_photo.mimes' => 'Image must be a JPEG, PNG, GIF, WebP, or HEIC file.',
-                'order_photo.max' => 'Image size must not exceed 50MB. Please compress your image and try again.'
-            ]);
+            // Enhanced validation with better error messages for both single and multiple uploads
+            $validationRules = [];
+            $validationMessages = [];
+            
+            // Support both single and multiple file uploads
+            if ($request->hasFile('order_photos')) {
+                // Multiple files
+                $validationRules['order_photos.*'] = 'required|image|mimes:jpeg,png,jpg,gif,webp,heic,heif|max:51200';
+                $validationMessages = array_merge($validationMessages, [
+                    'order_photos.*.required' => 'Please select valid images to upload.',
+                    'order_photos.*.image' => 'All uploaded files must be images.',
+                    'order_photos.*.mimes' => 'Images must be JPEG, PNG, GIF, WebP, or HEIC files.',
+                    'order_photos.*.max' => 'Each image size must not exceed 50MB. Please compress your images and try again.'
+                ]);
+            } else {
+                // Single file (backward compatibility)
+                $validationRules['order_photo'] = 'required|image|mimes:jpeg,png,jpg,gif,webp,heic,heif|max:51200';
+                $validationMessages = array_merge($validationMessages, [
+                    'order_photo.required' => 'Please select an image to upload.',
+                    'order_photo.image' => 'The uploaded file must be an image.',
+                    'order_photo.mimes' => 'Image must be a JPEG, PNG, GIF, WebP, or HEIC file.',
+                    'order_photo.max' => 'Image size must not exceed 50MB. Please compress your image and try again.'
+                ]);
+            }
+            
+            $validator = Validator::make($request->all(), $validationRules, $validationMessages);
 
             if ($validator->fails()) {
                 return redirect()->back()
@@ -1392,53 +1409,85 @@ class OrderController extends Controller
                     ->with('error', 'Upload failed: ' . $validator->errors()->first());
             }
 
-            $file = $request->file('order_photo');
-            
-            // Additional file validation
-            if (!$file || !$file->isValid()) {
-                return redirect()->back()->with('error', 'Invalid file upload. Please try again.');
-            }
-
-            // Check actual file size (double-check)
+            $uploadedFiles = [];
+            $totalSize = 0;
             $maxFileSize = 52428800; // 50MB in bytes
-            if ($file->getSize() > $maxFileSize) {
-                return redirect()->back()->with('error', 'File size exceeds 50MB limit. Please compress your image and try again.');
-            }
-
-            // Generate unique filename with timestamp and order ID
-            $originalName = $file->getClientOriginalName();
-            $extension = $file->getClientOriginalExtension();
-            $filename = 'order_' . $order->id . '_' . time() . '_' . uniqid() . '.' . $extension;
             
-            // Delete old photo if exists
-            if ($order->order_photo) {
+            // Handle multiple files or single file
+            if ($request->hasFile('order_photos')) {
+                $files = $request->file('order_photos');
+                if (!is_array($files)) {
+                    $files = [$files];
+                }
+            } else {
+                $files = [$request->file('order_photo')];
+            }
+            
+            // Validate and process each file
+            foreach ($files as $index => $file) {
+                // Additional file validation
+                if (!$file || !$file->isValid()) {
+                    return redirect()->back()->with('error', 'Invalid file upload at position ' . ($index + 1) . '. Please try again.');
+                }
+
+                // Check actual file size (double-check)
+                if ($file->getSize() > $maxFileSize) {
+                    return redirect()->back()->with('error', 'File size exceeds 50MB limit for file: ' . $file->getClientOriginalName() . '. Please compress your image and try again.');
+                }
+                
+                $totalSize += $file->getSize();
+                
+                // Generate unique filename with timestamp and order ID
+                $originalName = $file->getClientOriginalName();
+                $extension = $file->getClientOriginalExtension();
+                $filename = 'order_' . $order->id . '_' . time() . '_' . uniqid() . '.' . $extension;
+                
+                // Store the uploaded photo with error handling
+                try {
+                    $path = $file->storeAs('public/order_photos', $filename);
+                    
+                    if (!$path) {
+                        throw new \Exception('Failed to store uploaded file: ' . $originalName);
+                    }
+                    
+                    // Verify file was actually saved
+                    if (!\Storage::exists($path)) {
+                        throw new \Exception('File upload verification failed for: ' . $originalName);
+                    }
+                    
+                    $uploadedFiles[] = [
+                        'filename' => $filename,
+                        'original_name' => $originalName,
+                        'size' => $file->getSize()
+                    ];
+                    
+                } catch (\Exception $e) {
+                    Log::error('File storage error for Order #' . $order->id . ': ' . $e->getMessage());
+                    
+                    // Clean up any already uploaded files
+                    foreach ($uploadedFiles as $uploadedFile) {
+                        \Storage::delete('public/order_photos/' . $uploadedFile['filename']);
+                    }
+                    
+                    return redirect()->back()->with('error', 'Failed to save uploaded image: ' . $originalName . '. Please try again.');
+                }
+            }
+            
+            // If this is a single file upload (backward compatibility), delete old photo
+            if (!$request->hasFile('order_photos') && $order->order_photo) {
                 \Storage::delete('public/order_photos/' . $order->order_photo);
             }
 
-            // Store the uploaded photo with error handling
-            try {
-                $path = $file->storeAs('public/order_photos', $filename);
-                
-                if (!$path) {
-                    throw new \Exception('Failed to store uploaded file.');
-                }
-                
-                // Verify file was actually saved
-                if (!\Storage::exists($path)) {
-                    throw new \Exception('File upload verification failed.');
-                }
-                
-            } catch (\Exception $e) {
-                Log::error('File storage error for Order #' . $order->id . ': ' . $e->getMessage());
-                return redirect()->back()->with('error', 'Failed to save uploaded image. Please try again.');
+            // Update the order with new photos
+            foreach ($uploadedFiles as $uploadedFile) {
+                $order->addPhoto($uploadedFile['filename']);
             }
-
-            // Update the order with the photo filename
-            $order->order_photo = $filename;
             $order->save();
 
             // Log successful upload
-            Log::info('Photo uploaded successfully for Order #' . $order->id . ' - File: ' . $filename . ' - Size: ' . round($file->getSize() / 1024 / 1024, 2) . 'MB');
+            $fileCount = count($uploadedFiles);
+            $fileNames = implode(', ', array_column($uploadedFiles, 'filename'));
+            Log::info('Photo(s) uploaded successfully for Order #' . $order->id . ' - Files: ' . $fileNames . ' - Total Size: ' . round($totalSize / 1024 / 1024, 2) . 'MB');
 
             // Send photo upload notification to the person who placed the order
             // Skip email notifications if admin uploads photo for delivered/canceled orders
@@ -1449,7 +1498,11 @@ class OrderController extends Controller
                 $emailController->sendPhotoUploadNotification($order);
             }
 
-            return redirect()->back()->with('success', 'Order photo uploaded successfully! (' . round($file->getSize() / 1024 / 1024, 2) . 'MB)');
+            $successMessage = $fileCount === 1 
+                ? 'Order photo uploaded successfully! (' . round($totalSize / 1024 / 1024, 2) . 'MB)'
+                : $fileCount . ' order photos uploaded successfully! (Total: ' . round($totalSize / 1024 / 1024, 2) . 'MB)';
+                
+            return redirect()->back()->with('success', $successMessage);
             
         } catch (\Exception $e) {
             Log::error('Photo upload error for Order #' . $orderId . ': ' . $e->getMessage());
@@ -1460,25 +1513,61 @@ class OrderController extends Controller
 
 
     /**
-     * Delete the order photo from storage and database.
+     * Delete all order photos from storage and database.
      */
     public function deleteOrderPhoto($orderId)
     {
         $order = Order::findOrFail($orderId);
 
-        // Only allow delete if order has a photo
-        if (!$order->order_photo) {
-            return redirect()->back()->with('error', 'No photo to delete.');
+        // Get all photos
+        $allPhotos = $order->getAllPhotos();
+        
+        // Only allow delete if order has photos
+        if (empty($allPhotos)) {
+            return redirect()->back()->with('error', 'No photos to delete.');
+        }
+
+        // Delete all files from storage
+        foreach ($allPhotos as $photo) {
+            \Storage::delete('public/order_photos/' . $photo);
+        }
+
+        // Remove all photo references from the order
+        $order->order_photo = null;
+        $order->order_photos = null;
+        $order->save();
+
+        $photoCount = count($allPhotos);
+        $successMessage = $photoCount === 1 
+            ? 'Order photo deleted successfully!' 
+            : $photoCount . ' order photos deleted successfully!';
+
+        return redirect()->back()->with('success', $successMessage);
+    }
+
+    /**
+     * Delete a specific order photo from storage and database.
+     */
+    public function deleteSpecificOrderPhoto($orderId, $filename)
+    {
+        $order = Order::findOrFail($orderId);
+
+        // Get all photos
+        $allPhotos = $order->getAllPhotos();
+        
+        // Check if the photo exists
+        if (!in_array($filename, $allPhotos)) {
+            return redirect()->back()->with('error', 'Photo not found.');
         }
 
         // Delete the file from storage
-        \Storage::delete('public/order_photos/' . $order->order_photo);
+        \Storage::delete('public/order_photos/' . $filename);
 
-        // Remove the filename from the order
-        $order->order_photo = null;
+        // Remove the photo from the order
+        $order->removePhoto($filename);
         $order->save();
 
-        return redirect()->back()->with('success', 'Order photo deleted successfully!');
+        return redirect()->back()->with('success', 'Photo deleted successfully!');
     }
 
     /**
@@ -1564,6 +1653,8 @@ class OrderController extends Controller
             $validator = Validator::make($request->all(), [
                 'collected_by' => 'required|string|max:255',
                 'signature_data' => 'required|string',
+                'signature_date' => 'required|date',
+                'signature_time' => 'required|string',
             ]);
 
             if ($validator->fails()) {
@@ -1574,11 +1665,28 @@ class OrderController extends Controller
                 ], 422);
             }
 
+            // Parse the date and time from form
+            $date = $request->signature_date;
+            $time = $request->signature_time;
+            
+            // Handle 12-hour format time (e.g., "02:30 PM") from Flatpickr
+            try {
+                $signatureDateTime = \Carbon\Carbon::createFromFormat('Y-m-d h:i A', $date . ' ' . $time);
+            } catch (\Exception $e) {
+                // Fallback to 24-hour format if 12-hour parsing fails
+                try {
+                    $signatureDateTime = \Carbon\Carbon::createFromFormat('Y-m-d H:i', $date . ' ' . $time);
+                } catch (\Exception $e2) {
+                    // If both fail, try basic parsing
+                    $signatureDateTime = \Carbon\Carbon::parse($date . ' ' . $time);
+                }
+            }
+
             // Update order with signature data
             $order->update([
                 'collected_by' => $request->collected_by,
                 'signature_data' => $request->signature_data,
-                'signature_date' => now(),
+                'signature_date' => $signatureDateTime,
                 'signature_ip' => $request->ip(),
             ]);
 

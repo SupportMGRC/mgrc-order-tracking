@@ -28,12 +28,18 @@ class OrderPhotoUploadedNotification extends Mailable
      */
     public function envelope(): Envelope
     {
+        $photoCount = $this->order->getPhotosCount();
+        $subject = $photoCount === 1 
+            ? '[PHOTO UPLOADED] Order #' . $this->order->id . ' - Photo Available'
+            : '[PHOTOS UPLOADED] Order #' . $this->order->id . ' - ' . $photoCount . ' Photos Available';
+            
         return new Envelope(
             from: new \Illuminate\Mail\Mailables\Address(config('mail.from.address', 'support@mgrc.com'), config('mail.from.name', 'MGRC Order System')),
-            subject: '[PHOTO UPLOADED] Order #' . $this->order->id . ' - Photo Available',
+            subject: $subject,
             tags: ['order', 'photo-uploaded'],
             metadata: [
                 'order_id' => $this->order->id,
+                'photo_count' => $photoCount,
                 'priority' => 'normal',
             ]
         );

@@ -586,9 +586,27 @@
             <h5 class="card-title mb-0"><i class="ri-image-line align-middle me-1 text-muted"></i> Order Photo</h5>
         </div>
         <div class="card-body">
-            @if($order->order_photo)
+            @if($order->hasPhotos())
                 <div class="mb-3">
-                    <img src="{{ asset('storage/order_photos/' . $order->order_photo) }}" alt="Order Photo" class="img-fluid rounded shadow-sm" style="max-width: 300px; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewOrderPhotoModal">
+                    @php $allPhotos = $order->getAllPhotos(); @endphp
+                    @if(count($allPhotos) === 1)
+                        <img src="{{ asset('storage/order_photos/' . $allPhotos[0]) }}" alt="Order Photo" class="img-fluid rounded shadow-sm" style="max-width: 300px; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewOrderPhotoModal" data-photo="{{ $allPhotos[0] }}">
+                    @else
+                        <div class="row">
+                            @foreach($allPhotos as $index => $photo)
+                            <div class="col-md-4 mb-3">
+                                <div class="position-relative">
+                                    <img src="{{ asset('storage/order_photos/' . $photo) }}" alt="Order Photo {{ $index + 1 }}" class="img-fluid rounded shadow-sm" style="max-width: 100%; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewOrderPhotoModal" data-photo="{{ $photo }}">
+                                    <div class="position-absolute top-0 end-0 p-1">
+                                        <button type="button" class="btn btn-sm btn-danger rounded-circle" data-bs-toggle="modal" data-bs-target="#deleteSpecificPhotoModal{{ $index }}" title="Delete this photo">
+                                            <i class="ri-close-line"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
                 <div class="d-flex gap-2 mb-2">
                     <!-- Edit button shows upload form -->
@@ -622,7 +640,7 @@
                             </div>
                         </div>
                         <button type="submit" class="btn btn-primary btn-sm">
-                            <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload New Photo
+                            <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo(s)
                         </button>
                     </form>
                 </div>
@@ -635,7 +653,7 @@
                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                             </div>
                             <div class="modal-body text-center">
-                                <img src="{{ asset('storage/order_photos/' . $order->order_photo) }}" alt="Order Photo" class="img-fluid rounded shadow">
+                                <img id="modalPhotoImg" src="" alt="Order Photo" class="img-fluid rounded shadow">
                             </div>
                         </div>
                     </div>
@@ -652,16 +670,46 @@
                                 @csrf
                                 @method('DELETE')
                                 <div class="modal-body">
-                                    <p>Are you sure you want to delete this photo? This action cannot be undone.</p>
+                                    <p>Are you sure you want to delete {{ count($order->getAllPhotos()) === 1 ? 'this photo' : 'all photos' }}? This action cannot be undone.</p>
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                                    <button type="submit" class="btn btn-danger">Delete Photo</button>
+                                    <button type="submit" class="btn btn-danger">Delete {{ count($order->getAllPhotos()) === 1 ? 'Photo' : 'All Photos' }}</button>
                                 </div>
                             </form>
                         </div>
                     </div>
                 </div>
+                
+                <!-- Individual Delete Photo Modals for Multiple Photos -->
+                @if($order->hasPhotos() && count($order->getAllPhotos()) > 1)
+                    @foreach($order->getAllPhotos() as $index => $photo)
+                    <div class="modal fade" id="deleteSpecificPhotoModal{{ $index }}" tabindex="-1" aria-labelledby="deleteSpecificPhotoModalLabel{{ $index }}" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content">
+                                <div class="modal-header bg-soft-danger">
+                                    <h5 class="modal-title" id="deleteSpecificPhotoModalLabel{{ $index }}">Delete Photo {{ $index + 1 }}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <form action="{{ route('orders.delete.specific.photo', [$order->id, $photo]) }}" method="POST">
+                                    @csrf
+                                    @method('DELETE')
+                                    <div class="modal-body">
+                                        <div class="text-center mb-3">
+                                            <img src="{{ asset('storage/order_photos/' . $photo) }}" alt="Photo to delete" class="img-fluid rounded" style="max-width: 200px;">
+                                        </div>
+                                        <p class="text-center">Are you sure you want to delete this photo? This action cannot be undone.</p>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-danger">Delete Photo</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    @endforeach
+                @endif
             @else
                 <div class="alert alert-info mb-3">
                     <i class="ri-information-line me-2"></i> All products are ready! Please upload a photo of the completed order.
@@ -669,16 +717,17 @@
                 <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="photoUploadForm">
                     @csrf
                     <div class="mb-3">
-                        <label for="order_photo" class="form-label">Upload Photo <span class="text-danger">*</span></label>
+                        <label for="order_photo" class="form-label">Upload Photo(s) <span class="text-danger">*</span></label>
                         <div class="position-relative">
                             <input type="file" 
                                    class="form-control" 
                                    id="order_photo" 
-                                   name="order_photo" 
+                                   name="order_photos[]" 
                                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
+                                   multiple
                                    required>
                             <div id="file-size-info" class="form-text text-muted">
-                                <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB</small>
+                                <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB each. You can select multiple photos.</small>
                             </div>
                         </div>
                         
@@ -699,7 +748,7 @@
                         </div>
                     </div>
                     <button type="submit" class="btn btn-primary" id="upload-btn">
-                        <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo
+                        <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo(s)
                     </button>
                 </form>
             @endif
@@ -714,13 +763,31 @@
         <h5 class="card-title mb-0"><i class="ri-image-line align-middle me-1 text-muted"></i> Order Photo</h5>
     </div>
     <div class="card-body">
-        @if($order->order_photo)
+        @if($order->hasPhotos())
             <div class="mb-3">
-                <img src="{{ asset('storage/order_photos/' . $order->order_photo) }}" alt="Order Photo" class="img-fluid rounded shadow-sm" style="max-width: 300px; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewOrderPhotoModal">
+                @php $allPhotos = $order->getAllPhotos(); @endphp
+                @if(count($allPhotos) === 1)
+                    <img src="{{ asset('storage/order_photos/' . $allPhotos[0]) }}" alt="Order Photo" class="img-fluid rounded shadow-sm" style="max-width: 300px; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewOrderPhotoModal" data-photo="{{ $allPhotos[0] }}">
+                @else
+                    <div class="row">
+                        @foreach($allPhotos as $index => $photo)
+                        <div class="col-md-4 mb-3">
+                            <div class="position-relative">
+                                <img src="{{ asset('storage/order_photos/' . $photo) }}" alt="Order Photo {{ $index + 1 }}" class="img-fluid rounded shadow-sm" style="max-width: 100%; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewOrderPhotoModal" data-photo="{{ $photo }}">
+                                <div class="position-absolute top-0 end-0 p-1">
+                                    <button type="button" class="btn btn-sm btn-danger rounded-circle" data-bs-toggle="modal" data-bs-target="#deleteSpecificPhotoModalReady{{ $index }}" title="Delete this photo">
+                                        <i class="ri-close-line"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        @endforeach
+                    </div>
+                @endif
             </div>
             <div class="d-flex gap-2 mb-2">
                 <!-- Edit button shows upload form -->
-                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#editPhotoForm">Edit</button>
+                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#editPhotoForm">Add More</button>
                 <!-- Delete button shows modal -->
                 <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deletePhotoModal">Delete</button>
             </div>
@@ -728,16 +795,17 @@
                 <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="editPhotoUploadForm">
                     @csrf
                     <div class="mb-3">
-                        <label for="order_photo_edit" class="form-label">Replace Photo <span class="text-danger">*</span></label>
+                        <label for="order_photo_edit" class="form-label">Add More Photos <span class="text-danger">*</span></label>
                         <div class="position-relative">
                             <input type="file" 
                                    class="form-control" 
                                    id="order_photo_edit" 
-                                   name="order_photo" 
+                                   name="order_photos[]" 
                                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
+                                   multiple
                                    required>
                             <div class="form-text text-muted">
-                                <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB</small>
+                                <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB each. You can select multiple photos.</small>
                             </div>
                         </div>
                         
@@ -1619,7 +1687,7 @@
             });
         }
 
-        // Enhanced Photo Upload Handling for Mobile
+        // Enhanced Photo Upload Handling for Mobile with Multiple File Support
         function setupPhotoUpload(fileInputId, previewId, progressId, formId) {
             const fileInput = document.getElementById(fileInputId);
             const preview = document.getElementById(previewId);
@@ -1629,57 +1697,85 @@
 
             if (!fileInput) return;
 
-            // File selection handler
+            // File selection handler for multiple files
             fileInput.addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                if (!file) {
+                const files = e.target.files;
+                if (!files || files.length === 0) {
                     if (preview) preview.style.display = 'none';
                     return;
                 }
 
-                // Validate file type
-                const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'];
-                if (!allowedTypes.includes(file.type)) {
-                    alert('Please select a valid image file (JPEG, PNG, GIF, WebP, or HEIC).');
-                    fileInput.value = '';
-                    if (preview) preview.style.display = 'none';
-                    return;
-                }
+                let totalSize = 0;
+                let fileInfos = [];
+                
+                // Validate all files
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    
+                    // Validate file type
+                    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'];
+                    if (!allowedTypes.includes(file.type)) {
+                        alert(`File "${file.name}" is not a valid image file. Please select JPEG, PNG, GIF, WebP, or HEIC files only.`);
+                        fileInput.value = '';
+                        if (preview) preview.style.display = 'none';
+                        return;
+                    }
 
-                // Validate file size (50MB = 52428800 bytes)
-                const maxSize = 52428800; // 50MB
-                if (file.size > maxSize) {
-                    alert('File size must be less than 50MB. Please choose a smaller image or compress it.');
-                    fileInput.value = '';
-                    if (preview) preview.style.display = 'none';
-                    return;
+                    // Validate file size (50MB = 52428800 bytes)
+                    const maxSize = 52428800; // 50MB
+                    if (file.size > maxSize) {
+                        alert(`File "${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(2)} MB). Maximum size is 50MB. Please compress the image.`);
+                        fileInput.value = '';
+                        if (preview) preview.style.display = 'none';
+                        return;
+                    }
+                    
+                    totalSize += file.size;
+                    fileInfos.push({
+                        name: file.name,
+                        size: file.size
+                    });
                 }
 
                 // Show file size info
                 const sizeInfo = document.querySelector(`#${fileInputId} ~ .form-text small`);
                 if (sizeInfo) {
-                    const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
-                    sizeInfo.innerHTML = `Selected: ${file.name} (${sizeMB} MB) - Ready to upload`;
+                    const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+                    if (files.length === 1) {
+                        sizeInfo.innerHTML = `Selected: ${fileInfos[0].name} (${(fileInfos[0].size / (1024 * 1024)).toFixed(2)} MB) - Ready to upload`;
+                    } else {
+                        sizeInfo.innerHTML = `Selected: ${files.length} files (Total: ${totalSizeMB} MB) - Ready to upload`;
+                    }
                     sizeInfo.style.color = '#28a745';
                 }
 
-                // Create image preview
-                if (preview && previewImg) {
+                // Create image preview for first file
+                if (preview && previewImg && files.length > 0) {
                     const reader = new FileReader();
                     reader.onload = function(e) {
                         previewImg.src = e.target.result;
                         preview.style.display = 'block';
+                        
+                        // Update preview text
+                        const previewText = preview.querySelector('.text-muted');
+                        if (previewText) {
+                            if (files.length === 1) {
+                                previewText.textContent = 'Preview - Image will be uploaded when you click submit';
+                            } else {
+                                previewText.textContent = `Preview of first image - ${files.length} images will be uploaded when you click submit`;
+                            }
+                        }
                     };
-                    reader.readAsDataURL(file);
+                    reader.readAsDataURL(files[0]);
                 }
             });
 
             // Form submission handler
             if (form) {
                 form.addEventListener('submit', function(e) {
-                    const file = fileInput.files[0];
-                    if (!file) {
-                        alert('Please select an image to upload.');
+                    const files = fileInput.files;
+                    if (!files || files.length === 0) {
+                        alert('Please select at least one image to upload.');
                         e.preventDefault();
                         return;
                     }
@@ -1688,7 +1784,9 @@
                     const submitBtn = form.querySelector('button[type="submit"]');
                     if (submitBtn) {
                         submitBtn.disabled = true;
-                        submitBtn.innerHTML = '<i class="ri-loader-2-line spinning"></i> Uploading...';
+                        submitBtn.innerHTML = files.length === 1 
+                            ? '<i class="ri-loader-2-line spinning"></i> Uploading...' 
+                            : `<i class="ri-loader-2-line spinning"></i> Uploading ${files.length} photos...`;
                     }
 
                     if (progress) {
@@ -1745,6 +1843,17 @@
                 });
             });
         }
+        
+        // Handle photo modal for viewing individual photos
+        document.addEventListener('click', function(e) {
+            if (e.target.hasAttribute('data-photo')) {
+                const photoFilename = e.target.getAttribute('data-photo');
+                const modalImg = document.getElementById('modalPhotoImg');
+                if (modalImg) {
+                    modalImg.src = '{{ asset('storage/order_photos/') }}/' + photoFilename;
+                }
+            }
+        });
     });
 </script>
 @endsection

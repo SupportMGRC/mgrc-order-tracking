@@ -90,8 +90,27 @@
             max-width: 100%;
             height: auto;
             border-radius: 8px;
-            margin: 10px 0;
+            margin: 5px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .photo-preview img:only-child {
+            margin: 10px 0;
+        }
+        .photo-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+        .photo-grid img {
+            max-width: 280px;
+            flex: 1 1 calc(50% - 10px);
+        }
+        @media (max-width: 600px) {
+            .photo-grid img {
+                flex: 1 1 100%;
+                max-width: 100%;
+            }
         }
         .photo-preview .photo-caption {
             font-size: 14px;
@@ -124,10 +143,13 @@
 <body>
     <div class="container">
         <div class="header">
-            <h2>Order Photo Uploaded</h2>
+            <h2>Order Photo{{ $order->getPhotosCount() > 1 ? 's' : '' }} Uploaded</h2>
         </div>
         <p>Hello,</p>
-        <p>A photo has been uploaded for your order <span class="highlight">#{{ $order->id }}</span>.</p>
+        @php $photoCount = $order->getPhotosCount(); @endphp
+        <p>
+            {{ $photoCount === 1 ? 'A photo has' : $photoCount . ' photos have' }} been uploaded for your order <span class="highlight">#{{ $order->id }}</span>.
+        </p>
         
         <div class="order-info">
             <p><strong>Order ID:</strong> #{{ $order->id }}</p>
@@ -148,11 +170,24 @@
             </div>
         </div>
 
-        @if($order->order_photo)
+        @if($order->hasPhotos())
         <div class="photo-preview">
-            <h4>Order Photo</h4>
-            <img src="{{ $message->embed(storage_path('app/public/order_photos/' . $order->order_photo)) }}" alt="Order Photo">
-            <p class="photo-caption">Photo of completed order #{{ $order->id }}</p>
+            @php $allPhotos = $order->getAllPhotos(); @endphp
+            <h4>Order Photo{{ count($allPhotos) > 1 ? 's' : '' }} ({{ count($allPhotos) }})</h4>
+            
+            @if(count($allPhotos) === 1)
+                <img src="{{ $message->embed(storage_path('app/public/order_photos/' . $allPhotos[0])) }}" alt="Order Photo">
+            @else
+                <div class="photo-grid">
+                    @foreach($allPhotos as $index => $photo)
+                        <img src="{{ $message->embed(storage_path('app/public/order_photos/' . $photo)) }}" alt="Order Photo {{ $index + 1 }}">
+                    @endforeach
+                </div>
+            @endif
+            
+            <p class="photo-caption">
+                {{ count($allPhotos) === 1 ? 'Photo' : count($allPhotos) . ' photos' }} of completed order #{{ $order->id }}
+            </p>
         </div>
         @endif
 
