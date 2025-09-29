@@ -387,6 +387,68 @@
             font-size: 14px;
         }
     }
+
+    /* Photo Modal Zoom Styles */
+    .zoom-controls {
+        display: flex;
+        align-items: center;
+    }
+    
+    #imageContainer {
+        background: #f8f9fa;
+        border-radius: 8px;
+        position: relative;
+        overflow: auto;
+    }
+    
+    #modalPhotoImg {
+        display: block;
+        margin: 0 auto;
+        transform-origin: center center;
+        user-select: none;
+        -webkit-user-drag: none;
+    }
+    
+    #modalPhotoImg.dragging {
+        cursor: grabbing !important;
+    }
+    
+    .zoom-controls .btn {
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    #zoomLevel {
+        font-weight: 500;
+        min-width: 50px;
+        font-size: 14px;
+    }
+    
+    /* Mobile zoom controls */
+    @media (max-width: 768px) {
+        .zoom-controls {
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        
+        .zoom-controls .btn {
+            width: 28px;
+            height: 28px;
+        }
+        
+        #zoomLevel {
+            font-size: 12px;
+            min-width: 45px;
+        }
+        
+        #imageContainer {
+            max-height: 60vh;
+        }
+    }
 </style>
 <div class="row">
     <div class="col-12">
@@ -644,20 +706,6 @@
                         </button>
                     </form>
                 </div>
-                <!-- Modal for viewing order photo -->
-                <div class="modal fade" id="viewOrderPhotoModal" tabindex="-1" aria-labelledby="viewOrderPhotoModalLabel" aria-hidden="true">
-                    <div class="modal-dialog modal-dialog-centered modal-lg">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title" id="viewOrderPhotoModalLabel">Order Photo</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
-                            <div class="modal-body text-center">
-                                <img id="modalPhotoImg" src="" alt="Order Photo" class="img-fluid rounded shadow">
-                            </div>
-                        </div>
-                    </div>
-                </div>
                 <!-- Modal for deleting order photo -->
                 <div class="modal fade" id="deletePhotoModal" tabindex="-1" aria-labelledby="deletePhotoModalLabel" aria-hidden="true">
                     <div class="modal-dialog modal-dialog-centered">
@@ -818,23 +866,9 @@
                         </div>
                     </div>
                     <button type="submit" class="btn btn-primary btn-sm">
-                        <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload New Photo
+                        <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo(s)
                     </button>
                 </form>
-            </div>
-            <!-- Modal for viewing order photo -->
-            <div class="modal fade" id="viewOrderPhotoModal" tabindex="-1" aria-labelledby="viewOrderPhotoModalLabel" aria-hidden="true">
-                <div class="modal-dialog modal-dialog-centered modal-lg">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="viewOrderPhotoModalLabel">Order Photo</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body text-center">
-                            <img src="{{ asset('storage/order_photos/' . $order->order_photo) }}" alt="Order Photo" class="img-fluid rounded shadow">
-                        </div>
-                    </div>
-                </div>
             </div>
             <!-- Modal for deleting order photo -->
             <div class="modal fade" id="deletePhotoModal" tabindex="-1" aria-labelledby="deletePhotoModalLabel" aria-hidden="true">
@@ -862,16 +896,17 @@
             <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="photoUploadForm2">
                 @csrf
                 <div class="mb-3">
-                    <label for="order_photo_ready" class="form-label">Upload Photo <span class="text-danger">*</span></label>
+                    <label for="order_photo_ready" class="form-label">Upload Photo(s) <span class="text-danger">*</span></label>
                     <div class="position-relative">
                         <input type="file" 
                                class="form-control" 
                                id="order_photo_ready" 
-                               name="order_photo" 
+                               name="order_photos[]" 
                                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
+                               multiple
                                required>
                         <div id="file-size-info-2" class="form-text text-muted">
-                            <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB</small>
+                            <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB each. You can select multiple photos.</small>
                         </div>
                     </div>
                     
@@ -892,7 +927,7 @@
                     </div>
                 </div>
                 <button type="submit" class="btn btn-primary" id="upload-btn-2">
-                    <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo
+                    <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo(s)
                 </button>
             </form>
         @endif
@@ -906,15 +941,33 @@
         <h5 class="card-title mb-0"><i class="ri-image-line align-middle me-1 text-muted"></i> Order Photo</h5>
     </div>
     <div class="card-body">
-        @if($order->order_photo)
+        @if($order->hasPhotos())
             <div class="mb-3">
-                <img src="{{ asset('storage/order_photos/' . $order->order_photo) }}" alt="Order Photo" class="img-fluid rounded shadow-sm" style="max-width: 300px; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewOrderPhotoModal">
+                @php $allPhotos = $order->getAllPhotos(); @endphp
+                @if(count($allPhotos) === 1)
+                    <img src="{{ asset('storage/order_photos/' . $allPhotos[0]) }}" alt="Order Photo" class="img-fluid rounded shadow-sm" style="max-width: 300px; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewOrderPhotoModal" data-photo="{{ $allPhotos[0] }}">
+                @else
+                    <div class="row">
+                        @foreach($allPhotos as $index => $photo)
+                        <div class="col-md-4 mb-3">
+                            <div class="position-relative">
+                                <img src="{{ asset('storage/order_photos/' . $photo) }}" alt="Order Photo {{ $index + 1 }}" class="img-fluid rounded shadow-sm" style="max-width: 100%; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewOrderPhotoModal" data-photo="{{ $photo }}">
+                                <div class="position-absolute top-0 end-0 p-1">
+                                    <button type="button" class="btn btn-sm btn-danger rounded-circle" data-bs-toggle="modal" data-bs-target="#deleteSpecificPhotoModalDelivered{{ $index }}" title="Delete this photo">
+                                        <i class="ri-close-line"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        @endforeach
+                    </div>
+                @endif
             </div>
             
             @if(Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
             <div class="d-flex gap-2 mb-2">
                 <!-- Edit button shows upload form -->
-                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#editPhotoFormDelivered">Edit</button>
+                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#editPhotoFormDelivered">Add More</button>
                 <!-- Delete button shows modal -->
                 <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deletePhotoModalDelivered">Delete</button>
             </div>
@@ -922,16 +975,17 @@
                 <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="editPhotoUploadFormDelivered">
                     @csrf
                     <div class="mb-3">
-                        <label for="order_photo_edit_delivered" class="form-label">Replace Photo <span class="text-danger">*</span></label>
+                        <label for="order_photo_edit_delivered" class="form-label">Add More Photos <span class="text-danger">*</span></label>
                         <div class="position-relative">
                             <input type="file" 
                                    class="form-control" 
                                    id="order_photo_edit_delivered" 
-                                   name="order_photo" 
+                                   name="order_photos[]" 
                                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
+                                   multiple
                                    required>
                             <div class="form-text text-muted">
-                                <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB</small>
+                                <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB each. You can select multiple photos.</small>
                             </div>
                         </div>
                         
@@ -944,7 +998,7 @@
                         </div>
                     </div>
                     <button type="submit" class="btn btn-primary btn-sm">
-                        <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload New Photo
+                        <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo(s)
                     </button>
                 </form>
             </div>
@@ -1017,22 +1071,38 @@
             @endif
         @endif
         
-        @if($order->order_photo)
-        <!-- Modal for viewing order photo -->
+        <!-- Modal for viewing order photo (shared across all statuses) -->
         <div class="modal fade" id="viewOrderPhotoModal" tabindex="-1" aria-labelledby="viewOrderPhotoModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-dialog modal-dialog-centered modal-xl">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title" id="viewOrderPhotoModalLabel">Order Photo</h5>
+                        <div class="zoom-controls me-3">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="zoomOut" title="Zoom Out">
+                                <i class="ri-subtract-line"></i>
+                            </button>
+                            <span class="mx-2" id="zoomLevel">100%</span>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="zoomIn" title="Zoom In">
+                                <i class="ri-add-line"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm ms-2" id="resetZoom" title="Reset Zoom">
+                                <i class="ri-focus-3-line"></i>
+                            </button>
+                        </div>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                    <div class="modal-body text-center">
-                        <img src="{{ asset('storage/order_photos/' . $order->order_photo) }}" alt="Order Photo" class="img-fluid rounded shadow">
+                    <div class="modal-body text-center p-0" id="imageContainer" style="overflow: auto; max-height: 70vh; position: relative;">
+                        <img id="modalPhotoImg" src="" alt="Order Photo" class="img-fluid" style="cursor: grab; transition: transform 0.2s ease; max-width: none; height: auto;">
+                    </div>
+                    <div class="modal-footer">
+                        <small class="text-muted">
+                            <i class="ri-information-line me-1"></i>
+                            Use zoom controls or mouse wheel to zoom. Click and drag to pan when zoomed.
+                        </small>
                     </div>
                 </div>
             </div>
         </div>
-        @endif
     </div>
 </div>
 @endif
@@ -1846,13 +1916,175 @@
         
         // Handle photo modal for viewing individual photos
         document.addEventListener('click', function(e) {
-            if (e.target.hasAttribute('data-photo')) {
-                const photoFilename = e.target.getAttribute('data-photo');
+            // Check if the clicked element or its parent has data-photo attribute
+            let target = e.target;
+            let photoFilename = null;
+            
+            // Look up the DOM tree for data-photo attribute (in case of nested elements)
+            while (target && !photoFilename) {
+                if (target.hasAttribute && target.hasAttribute('data-photo')) {
+                    photoFilename = target.getAttribute('data-photo');
+                    break;
+                }
+                target = target.parentElement;
+            }
+            
+            if (photoFilename) {
                 const modalImg = document.getElementById('modalPhotoImg');
                 if (modalImg) {
                     modalImg.src = '{{ asset('storage/order_photos/') }}/' + photoFilename;
+                    console.log('Updated modal image src to:', modalImg.src);
                 }
             }
+        });
+        
+        // Also handle when the modal is shown to ensure image is loaded
+        const photoModal = document.getElementById('viewOrderPhotoModal');
+        if (photoModal) {
+            photoModal.addEventListener('show.bs.modal', function (event) {
+                const button = event.relatedTarget;
+                if (button && button.hasAttribute('data-photo')) {
+                    const photoFilename = button.getAttribute('data-photo');
+                    const modalImg = document.getElementById('modalPhotoImg');
+                    if (modalImg && photoFilename) {
+                        modalImg.src = '{{ asset('storage/order_photos/') }}/' + photoFilename;
+                        console.log('Modal shown, image src set to:', modalImg.src);
+                        
+                        // Reset zoom when new image is loaded
+                        resetImageZoom();
+                    }
+                }
+            });
+        }
+
+        // Photo Zoom Functionality
+        let currentZoom = 1;
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+        let imagePosition = { x: 0, y: 0 };
+
+        function updateZoomLevel() {
+            const zoomPercentage = Math.round(currentZoom * 100);
+            document.getElementById('zoomLevel').textContent = zoomPercentage + '%';
+        }
+
+        function applyTransform() {
+            const modalImg = document.getElementById('modalPhotoImg');
+            if (modalImg) {
+                modalImg.style.transform = `translate(${imagePosition.x}px, ${imagePosition.y}px) scale(${currentZoom})`;
+            }
+        }
+
+        function resetImageZoom() {
+            currentZoom = 1;
+            imagePosition = { x: 0, y: 0 };
+            updateZoomLevel();
+            applyTransform();
+        }
+
+        function zoomImage(delta) {
+            const zoomStep = 0.2;
+            const minZoom = 0.5;
+            const maxZoom = 5;
+
+            currentZoom += delta * zoomStep;
+            currentZoom = Math.max(minZoom, Math.min(maxZoom, currentZoom));
+
+            // Reset position if zooming out to fit
+            if (currentZoom <= 1) {
+                imagePosition = { x: 0, y: 0 };
+            }
+
+            updateZoomLevel();
+            applyTransform();
+        }
+
+        // Zoom button event listeners
+        document.getElementById('zoomIn').addEventListener('click', () => zoomImage(1));
+        document.getElementById('zoomOut').addEventListener('click', () => zoomImage(-1));
+        document.getElementById('resetZoom').addEventListener('click', resetImageZoom);
+
+        // Mouse wheel zoom
+        document.getElementById('imageContainer').addEventListener('wheel', function(e) {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -1 : 1;
+            zoomImage(delta * 0.5); // Smaller steps for wheel
+        });
+
+        // Touch and drag functionality
+        const modalImg = document.getElementById('modalPhotoImg');
+        
+        // Mouse events
+        modalImg.addEventListener('mousedown', function(e) {
+            if (currentZoom > 1) {
+                e.preventDefault();
+                isDragging = true;
+                dragStart.x = e.clientX - imagePosition.x;
+                dragStart.y = e.clientY - imagePosition.y;
+                modalImg.classList.add('dragging');
+            }
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (isDragging && currentZoom > 1) {
+                e.preventDefault();
+                imagePosition.x = e.clientX - dragStart.x;
+                imagePosition.y = e.clientY - dragStart.y;
+                applyTransform();
+            }
+        });
+
+        document.addEventListener('mouseup', function() {
+            isDragging = false;
+            modalImg.classList.remove('dragging');
+        });
+
+        // Touch events for mobile
+        let touchStart = { x: 0, y: 0 };
+        
+        modalImg.addEventListener('touchstart', function(e) {
+            if (currentZoom > 1 && e.touches.length === 1) {
+                e.preventDefault();
+                isDragging = true;
+                touchStart.x = e.touches[0].clientX - imagePosition.x;
+                touchStart.y = e.touches[0].clientY - imagePosition.y;
+            }
+        });
+
+        modalImg.addEventListener('touchmove', function(e) {
+            if (isDragging && currentZoom > 1 && e.touches.length === 1) {
+                e.preventDefault();
+                imagePosition.x = e.touches[0].clientX - touchStart.x;
+                imagePosition.y = e.touches[0].clientY - touchStart.y;
+                applyTransform();
+            }
+        });
+
+        modalImg.addEventListener('touchend', function() {
+            isDragging = false;
+        });
+
+        // Double tap to zoom on mobile
+        let lastTap = 0;
+        modalImg.addEventListener('touchend', function(e) {
+            const currentTime = new Date().getTime();
+            const tapLength = currentTime - lastTap;
+            if (tapLength < 500 && tapLength > 0) {
+                e.preventDefault();
+                if (currentZoom === 1) {
+                    currentZoom = 2;
+                    updateZoomLevel();
+                    applyTransform();
+                } else {
+                    resetImageZoom();
+                }
+            }
+            lastTap = currentTime;
+        });
+
+        // Reset zoom when modal is closed
+        photoModal.addEventListener('hidden.bs.modal', function() {
+            resetImageZoom();
         });
     });
 </script>
