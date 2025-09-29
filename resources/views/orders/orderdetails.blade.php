@@ -388,65 +388,23 @@
         }
     }
 
-    /* Photo Modal Zoom Styles */
-    .zoom-controls {
-        display: flex;
-        align-items: center;
-    }
-    
-    #imageContainer {
-        background: #f8f9fa;
-        border-radius: 8px;
-        position: relative;
-        overflow: auto;
-    }
-    
+    /* Photo Modal Simple Styles */
     #modalPhotoImg {
-        display: block;
-        margin: 0 auto;
-        transform-origin: center center;
-        user-select: none;
-        -webkit-user-drag: none;
+        transition: transform 0.3s ease;
     }
     
-    #modalPhotoImg.dragging {
-        cursor: grabbing !important;
+    #modalPhotoImg:hover {
+        transform: scale(1.02);
     }
     
-    .zoom-controls .btn {
-        width: 32px;
-        height: 32px;
-        padding: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    
-    #zoomLevel {
-        font-weight: 500;
-        min-width: 50px;
-        font-size: 14px;
-    }
-    
-    /* Mobile zoom controls */
+    /* Mobile adjustments for modal */
     @media (max-width: 768px) {
-        .zoom-controls {
-            flex-wrap: wrap;
-            gap: 5px;
+        #modalPhotoImg {
+            max-height: 60vh !important;
         }
         
-        .zoom-controls .btn {
-            width: 28px;
-            height: 28px;
-        }
-        
-        #zoomLevel {
-            font-size: 12px;
-            min-width: 45px;
-        }
-        
-        #imageContainer {
-            max-height: 60vh;
+        .modal-xl {
+            margin: 15px;
         }
     }
 </style>
@@ -1077,28 +1035,15 @@
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title" id="viewOrderPhotoModalLabel">Order Photo</h5>
-                        <div class="zoom-controls me-3">
-                            <button type="button" class="btn btn-outline-secondary btn-sm" id="zoomOut" title="Zoom Out">
-                                <i class="ri-subtract-line"></i>
-                            </button>
-                            <span class="mx-2" id="zoomLevel">100%</span>
-                            <button type="button" class="btn btn-outline-secondary btn-sm" id="zoomIn" title="Zoom In">
-                                <i class="ri-add-line"></i>
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary btn-sm ms-2" id="resetZoom" title="Reset Zoom">
-                                <i class="ri-focus-3-line"></i>
-                            </button>
-                        </div>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                    <div class="modal-body text-center p-0" id="imageContainer" style="overflow: auto; max-height: 70vh; position: relative;">
-                        <img id="modalPhotoImg" src="" alt="Order Photo" class="img-fluid" style="cursor: grab; transition: transform 0.2s ease; max-width: none; height: auto;">
-                    </div>
-                    <div class="modal-footer">
-                        <small class="text-muted">
-                            <i class="ri-information-line me-1"></i>
-                            Use zoom controls or mouse wheel to zoom. Click and drag to pan when zoomed.
-                        </small>
+                    <div class="modal-body text-center p-3">
+                        <img id="modalPhotoImg" src="" alt="Order Photo" class="img-fluid rounded shadow" style="max-height: 75vh; width: auto; cursor: zoom-in;">
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="ri-zoom-in-line me-1"></i>Click image to view full size in new tab
+                            </small>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1949,143 +1894,20 @@
                     if (modalImg && photoFilename) {
                         modalImg.src = '{{ asset('storage/order_photos/') }}/' + photoFilename;
                         console.log('Modal shown, image src set to:', modalImg.src);
-                        
-                        // Reset zoom when new image is loaded
-                        resetImageZoom();
                     }
                 }
             });
         }
 
-        // Photo Zoom Functionality
-        let currentZoom = 1;
-        let isDragging = false;
-        let dragStart = { x: 0, y: 0 };
-        let imagePosition = { x: 0, y: 0 };
-
-        function updateZoomLevel() {
-            const zoomPercentage = Math.round(currentZoom * 100);
-            document.getElementById('zoomLevel').textContent = zoomPercentage + '%';
-        }
-
-        function applyTransform() {
-            const modalImg = document.getElementById('modalPhotoImg');
-            if (modalImg) {
-                modalImg.style.transform = `translate(${imagePosition.x}px, ${imagePosition.y}px) scale(${currentZoom})`;
-            }
-        }
-
-        function resetImageZoom() {
-            currentZoom = 1;
-            imagePosition = { x: 0, y: 0 };
-            updateZoomLevel();
-            applyTransform();
-        }
-
-        function zoomImage(delta) {
-            const zoomStep = 0.2;
-            const minZoom = 0.5;
-            const maxZoom = 5;
-
-            currentZoom += delta * zoomStep;
-            currentZoom = Math.max(minZoom, Math.min(maxZoom, currentZoom));
-
-            // Reset position if zooming out to fit
-            if (currentZoom <= 1) {
-                imagePosition = { x: 0, y: 0 };
-            }
-
-            updateZoomLevel();
-            applyTransform();
-        }
-
-        // Zoom button event listeners
-        document.getElementById('zoomIn').addEventListener('click', () => zoomImage(1));
-        document.getElementById('zoomOut').addEventListener('click', () => zoomImage(-1));
-        document.getElementById('resetZoom').addEventListener('click', resetImageZoom);
-
-        // Mouse wheel zoom
-        document.getElementById('imageContainer').addEventListener('wheel', function(e) {
-            e.preventDefault();
-            const delta = e.deltaY > 0 ? -1 : 1;
-            zoomImage(delta * 0.5); // Smaller steps for wheel
-        });
-
-        // Touch and drag functionality
+        // Simple click to open image in new tab for full size viewing
         const modalImg = document.getElementById('modalPhotoImg');
-        
-        // Mouse events
-        modalImg.addEventListener('mousedown', function(e) {
-            if (currentZoom > 1) {
-                e.preventDefault();
-                isDragging = true;
-                dragStart.x = e.clientX - imagePosition.x;
-                dragStart.y = e.clientY - imagePosition.y;
-                modalImg.classList.add('dragging');
-            }
-        });
-
-        document.addEventListener('mousemove', function(e) {
-            if (isDragging && currentZoom > 1) {
-                e.preventDefault();
-                imagePosition.x = e.clientX - dragStart.x;
-                imagePosition.y = e.clientY - dragStart.y;
-                applyTransform();
-            }
-        });
-
-        document.addEventListener('mouseup', function() {
-            isDragging = false;
-            modalImg.classList.remove('dragging');
-        });
-
-        // Touch events for mobile
-        let touchStart = { x: 0, y: 0 };
-        
-        modalImg.addEventListener('touchstart', function(e) {
-            if (currentZoom > 1 && e.touches.length === 1) {
-                e.preventDefault();
-                isDragging = true;
-                touchStart.x = e.touches[0].clientX - imagePosition.x;
-                touchStart.y = e.touches[0].clientY - imagePosition.y;
-            }
-        });
-
-        modalImg.addEventListener('touchmove', function(e) {
-            if (isDragging && currentZoom > 1 && e.touches.length === 1) {
-                e.preventDefault();
-                imagePosition.x = e.touches[0].clientX - touchStart.x;
-                imagePosition.y = e.touches[0].clientY - touchStart.y;
-                applyTransform();
-            }
-        });
-
-        modalImg.addEventListener('touchend', function() {
-            isDragging = false;
-        });
-
-        // Double tap to zoom on mobile
-        let lastTap = 0;
-        modalImg.addEventListener('touchend', function(e) {
-            const currentTime = new Date().getTime();
-            const tapLength = currentTime - lastTap;
-            if (tapLength < 500 && tapLength > 0) {
-                e.preventDefault();
-                if (currentZoom === 1) {
-                    currentZoom = 2;
-                    updateZoomLevel();
-                    applyTransform();
-                } else {
-                    resetImageZoom();
+        if (modalImg) {
+            modalImg.addEventListener('click', function() {
+                if (this.src) {
+                    window.open(this.src, '_blank');
                 }
-            }
-            lastTap = currentTime;
-        });
-
-        // Reset zoom when modal is closed
-        photoModal.addEventListener('hidden.bs.modal', function() {
-            resetImageZoom();
-        });
+            });
+        }
     });
 </script>
 @endsection
