@@ -406,6 +406,22 @@
                                     </div>
                                 </div>
 
+                                <div class="row mb-3">
+                                    <div class="col-lg-6">
+                                        <div class="mb-3">
+                                            <label for="collection_date" class="form-label">Collection Date <span class="text-muted">(Optional)</span></label>
+                                            <input type="text" class="form-control @error('collection_date') is-invalid @enderror" 
+                                                id="collection_date" name="collection_date" 
+                                                data-provider="flatpickr" data-date-format="Y-m-d" 
+                                                value="{{ old('collection_date') }}" placeholder="Select collection date (optional)">
+                                            @error('collection_date')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                            <div class="form-text">Optional: Date when order was collected from supplier/lab</div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div class="mb-3">
                                     <label for="remarks" class="form-label">General Remarks</label>
                                     <textarea class="form-control @error('remarks') is-invalid @enderror" 
@@ -547,7 +563,10 @@
                                 </div>
                             </div>
                             <div class="row mt-2">
-                                <div class="col-12">
+                                <div class="col-md-6">
+                                    <strong>Collection Date:</strong> <span id="confirm-collection-date">Not specified</span>
+                                </div>
+                                <div class="col-md-6">
                                     <strong>Address:</strong> <span id="confirm-delivery-address">-</span>
                                 </div>
                             </div>
@@ -638,6 +657,12 @@
                             }).showToast();
                         }
                     }
+                });
+                
+                // Collection date picker (optional, no restrictions)
+                flatpickr("#collection_date", {
+                    dateFormat: "Y-m-d",
+                    allowInput: true
                 });
                 
                 flatpickr("#pickup_delivery_time", {
@@ -1241,6 +1266,8 @@
                     document.getElementById('pickup_delivery_time').value || '-';
                 document.getElementById('confirm-item-ready').textContent = 
                     document.getElementById('item_ready_at').value || '-';
+                document.getElementById('confirm-collection-date').textContent = 
+                    document.getElementById('collection_date').value || 'Not specified';
                 document.getElementById('confirm-delivery-address').textContent = 
                     document.getElementById('delivery_address').value || 'Not specified';
 

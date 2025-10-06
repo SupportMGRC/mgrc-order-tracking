@@ -450,6 +450,14 @@
                     Ready Time: {{ $order->item_ready_at ? $order->item_ready_at->format('h:i A') : 'N/A' }}
                 </span>
 
+                <!-- Collection Date Badge -->
+                @if($order->collection_date)
+                <span class="badge fs-13 bg-info text-white px-3 py-2">
+                    <i class="ri-calendar-check-line align-middle me-1"></i>
+                    Collection: {{ $order->collection_date->format('d M, Y') }}
+                </span>
+                @endif
+
                 <!-- Current Status Badge -->
                 <span class="badge fs-13 bg-{{ 
                     $order->status == 'new' ? 'light text-dark' : 
@@ -587,183 +595,7 @@
     </div>
 </div>
 
-@if($order->status === 'preparing')
-    @php
-        // Check if all products are ready
-        $allProductsReady = true;
-        $totalProducts = count($order->products);
-        foreach($order->products as $product) {
-            if($product->pivot->status !== 'ready') {
-                $allProductsReady = false;
-                break;
-            }
-        }
-    @endphp
-
-    @if($allProductsReady && $totalProducts > 0)
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="card-title mb-0"><i class="ri-image-line align-middle me-1 text-muted"></i> Order Photo</h5>
-        </div>
-        <div class="card-body">
-            @if($order->hasPhotos())
-                <div class="mb-3">
-                    @php $allPhotos = $order->getAllPhotos(); @endphp
-                    @if(count($allPhotos) === 1)
-                        <img src="{{ asset('storage/order_photos/' . $allPhotos[0]) }}" alt="Order Photo" class="img-fluid rounded shadow-sm" style="max-width: 300px; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewOrderPhotoModal" data-photo="{{ $allPhotos[0] }}">
-                    @else
-                        <div class="row">
-                            @foreach($allPhotos as $index => $photo)
-                            <div class="col-md-4 mb-3">
-                                <div class="position-relative">
-                                    <img src="{{ asset('storage/order_photos/' . $photo) }}" alt="Order Photo {{ $index + 1 }}" class="img-fluid rounded shadow-sm" style="max-width: 100%; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewOrderPhotoModal" data-photo="{{ $photo }}">
-                                    <div class="position-absolute top-0 end-0 p-1">
-                                        <button type="button" class="btn btn-sm btn-danger rounded-circle" data-bs-toggle="modal" data-bs-target="#deleteSpecificPhotoModal{{ $index }}" title="Delete this photo">
-                                            <i class="ri-close-line"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            @endforeach
-                        </div>
-                    @endif
-                </div>
-                <div class="d-flex gap-2 mb-2">
-                    <!-- Edit button shows upload form -->
-                    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#editPhotoForm">Edit</button>
-                    <!-- Delete button shows modal -->
-                    <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deletePhotoModal">Delete</button>
-                </div>
-                <div class="collapse" id="editPhotoForm">
-                    <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="editPhotoUploadForm">
-                        @csrf
-                        <div class="mb-3">
-                            <label for="order_photo_edit" class="form-label">Replace Photo <span class="text-danger">*</span></label>
-                            <div class="position-relative">
-                                <input type="file" 
-                                       class="form-control" 
-                                       id="order_photo_edit" 
-                                       name="order_photo" 
-                                       accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
-                                       required>
-                                <div class="form-text text-muted">
-                                    <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB</small>
-                                </div>
-                            </div>
-                            
-                            <!-- Image Preview for Edit -->
-                            <div id="edit-image-preview" class="mt-3" style="display: none;">
-                                <img id="edit-preview-img" src="" alt="Preview" class="img-fluid rounded shadow-sm" style="max-width: 200px; max-height: 200px;">
-                                <div class="mt-2">
-                                    <small class="text-muted">New photo preview</small>
-                                </div>
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-sm">
-                            <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo(s)
-                        </button>
-                    </form>
-                </div>
-                <!-- Modal for deleting order photo -->
-                <div class="modal fade" id="deletePhotoModal" tabindex="-1" aria-labelledby="deletePhotoModalLabel" aria-hidden="true">
-                    <div class="modal-dialog modal-dialog-centered">
-                        <div class="modal-content">
-                            <div class="modal-header bg-soft-danger">
-                                <h5 class="modal-title" id="deletePhotoModalLabel">Delete Order Photo</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
-                            <form action="{{ route('orders.delete.photo', $order->id) }}" method="POST">
-                                @csrf
-                                @method('DELETE')
-                                <div class="modal-body">
-                                    <p>Are you sure you want to delete {{ count($order->getAllPhotos()) === 1 ? 'this photo' : 'all photos' }}? This action cannot be undone.</p>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                                    <button type="submit" class="btn btn-danger">Delete {{ count($order->getAllPhotos()) === 1 ? 'Photo' : 'All Photos' }}</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Individual Delete Photo Modals for Multiple Photos -->
-                @if($order->hasPhotos() && count($order->getAllPhotos()) > 1)
-                    @foreach($order->getAllPhotos() as $index => $photo)
-                    <div class="modal fade" id="deleteSpecificPhotoModal{{ $index }}" tabindex="-1" aria-labelledby="deleteSpecificPhotoModalLabel{{ $index }}" aria-hidden="true">
-                        <div class="modal-dialog modal-dialog-centered">
-                            <div class="modal-content">
-                                <div class="modal-header bg-soft-danger">
-                                    <h5 class="modal-title" id="deleteSpecificPhotoModalLabel{{ $index }}">Delete Photo {{ $index + 1 }}</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <form action="{{ route('orders.delete.specific.photo', [$order->id, $photo]) }}" method="POST">
-                                    @csrf
-                                    @method('DELETE')
-                                    <div class="modal-body">
-                                        <div class="text-center mb-3">
-                                            <img src="{{ asset('storage/order_photos/' . $photo) }}" alt="Photo to delete" class="img-fluid rounded" style="max-width: 200px;">
-                                        </div>
-                                        <p class="text-center">Are you sure you want to delete this photo? This action cannot be undone.</p>
-                                    </div>
-                                    <div class="modal-footer">
-                                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                                        <button type="submit" class="btn btn-danger">Delete Photo</button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                    @endforeach
-                @endif
-            @else
-                <div class="alert alert-info mb-3">
-                    <i class="ri-information-line me-2"></i> All products are ready! Please upload a photo of the completed order.
-                </div>
-                <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="photoUploadForm">
-                    @csrf
-                    <div class="mb-3">
-                        <label for="order_photo" class="form-label">Upload Photo(s) <span class="text-danger">*</span></label>
-                        <div class="position-relative">
-                            <input type="file" 
-                                   class="form-control" 
-                                   id="order_photo" 
-                                   name="order_photos[]" 
-                                   accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
-                                   multiple
-                                   required>
-                            <div id="file-size-info" class="form-text text-muted">
-                                <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB each. You can select multiple photos.</small>
-                            </div>
-                        </div>
-                        
-                        <!-- Image Preview -->
-                        <div id="image-preview" class="mt-3" style="display: none;">
-                            <img id="preview-img" src="" alt="Preview" class="img-fluid rounded shadow-sm" style="max-width: 300px; max-height: 300px;">
-                            <div class="mt-2">
-                                <small class="text-muted">Preview - Image will be uploaded when you click submit</small>
-                            </div>
-                        </div>
-                        
-                        <!-- Upload Progress -->
-                        <div id="upload-progress" class="mt-3" style="display: none;">
-                            <div class="progress">
-                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
-                            </div>
-                            <small class="text-muted">Uploading photo...</small>
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary" id="upload-btn">
-                        <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo(s)
-                    </button>
-                </form>
-            @endif
-        </div>
-    </div>
-    @endif
-@endif
-
-@if($order->status === 'ready')
+@if($order->status === 'preparing' || $order->status === 'ready')
 <div class="card mb-4">
     <div class="card-header">
         <h5 class="card-title mb-0"><i class="ri-image-line align-middle me-1 text-muted"></i> Order Photo</h5>
@@ -781,7 +613,7 @@
                             <div class="position-relative">
                                 <img src="{{ asset('storage/order_photos/' . $photo) }}" alt="Order Photo {{ $index + 1 }}" class="img-fluid rounded shadow-sm" style="max-width: 100%; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewOrderPhotoModal" data-photo="{{ $photo }}">
                                 <div class="position-absolute top-0 end-0 p-1">
-                                    <button type="button" class="btn btn-sm btn-danger rounded-circle" data-bs-toggle="modal" data-bs-target="#deleteSpecificPhotoModalReady{{ $index }}" title="Delete this photo">
+                                    <button type="button" class="btn btn-sm btn-danger rounded-circle" data-bs-toggle="modal" data-bs-target="#deleteSpecificPhotoModal{{ $index }}" title="Delete this photo">
                                         <i class="ri-close-line"></i>
                                     </button>
                                 </div>
@@ -793,7 +625,7 @@
             </div>
             <div class="d-flex gap-2 mb-2">
                 <!-- Edit button shows upload form -->
-                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#editPhotoForm">Add More</button>
+                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#editPhotoForm">{{ $order->status === 'preparing' ? 'Add More' : 'Edit' }}</button>
                 <!-- Delete button shows modal -->
                 <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deletePhotoModal">Delete</button>
             </div>
@@ -801,17 +633,17 @@
                 <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="editPhotoUploadForm">
                     @csrf
                     <div class="mb-3">
-                        <label for="order_photo_edit" class="form-label">Add More Photos <span class="text-danger">*</span></label>
+                        <label for="order_photo_edit" class="form-label">{{ $order->status === 'preparing' ? 'Add More Photos' : 'Replace Photo' }} <span class="text-danger">*</span></label>
                         <div class="position-relative">
                             <input type="file" 
                                    class="form-control" 
                                    id="order_photo_edit" 
-                                   name="order_photos[]" 
+                                   name="{{ $order->status === 'preparing' ? 'order_photos[]' : 'order_photo' }}" 
                                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
-                                   multiple
+                                   {{ $order->status === 'preparing' ? 'multiple' : '' }}
                                    required>
                             <div class="form-text text-muted">
-                                <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB each. You can select multiple photos.</small>
+                                <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB{{ $order->status === 'preparing' ? ' each. You can select multiple photos.' : '' }}</small>
                             </div>
                         </div>
                         
@@ -828,63 +660,50 @@
                     </button>
                 </form>
             </div>
-            <!-- Modal for deleting order photo -->
-            <div class="modal fade" id="deletePhotoModal" tabindex="-1" aria-labelledby="deletePhotoModalLabel" aria-hidden="true">
-                <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content">
-                        <div class="modal-header bg-soft-danger">
-                            <h5 class="modal-title" id="deletePhotoModalLabel">Delete Order Photo</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <form action="{{ route('orders.delete.photo', $order->id) }}" method="POST">
-                            @csrf
-                            @method('DELETE')
-                            <div class="modal-body">
-                                <p>Are you sure you want to delete this photo? This action cannot be undone.</p>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                                <button type="submit" class="btn btn-danger">Delete Photo</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
         @else
-            <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="photoUploadForm2">
+            @if($order->status === 'preparing')
+                <div class="alert alert-info mb-3">
+                    <i class="ri-information-line me-2"></i> You can upload photos while preparing the order. Upload photos to track the preparation progress.
+                </div>
+            @else
+                <div class="alert alert-info mb-3">
+                    <i class="ri-information-line me-2"></i> Order is ready! Please upload a photo of the completed order.
+                </div>
+            @endif
+            <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="{{ $order->status === 'preparing' ? 'photoUploadFormPreparing' : 'photoUploadForm' }}">
                 @csrf
                 <div class="mb-3">
-                    <label for="order_photo_ready" class="form-label">Upload Photo(s) <span class="text-danger">*</span></label>
+                    <label for="{{ $order->status === 'preparing' ? 'order_photo_preparing' : 'order_photo' }}" class="form-label">Upload Photo(s) <span class="text-danger">*</span></label>
                     <div class="position-relative">
                         <input type="file" 
                                class="form-control" 
-                               id="order_photo_ready" 
+                               id="{{ $order->status === 'preparing' ? 'order_photo_preparing' : 'order_photo' }}" 
                                name="order_photos[]" 
                                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
                                multiple
                                required>
-                        <div id="file-size-info-2" class="form-text text-muted">
+                        <div id="{{ $order->status === 'preparing' ? 'file-size-info-preparing' : 'file-size-info' }}" class="form-text text-muted">
                             <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB each. You can select multiple photos.</small>
                         </div>
                     </div>
                     
                     <!-- Image Preview -->
-                    <div id="image-preview-2" class="mt-3" style="display: none;">
-                        <img id="preview-img-2" src="" alt="Preview" class="img-fluid rounded shadow-sm" style="max-width: 300px; max-height: 300px;">
+                    <div id="{{ $order->status === 'preparing' ? 'image-preview-preparing' : 'image-preview' }}" class="mt-3" style="display: none;">
+                        <img id="{{ $order->status === 'preparing' ? 'preview-img-preparing' : 'preview-img' }}" src="" alt="Preview" class="img-fluid rounded shadow-sm" style="max-width: 300px; max-height: 300px;">
                         <div class="mt-2">
                             <small class="text-muted">Preview - Image will be uploaded when you click submit</small>
                         </div>
                     </div>
                     
                     <!-- Upload Progress -->
-                    <div id="upload-progress-2" class="mt-3" style="display: none;">
+                    <div id="{{ $order->status === 'preparing' ? 'upload-progress-preparing' : 'upload-progress' }}" class="mt-3" style="display: none;">
                         <div class="progress">
                             <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
                         </div>
                         <small class="text-muted">Uploading photo...</small>
                     </div>
                 </div>
-                <button type="submit" class="btn btn-primary" id="upload-btn-2">
+                <button type="submit" class="btn btn-primary" id="{{ $order->status === 'preparing' ? 'upload-btn-preparing' : 'upload-btn' }}">
                     <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo(s)
                 </button>
             </form>
@@ -893,164 +712,78 @@
 </div>
 @endif
 
-@if($order->status === 'delivered' || $order->status === 'cancel')
-<div class="card mb-4">
-    <div class="card-header">
-        <h5 class="card-title mb-0"><i class="ri-image-line align-middle me-1 text-muted"></i> Order Photo</h5>
+<!-- Modal for deleting order photo -->
+<div class="modal fade" id="deletePhotoModal" tabindex="-1" aria-labelledby="deletePhotoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-soft-danger">
+                <h5 class="modal-title" id="deletePhotoModalLabel">Delete Order Photo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('orders.delete.photo', $order->id) }}" method="POST">
+                @csrf
+                @method('DELETE')
+                <div class="modal-body">
+                    <p>Are you sure you want to delete {{ $order->hasPhotos() && count($order->getAllPhotos()) === 1 ? 'this photo' : 'all photos' }}? This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Delete {{ $order->hasPhotos() && count($order->getAllPhotos()) === 1 ? 'Photo' : 'All Photos' }}</button>
+                </div>
+            </form>
+        </div>
     </div>
-    <div class="card-body">
-        @if($order->hasPhotos())
-            <div class="mb-3">
-                @php $allPhotos = $order->getAllPhotos(); @endphp
-                @if(count($allPhotos) === 1)
-                    <img src="{{ asset('storage/order_photos/' . $allPhotos[0]) }}" alt="Order Photo" class="img-fluid rounded shadow-sm" style="max-width: 300px; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewOrderPhotoModal" data-photo="{{ $allPhotos[0] }}">
-                @else
-                    <div class="row">
-                        @foreach($allPhotos as $index => $photo)
-                        <div class="col-md-4 mb-3">
-                            <div class="position-relative">
-                                <img src="{{ asset('storage/order_photos/' . $photo) }}" alt="Order Photo {{ $index + 1 }}" class="img-fluid rounded shadow-sm" style="max-width: 100%; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewOrderPhotoModal" data-photo="{{ $photo }}">
-                                <div class="position-absolute top-0 end-0 p-1">
-                                    <button type="button" class="btn btn-sm btn-danger rounded-circle" data-bs-toggle="modal" data-bs-target="#deleteSpecificPhotoModalDelivered{{ $index }}" title="Delete this photo">
-                                        <i class="ri-close-line"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        @endforeach
-                    </div>
-                @endif
-            </div>
-            
-            @if(Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
-            <div class="d-flex gap-2 mb-2">
-                <!-- Edit button shows upload form -->
-                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#editPhotoFormDelivered">Add More</button>
-                <!-- Delete button shows modal -->
-                <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deletePhotoModalDelivered">Delete</button>
-            </div>
-            <div class="collapse" id="editPhotoFormDelivered">
-                <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="editPhotoUploadFormDelivered">
+</div>
+
+<!-- Individual Delete Photo Modals for Multiple Photos -->
+@if($order->hasPhotos() && count($order->getAllPhotos()) > 1)
+    @foreach($order->getAllPhotos() as $index => $photo)
+    <div class="modal fade" id="deleteSpecificPhotoModal{{ $index }}" tabindex="-1" aria-labelledby="deleteSpecificPhotoModalLabel{{ $index }}" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-soft-danger">
+                    <h5 class="modal-title" id="deleteSpecificPhotoModalLabel{{ $index }}">Delete Photo {{ $index + 1 }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="{{ route('orders.delete.specific.photo', [$order->id, $photo]) }}" method="POST">
                     @csrf
-                    <div class="mb-3">
-                        <label for="order_photo_edit_delivered" class="form-label">Add More Photos <span class="text-danger">*</span></label>
-                        <div class="position-relative">
-                            <input type="file" 
-                                   class="form-control" 
-                                   id="order_photo_edit_delivered" 
-                                   name="order_photos[]" 
-                                   accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
-                                   multiple
-                                   required>
-                            <div class="form-text text-muted">
-                                <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB each. You can select multiple photos.</small>
-                            </div>
+                    @method('DELETE')
+                    <div class="modal-body">
+                        <div class="text-center mb-3">
+                            <img src="{{ asset('storage/order_photos/' . $photo) }}" alt="Photo to delete" class="img-fluid rounded" style="max-width: 200px;">
                         </div>
-                        
-                        <!-- Image Preview for Edit -->
-                        <div id="edit-image-preview-delivered" class="mt-3" style="display: none;">
-                            <img id="edit-preview-img-delivered" src="" alt="Preview" class="img-fluid rounded shadow-sm" style="max-width: 200px; max-height: 200px;">
-                            <div class="mt-2">
-                                <small class="text-muted">New photo preview</small>
-                            </div>
-                        </div>
+                        <p class="text-center">Are you sure you want to delete this photo? This action cannot be undone.</p>
                     </div>
-                    <button type="submit" class="btn btn-primary btn-sm">
-                        <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo(s)
-                    </button>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-danger">Delete Photo</button>
+                    </div>
                 </form>
             </div>
-            
-            <!-- Modal for deleting order photo (delivered) -->
-            <div class="modal fade" id="deletePhotoModalDelivered" tabindex="-1" aria-labelledby="deletePhotoModalDeliveredLabel" aria-hidden="true">
-                <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content">
-                        <div class="modal-header bg-soft-danger">
-                            <h5 class="modal-title" id="deletePhotoModalDeliveredLabel">Delete Order Photo</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <form action="{{ route('orders.delete.photo', $order->id) }}" method="POST">
-                            @csrf
-                            @method('DELETE')
-                            <div class="modal-body">
-                                <p>Are you sure you want to delete this photo? This action cannot be undone.</p>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                                <button type="submit" class="btn btn-danger">Delete Photo</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
+        </div>
+    </div>
+    @endforeach
+@endif
+
+<!-- Modal for viewing order photo (shared across all statuses) -->
+<div class="modal fade" id="viewOrderPhotoModal" tabindex="-1" aria-labelledby="viewOrderPhotoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewOrderPhotoModalLabel">Order Photo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            @endif
-        @else
-            @if(Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
-            <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="photoUploadFormDelivered">
-                @csrf
-                <div class="mb-3">
-                    <label for="order_photo_delivered" class="form-label">Upload Photo <span class="text-danger">*</span></label>
-                    <div class="position-relative">
-                        <input type="file" 
-                               class="form-control" 
-                               id="order_photo_delivered" 
-                               name="order_photo" 
-                               accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
-                               required>
-                        <div id="file-size-info-delivered" class="form-text text-muted">
-                            <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB</small>
-                        </div>
-                    </div>
-                    
-                    <!-- Image Preview -->
-                    <div id="image-preview-delivered" class="mt-3" style="display: none;">
-                        <img id="preview-img-delivered" src="" alt="Preview" class="img-fluid rounded shadow-sm" style="max-width: 300px; max-height: 300px;">
-                        <div class="mt-2">
-                            <small class="text-muted">Preview - Image will be uploaded when you click submit</small>
-                        </div>
-                    </div>
-                    
-                    <!-- Upload Progress -->
-                    <div id="upload-progress-delivered" class="mt-3" style="display: none;">
-                        <div class="progress">
-                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
-                        </div>
-                        <small class="text-muted">Uploading photo...</small>
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-primary" id="upload-btn-delivered">
-                    <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo
-                </button>
-            </form>
-            @else
-            <div class="alert alert-info">
-                <i class="ri-information-line me-2"></i> No photo available for this order.
-            </div>
-            @endif
-        @endif
-        
-        <!-- Modal for viewing order photo (shared across all statuses) -->
-        <div class="modal fade" id="viewOrderPhotoModal" tabindex="-1" aria-labelledby="viewOrderPhotoModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered modal-xl">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="viewOrderPhotoModalLabel">Order Photo</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body text-center p-3">
-                        <img id="modalPhotoImg" src="" alt="Order Photo" class="img-fluid rounded shadow" style="max-height: 75vh; width: auto; cursor: zoom-in;">
-                        <div class="mt-2">
-                            <small class="text-muted">
-                                <i class="ri-zoom-in-line me-1"></i>Click image to view full size in new tab
-                            </small>
-                        </div>
-                    </div>
+            <div class="modal-body text-center p-3">
+                <img id="modalPhotoImg" src="" alt="Order Photo" class="img-fluid rounded shadow" style="max-height: 75vh; width: auto; cursor: zoom-in;">
+                <div class="mt-2">
+                    <small class="text-muted">
+                        <i class="ri-zoom-in-line me-1"></i>Click image to view full size in new tab
+                    </small>
                 </div>
             </div>
         </div>
     </div>
 </div>
-@endif
 
 <div class="row">
     <div class="col-xl-9 col-lg-8 col-md-12">
@@ -1529,7 +1262,7 @@
                 @method('PATCH')
                 <div class="modal-body">
                     <div class="alert alert-info mb-3">
-                        <i class="ri-information-line me-2"></i> Update the delivery date, reach client time, and ready time for this order.
+                        <i class="ri-information-line me-2"></i> Update the delivery date, reach client time, ready time, and collection date for this order.
                     </div>
                     <div class="row">
                         <div class="col-lg-12">
@@ -1544,6 +1277,20 @@
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                                 <div class="invalid-feedback">Please select a date</div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="mb-3">
+                                <label for="collection_date_update" class="form-label">Collection Date <span class="text-muted">(Optional)</span></label>
+                                <input type="text" class="form-control @error('collection_date') is-invalid @enderror" 
+                                    id="collection_date_update" name="collection_date" 
+                                    data-provider="flatpickr" data-date-format="Y-m-d" 
+                                    value="{{ $order->collection_date ? $order->collection_date->format('Y-m-d') : '' }}" 
+                                    placeholder="Select collection date (optional)">
+                                @error('collection_date')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <div class="form-text">Optional: Date when order was collected from supplier/lab</div>
                             </div>
                         </div>
                         <div class="col-lg-6">
@@ -1601,6 +1348,12 @@
                 allowInput: true,
                 enableTime: false,
                 time_24hr: false
+            });
+            
+            // Collection date picker (optional, no restrictions)
+            flatpickr("#collection_date_update", {
+                dateFormat: "Y-m-d",
+                allowInput: true
             });
             
             // Initialize time picker with AM/PM format for pickup/delivery time
@@ -1838,6 +1591,7 @@
 
         // Setup all photo upload forms
         setupPhotoUpload('order_photo', 'image-preview', 'upload-progress', 'photoUploadForm');
+        setupPhotoUpload('order_photo_preparing', 'image-preview-preparing', 'upload-progress-preparing', 'photoUploadFormPreparing');
         setupPhotoUpload('order_photo_ready', 'image-preview-2', 'upload-progress-2', 'photoUploadForm2');
         setupPhotoUpload('order_photo_edit', 'edit-image-preview', null, 'editPhotoUploadForm');
         setupPhotoUpload('order_photo_delivered', 'image-preview-delivered', 'upload-progress-delivered', 'photoUploadFormDelivered');

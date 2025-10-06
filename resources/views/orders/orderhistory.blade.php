@@ -177,6 +177,7 @@
                                             <i class="ri-calendar-line"></i>
                                         </button>
                                     </th>
+                                    <th class="sort" data-sort="collection_date">Collection Date</th>
                                     <th class="sort" data-sort="type">Type</th>
                                     {{-- <th scope="col">Delivery Address</th> --}}
                                     <th class="sort" data-sort="status">Status</th>
@@ -232,6 +233,13 @@
                                                 <span class="text-muted">Not scheduled</span>
                                             @endif
                                         </td>
+                                        <td class="collection_date">
+                                            @if($order->collection_date)
+                                                {{ $order->collection_date->format('d M, Y') }}
+                                            @else
+                                                <span class="text-muted">-</span>
+                                            @endif
+                                        </td>
                                         <td class="type">
                                             @if($order->delivery_type === 'delivery')
                                                 <div class="text-success">
@@ -274,7 +282,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="11" class="text-center">No orders found</td>
+                                        <td colspan="12" class="text-center">No orders found</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -517,6 +525,7 @@
                     'order_date',
                     'ready_time',
                     'reach_client_time',
+                    'collection_date',
                     'type',
                     'status',
                     'action'

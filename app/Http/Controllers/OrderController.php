@@ -491,6 +491,7 @@ class OrderController extends Controller
             'order_placed_by' => 'nullable|string|max:255',
             'pickup_delivery_date' => 'required|date|after_or_equal:today',
             'pickup_delivery_time' => 'required',
+            'collection_date' => 'nullable|date',
             'delivery_type' => 'required|in:delivery,self_collect',
             'remarks' => 'nullable|string',
             'products' => 'required|array|min:1',
@@ -559,6 +560,7 @@ class OrderController extends Controller
             $order->status = 'new';
             $order->pickup_delivery_date = $request->pickup_delivery_date;
             $order->pickup_delivery_time = $request->pickup_delivery_time ? Carbon::parse($request->pickup_delivery_time)->toTimeString() : null;
+            $order->collection_date = $request->collection_date;
             $order->delivery_type = $request->delivery_type;
             $order->remarks = $request->remarks;
             $order->delivery_address = $request->delivery_address;
@@ -1600,6 +1602,7 @@ class OrderController extends Controller
             'pickup_delivery_date' => 'required|date',
             'pickup_delivery_time' => 'required|date_format:H:i',
             'item_ready_time' => 'required|date_format:H:i',
+            'collection_date' => 'nullable|date',
         ]);
 
         DB::beginTransaction();
@@ -1619,10 +1622,11 @@ class OrderController extends Controller
                 $originalReadyTime = Carbon::parse($order->item_ready_at)->format('g:i A');
             }
             
-            // Update delivery date, time, and ready time
+            // Update delivery date, time, ready time, and collection date
             $order->pickup_delivery_date = $request->pickup_delivery_date;
             $order->pickup_delivery_time = $request->pickup_delivery_time;
             $order->item_ready_at = $request->item_ready_time;
+            $order->collection_date = $request->collection_date;
             $order->save();
             
             // Create new datetime and ready time for comparison
