@@ -1360,21 +1360,11 @@ class OrderController extends Controller
             // Check if user is admin or superadmin
             $isAdmin = Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin';
 
-            // Check if all products are ready
-            $allProductsReady = true;
-            $totalProducts = count($order->products);
-            foreach($order->products as $product) {
-                if($product->pivot->status !== 'ready') {
-                    $allProductsReady = false;
-                    break;
-                }
-            }
-
             // Allow upload if:
-            // 1. Order is ready OR all products are ready in preparing status (normal flow)
+            // 1. Order status is 'preparing' or 'ready' (normal flow for all users)
             // 2. Admin/superadmin can upload for any status including delivered/canceled
-            if (!$isAdmin && $order->status !== 'ready' && !($order->status === 'preparing' && $allProductsReady && $totalProducts > 0)) {
-                return redirect()->back()->with('error', 'Photo can only be uploaded when all products are ready.');
+            if (!$isAdmin && $order->status !== 'preparing' && $order->status !== 'ready') {
+                return redirect()->back()->with('error', 'Photo can only be uploaded when order is in preparing or ready status.');
             }
 
             // Enhanced validation with better error messages for both single and multiple uploads
