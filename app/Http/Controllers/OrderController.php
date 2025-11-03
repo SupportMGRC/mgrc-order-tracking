@@ -499,6 +499,7 @@ class OrderController extends Controller
             'products.*.quantity' => 'required|integer|min:1',
             'products.*.patient_name' => 'nullable|string',
             'products.*.remarks' => 'nullable|string',
+            'products.*.coa_required' => 'nullable|boolean',
             'item_ready_at' => 'required|date_format:g:i A',
         ], [
             'customer_name.required' => 'The customer name is required.',
@@ -592,6 +593,7 @@ class OrderController extends Controller
                     'quantity' => $product['quantity'],
                     'patient_name' => isset($product['patient_name']) ? $product['patient_name'] : null,
                     'remarks' => isset($product['remarks']) ? $product['remarks'] : null,
+                    'coa_required' => isset($product['coa_required']) ? (bool)$product['coa_required'] : false,
                 ]);
             }
             
@@ -801,6 +803,99 @@ class OrderController extends Controller
     {
         $order->load(['customer', 'user', 'products']);
         return view('orders.orderdetails', compact('order'));
+    }
+
+    /**
+     * Display the Certificate of Analysis (COA) page for a specific product in an order.
+     */
+    public function showCOA(Order $order, Product $product)
+    {
+        // Load necessary relationships
+        $order->load(['customer', 'user', 'products']);
+        
+        // Get the pivot data for this specific product
+        $orderProduct = $order->products()->where('product_id', $product->id)->first();
+        
+        // Check if the product exists in this order
+        if (!$orderProduct) {
+            return redirect()->route('orderdetails', $order->id)
+                ->with('error', 'Product not found in this order.');
+        }
+        
+        // Check if COA is required for this product
+        if (!$orderProduct->pivot->coa_required) {
+            return redirect()->route('orderdetails', $order->id)
+                ->with('error', 'COA is not required for this product.');
+        }
+        
+        return view('orders.coa-editor', compact('order', 'product', 'orderProduct'));
+    }
+
+    /**
+     * Display the editable COA page with PDF overlay.
+     */
+    public function editCOA(Order $order, Product $product)
+    {
+        // Load necessary relationships
+        $order->load(['customer', 'user', 'products']);
+        
+        // Get the pivot data for this specific product
+        $orderProduct = $order->products()->where('product_id', $product->id)->first();
+        
+        // Check if the product exists in this order
+        if (!$orderProduct) {
+            return redirect()->route('orderdetails', $order->id)
+                ->with('error', 'Product not found in this order.');
+        }
+        
+        // Check if COA is required for this product
+        if (!$orderProduct->pivot->coa_required) {
+            return redirect()->route('orderdetails', $order->id)
+                ->with('error', 'COA is not required for this product.');
+        }
+        
+        return view('orders.coa-editor', compact('order', 'product', 'orderProduct'));
+    }
+
+    /**
+     * Save the COA field data.
+     */
+    public function saveCOA(Request $request, Order $order, Product $product)
+    {
+        try {
+            // Get the pivot data for this specific product
+            $orderProduct = $order->products()->where('product_id', $product->id)->first();
+            
+            if (!$orderProduct) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Product not found in this order.'
+                ], 404);
+            }
+            
+            // Update the pivot table with the COA field data
+            $order->products()->updateExistingPivot($product->id, [
+                'batch_number' => $request->input('batch_number', $orderProduct->pivot->batch_number),
+                'prepared_by' => $request->input('prepared_by', $orderProduct->pivot->prepared_by),
+                'qc_document_number' => $request->input('qc_document_number', $orderProduct->pivot->qc_document_number),
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'COA data saved successfully.'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error saving COA data', [
+                'order_id' => $order->id,
+                'product_id' => $product->id,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Error saving COA data: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

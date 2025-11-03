@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>COA Position Finder Tool</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .header h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+        }
+        
+        .pdf-section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .controls button, .controls input[type="file"] {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .controls button {
+            background: #667eea;
+            color: white;
+        }
+        
+        .controls button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+        
+        .controls input[type="file"] {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        #pdf-container {
+            position: relative;
+            background: #f5f5f5;
+            border: 2px dashed #ddd;
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: auto;
+            border-radius: 5px;
+        }
+        
+        #pdf-canvas-wrapper {
+            position: relative;
+            cursor: crosshair;
+        }
+        
+        #pdf-canvas {
+            display: block;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        
+        .marker {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #ff4757;
+            border: 2px solid white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            z-index: 10;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.2); }
+        }
+        
+        .sidebar {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            max-height: calc(100vh - 180px);
+            overflow-y: auto;
+        }
+        
+        .sidebar h2 {
+            color: #333;
+            font-size: 20px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+        
+        .coordinate-display {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .coordinate-display h3 {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .coordinate-display .coords {
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            color: #333;
+            font-weight: bold;
+        }
+        
+        .field-config {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .field-config .field-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .field-config .field-title {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .field-config .delete-btn {
+            background: #ff4757;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .field-config input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 13px;
+        }
+        
+        .field-config label {
+            font-size: 12px;
+            color: #666;
+            display: block;
+            margin-bottom: 3px;
+        }
+        
+        .code-output {
+            background: #2d3748;
+            color: #a0aec0;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+        
+        .code-output .keyword { color: #fc8181; }
+        .code-output .string { color: #68d391; }
+        .code-output .number { color: #90cdf4; }
+        .code-output .comment { color: #718096; }
+        
+        .copy-btn {
+            background: #48bb78;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        
+        .copy-btn:hover {
+            background: #38a169;
+        }
+        
+        .instructions {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #ffc107;
+        }
+        
+        .instructions h3 {
+            color: #856404;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        
+        .instructions p {
+            color: #856404;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        
+        .placeholder {
+            text-align: center;
+            color: #999;
+            padding: 40px;
+        }
+        
+        .placeholder i {
+            font-size: 48px;
+            margin-bottom: 10px;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 COA Position Finder Tool</h1>
+            <p>Upload your PDF and click to find coordinates for editable field placement</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="pdf-section">
+                <div class="controls">
+                    <input type="file" id="pdf-file" accept="application/pdf">
+                    <button onclick="previousPage()">← Previous</button>
+                    <button onclick="nextPage()">Next →</button>
+                    <span style="padding: 10px; background: #f0f0f0; border-radius: 5px;">
+                        Page <span id="page-num">1</span> / <span id="page-count">1</span>
+                    </span>
+                    <button onclick="changeZoom(0.9)">Zoom -</button>
+                    <span style="padding: 10px; background: #f0f0f0; border-radius: 5px;">
+                        <span id="zoom-level">100</span>%
+                    </span>
+                    <button onclick="changeZoom(1.1)">Zoom +</button>
+                    <button onclick="clearMarkers()">Clear Markers</button>
+                </div>
+                
+                <div id="pdf-container">
+                    <div class="placeholder">
+                        <i>📄</i>
+                        <p>Upload a PDF to get started</p>
+                    </div>
+                    <div id="pdf-canvas-wrapper" style="display: none;">
+                        <canvas id="pdf-canvas"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="sidebar">
+                <div class="instructions">
+                    <h3>📝 Instructions</h3>
+                    <p>1. Upload your PDF<br>2. Click on the PDF where you want a field<br>3. Fill in field details<br>4. Copy generated code</p>
+                </div>
+                
+                <h2>Coordinates</h2>
+                <div class="coordinate-display">
+                    <h3>Last Click:</h3>
+                    <div class="coords" id="last-coords">Click on PDF to get coordinates</div>
+                </div>
+                
+                <h2>Fields (Page <span id="current-page-display">1</span>)</h2>
+                <div id="fields-list"></div>
+                
+                <h2>Generated Code</h2>
+                <div class="code-output" id="code-output">
+                    <span class="comment">// Click on the PDF to add fields</span>
+                </div>
+                <button class="copy-btn" onclick="copyCode()">📋 Copy Code</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        
+        let pdfDoc = null;
+        let pageNum = 1;
+        let scale = 1.5;
+        let canvas = document.getElementById('pdf-canvas');
+        let ctx = canvas.getContext('2d');
+        let fields = {};
+        let fieldCounter = 0;
+        
+        document.getElementById('pdf-file').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file.type !== 'application/pdf') {
+                alert('Please select a PDF file');
+                return;
+            }
+            
+            const fileReader = new FileReader();
+            fileReader.onload = function() {
+                const typedarray = new Uint8Array(this.result);
+                loadPdf(typedarray);
+            };
+            fileReader.readAsArrayBuffer(file);
+        });
+        
+        function loadPdf(data) {
+            pdfjsLib.getDocument(data).promise.then(function(pdf) {
+                pdfDoc = pdf;
+                document.getElementById('page-count').textContent = pdf.numPages;
+                document.querySelector('.placeholder').style.display = 'none';
+                document.getElementById('pdf-canvas-wrapper').style.display = 'block';
+                renderPage(pageNum);
+            });
+        }
+        
+        function renderPage(num) {
+            pdfDoc.getPage(num).then(function(page) {
+                const viewport = page.getViewport({scale: scale});
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                
+                const renderContext = {
+                    canvasContext: ctx,
+                    viewport: viewport
+                };
+                
+                page.render(renderContext).promise.then(function() {
+                    renderMarkers();
+                });
+            });
+            
+            document.getElementById('page-num').textContent = num;
+            document.getElementById('current-page-display').textContent = num;
+            updateFieldsList();
+        }
+        
+        function previousPage() {
+            if (pageNum <= 1) return;
+            pageNum--;
+            renderPage(pageNum);
+        }
+        
+        function nextPage() {
+            if (pageNum >= pdfDoc.numPages) return;
+            pageNum++;
+            renderPage(pageNum);
+        }
+        
+        function changeZoom(factor) {
+            scale *= factor;
+            document.getElementById('zoom-level').textContent = Math.round(scale * 100 / 1.5);
+            renderPage(pageNum);
+        }
+        
+        canvas.addEventListener('click', function(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.round((e.clientX - rect.left) * (canvas.width / rect.width));
+            const y = Math.round((e.clientY - rect.top) * (canvas.height / rect.height));
+            
+            const normalizedX = Math.round(x * 1.5 / scale);
+            const normalizedY = Math.round(y * 1.5 / scale);
+            
+            document.getElementById('last-coords').textContent = `x: ${normalizedX}, y: ${normalizedY}`;
+            
+            addField(normalizedX, normalizedY);
+        });
+        
+        function addField(x, y) {
+            const fieldId = `field_${++fieldCounter}`;
+            
+            if (!fields[pageNum]) {
+                fields[pageNum] = [];
+            }
+            
+            fields[pageNum].push({
+                id: fieldId,
+                x: x,
+                y: y,
+                width: 200,
+                height: 30,
+                label: 'Field ' + fieldCounter,
+                value: ''
+            });
+            
+            updateFieldsList();
+            updateCodeOutput();
+            renderMarkers();
+        }
+        
+        function renderMarkers() {
+            const existingMarkers = document.querySelectorAll('.marker');
+            existingMarkers.forEach(m => m.remove());
+            
+            if (!fields[pageNum]) return;
+            
+            const wrapper = document.getElementById('pdf-canvas-wrapper');
+            
+            fields[pageNum].forEach((field, index) => {
+                const marker = document.createElement('div');
+                marker.className = 'marker';
+                marker.style.left = (field.x * scale / 1.5) + 'px';
+                marker.style.top = (field.y * scale / 1.5) + 'px';
+                marker.title = field.label;
+                wrapper.appendChild(marker);
+            });
+        }
+        
+        function updateFieldsList() {
+            const list = document.getElementById('fields-list');
+            list.innerHTML = '';
+            
+            if (!fields[pageNum] || fields[pageNum].length === 0) {
+                list.innerHTML = '<p style="color: #999; font-size: 13px;">No fields on this page</p>';
+                return;
+            }
+            
+            fields[pageNum].forEach((field, index) => {
+                const fieldDiv = document.createElement('div');
+                fieldDiv.className = 'field-config';
+                fieldDiv.innerHTML = `
+                    <div class="field-header">
+                        <span class="field-title">${field.label}</span>
+                        <button class="delete-btn" onclick="deleteField(${index})">Delete</button>
+                    </div>
+                    <label>ID:</label>
+                    <input type="text" value="${field.id}" onchange="updateField(${index}, 'id', this.value)">
+                    <label>Label:</label>
+                    <input type="text" value="${field.label}" onchange="updateField(${index}, 'label', this.value)">
+                    <label>Width:</label>
+                    <input type="number" value="${field.width}" onchange="updateField(${index}, 'width', parseInt(this.value))">
+                    <label>Height:</label>
+                    <input type="number" value="${field.height}" onchange="updateField(${index}, 'height', parseInt(this.value))">
+                    <label>Default Value:</label>
+                    <input type="text" value="${field.value}" onchange="updateField(${index}, 'value', this.value)">
+                `;
+                list.appendChild(fieldDiv);
+            });
+        }
+        
+        function updateField(index, property, value) {
+            fields[pageNum][index][property] = value;
+            updateCodeOutput();
+            renderMarkers();
+        }
+        
+        function deleteField(index) {
+            fields[pageNum].splice(index, 1);
+            updateFieldsList();
+            updateCodeOutput();
+            renderMarkers();
+        }
+        
+        function clearMarkers() {
+            if (confirm('Clear all fields on this page?')) {
+                fields[pageNum] = [];
+                updateFieldsList();
+                updateCodeOutput();
+                renderMarkers();
+            }
+        }
+        
+        function updateCodeOutput() {
+            const output = document.getElementById('code-output');
+            let code = '<span class="keyword">const</span> editableFields = {\n';
+            
+            for (let page in fields) {
+                if (fields[page].length === 0) continue;
+                
+                code += `    <span class="number">${page}</span>: [ <span class="comment">// Page ${page}</span>\n`;
+                
+                fields[page].forEach((field, index) => {
+                    code += `        {\n`;
+                    code += `            <span class="keyword">id</span>: <span class="string">'${field.id}'</span>,\n`;
+                    code += `            <span class="keyword">x</span>: <span class="number">${field.x}</span>,\n`;
+                    code += `            <span class="keyword">y</span>: <span class="number">${field.y}</span>,\n`;
+                    code += `            <span class="keyword">width</span>: <span class="number">${field.width}</span>,\n`;
+                    code += `            <span class="keyword">height</span>: <span class="number">${field.height}</span>,\n`;
+                    code += `            <span class="keyword">value</span>: <span class="string">'${field.value}'</span>,\n`;
+                    code += `            <span class="keyword">label</span>: <span class="string">'${field.label}'</span>\n`;
+                    code += `        }${index < fields[page].length - 1 ? ',' : ''}\n`;
+                });
+                
+                code += `    ],\n`;
+            }
+            
+            code += '};';
+            output.innerHTML = code;
+        }
+        
+        function copyCode() {
+            const output = document.getElementById('code-output');
+            const text = output.textContent;
+            
+            navigator.clipboard.writeText(text).then(function() {
+                const btn = document.querySelector('.copy-btn');
+                const originalText = btn.textContent;
+                btn.textContent = '✓ Copied!';
+                btn.style.background = '#38a169';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = '#48bb78';
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>
+
+
