@@ -284,7 +284,7 @@
                                             </div>
                                         </div>
                                         <div class="row">
-                                            <div class="col-12">
+                                            <div class="col-lg-10 col-sm-8 col-12">
                                                 <div class="mb-0">
                                                     <label for="products[0][remarks]" class="form-label fw-semibold">Remarks</label>
                                                     <textarea class="form-control remarks-field @error('products.0.remarks') is-invalid @enderror" 
@@ -293,6 +293,21 @@
                                                     @error('products.0.remarks')
                                                         <div class="invalid-feedback">{{ $message }}</div>
                                                     @enderror
+                                                </div>
+                                            </div>
+                                            <div class="col-lg-2 col-sm-4 col-12">
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-semibold d-block">&nbsp;</label>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" 
+                                                            id="products[0][coa_required]" 
+                                                            name="products[0][coa_required]" 
+                                                            value="1"
+                                                            {{ old('products.0.coa_required') ? 'checked' : '' }}>
+                                                        <label class="form-check-label" for="products[0][coa_required]">
+                                                            COA Required
+                                                        </label>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -354,6 +369,25 @@
                                                     @enderror
                                                 </div>
                                                 <div class="col-lg-6 col-12">
+                                                    <label class="form-label d-block">Time Sensitive Order</label>
+                                                    <div class="form-check form-check-lg">
+                                                        <input class="form-check-input" type="checkbox" name="time_sensitive" id="time_sensitive" value="1" {{ old('time_sensitive') ? 'checked' : '' }}>
+                                                        <label class="form-check-label" for="time_sensitive">
+                                                            <i class="ri-time-line me-1"></i>Mark as Time Sensitive
+                                                        </label>
+                                                    </div>
+                                                    <small class="text-muted">Check this box if the order is time sensitive</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-12">
+                                        <div class="mb-3">
+                                            <div class="row">
+                                                <div class="col-lg-6 col-12">
                                                     <label for="item_ready_at" class="form-label">Item Ready Time <span class="text-danger">*</span></label>
                                                     <input type="text" class="form-control @error('item_ready_at') is-invalid @enderror" id="item_ready_at" name="item_ready_at" placeholder="e.g. 02:30 PM" data-provider="flatpickr" data-enable-time="true" data-no-calendar="true" data-date-format="h:i K" value="{{ old('item_ready_at') }}" required>
                                                     @error('item_ready_at')
@@ -362,6 +396,35 @@
                                                     <div class="invalid-feedback">Please select the item ready time</div>
                                                 </div>
                                             </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-lg-6">
+                                        <div class="mb-3">
+                                            <label for="collection_date" class="form-label">Collection Date <span class="text-muted">(Optional)</span></label>
+                                            <input type="text" class="form-control @error('collection_date') is-invalid @enderror" 
+                                                id="collection_date" name="collection_date" 
+                                                data-provider="flatpickr" data-date-format="Y-m-d" 
+                                                value="{{ old('collection_date') }}" placeholder="Select collection date (optional)">
+                                            @error('collection_date')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                            <div class="form-text">Optional: Date when order was collected from supplier/lab</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-6">
+                                        <div class="mb-3">
+                                            <label for="collection_time" class="form-label">Collection Time <span class="text-muted">(Optional)</span></label>
+                                            <input type="text" class="form-control @error('collection_time') is-invalid @enderror" 
+                                                id="collection_time" name="collection_time" 
+                                                placeholder="e.g. 02:30 PM" 
+                                                value="{{ old('collection_time') }}">
+                                            @error('collection_time')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                            <div class="form-text">Optional: Time when order was collected</div>
                                         </div>
                                     </div>
                                 </div>
@@ -402,22 +465,6 @@
                                             @enderror
                                             <div class="invalid-feedback">Please select a time</div>
                                             {{-- <small class="text-muted">Time reach at client</small> --}}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="row mb-3">
-                                    <div class="col-lg-6">
-                                        <div class="mb-3">
-                                            <label for="collection_date" class="form-label">Collection Date <span class="text-muted">(Optional)</span></label>
-                                            <input type="text" class="form-control @error('collection_date') is-invalid @enderror" 
-                                                id="collection_date" name="collection_date" 
-                                                data-provider="flatpickr" data-date-format="Y-m-d" 
-                                                value="{{ old('collection_date') }}" placeholder="Select collection date (optional)">
-                                            @error('collection_date')
-                                                <div class="invalid-feedback">{{ $message }}</div>
-                                            @enderror
-                                            <div class="form-text">Optional: Date when order was collected from supplier/lab</div>
                                         </div>
                                     </div>
                                 </div>
@@ -551,15 +598,23 @@
                                     <strong>Type:</strong> <span id="confirm-delivery-type">-</span>
                                 </div>
                                 <div class="col-md-6">
-                                    <strong>Date:</strong> <span id="confirm-delivery-date">-</span>
+                                    <strong>Time Sensitive:</strong> <span id="confirm-time-sensitive" class="badge bg-danger">No</span>
                                 </div>
                             </div>
                             <div class="row mt-2">
                                 <div class="col-md-6">
-                                    <strong>Time:</strong> <span id="confirm-delivery-time">-</span>
+                                    <strong>Date:</strong> <span id="confirm-delivery-date">-</span>
                                 </div>
                                 <div class="col-md-6">
+                                    <strong>Time:</strong> <span id="confirm-delivery-time">-</span>
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-md-6">
                                     <strong>Item Ready:</strong> <span id="confirm-item-ready">-</span>
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>Address:</strong> <span id="confirm-delivery-address">-</span>
                                 </div>
                             </div>
                             <div class="row mt-2">
@@ -567,7 +622,7 @@
                                     <strong>Collection Date:</strong> <span id="confirm-collection-date">Not specified</span>
                                 </div>
                                 <div class="col-md-6">
-                                    <strong>Address:</strong> <span id="confirm-delivery-address">-</span>
+                                    <strong>Collection Time:</strong> <span id="confirm-collection-time">Not specified</span>
                                 </div>
                             </div>
                         </div>
@@ -674,6 +729,15 @@
                     allowInput: true
                 });
                 flatpickr("#item_ready_at", {
+                    enableTime: true,
+                    noCalendar: true,
+                    dateFormat: "h:i K",
+                    time_24hr: false,
+                    allowInput: true,
+                    altInput: false
+                });
+                
+                flatpickr("#collection_time", {
                     enableTime: true,
                     noCalendar: true,
                     dateFormat: "h:i K",
@@ -880,10 +944,24 @@
                         </div>
                     </div>
                                                         <div class="row">
-                                        <div class="col-12">
+                                        <div class="col-lg-10 col-sm-8 col-12">
                                             <div class="mb-0">
                                                 <label for="products[${itemCount}][remarks]" class="form-label fw-semibold">Remarks</label>
                                                 <textarea class="form-control remarks-field" id="products[${itemCount}][remarks]" name="products[${itemCount}][remarks]" placeholder="Enter any remarks for this order item" rows="2"></textarea>
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-2 col-sm-4 col-12">
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold d-block">&nbsp;</label>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" 
+                                                        id="products[${itemCount}][coa_required]" 
+                                                        name="products[${itemCount}][coa_required]" 
+                                                        value="1">
+                                                    <label class="form-check-label" for="products[${itemCount}][coa_required]">
+                                                        COA Required
+                                                    </label>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1231,6 +1309,7 @@
                     const patientName = item.querySelector('.patient-name-field').value;
                     const quantity = item.querySelector('input[type="number"]').value;
                     const remarks = item.querySelector('.remarks-field').value;
+                    const coaRequired = item.querySelector('input[type="checkbox"]').checked;
                     
                     const itemDiv = document.createElement('div');
                     itemDiv.className = 'mb-3 pb-3';
@@ -1240,14 +1319,17 @@
                     
                     itemDiv.innerHTML = `
                         <div class="row">
-                            <div class="col-md-6">
+                            <div class="col-md-5">
                                 <strong>Product:</strong> ${productType || '-'}
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <strong>Quantity:</strong> ${quantity || '-'}
                             </div>
                             <div class="col-md-3">
                                 <strong>Patient:</strong> ${patientName || 'Not specified'}
+                            </div>
+                            <div class="col-md-2">
+                                <strong>COA:</strong> ${coaRequired ? '<span class="badge bg-success">Required</span>' : '<span class="badge bg-secondary">Not Required</span>'}
                             </div>
                         </div>
                         ${remarks ? `<div class="row mt-1"><div class="col-12"><strong>Remarks:</strong> ${remarks}</div></div>` : ''}
@@ -1260,6 +1342,18 @@
                 const deliveryType = document.querySelector('input[name="delivery_type"]:checked').value;
                 document.getElementById('confirm-delivery-type').textContent = 
                     deliveryType === 'delivery' ? 'Delivery' : 'Self Collect';
+                
+                // Time Sensitive
+                const timeSensitive = document.getElementById('time_sensitive').checked;
+                const timeSensitiveSpan = document.getElementById('confirm-time-sensitive');
+                if (timeSensitive) {
+                    timeSensitiveSpan.textContent = 'Yes';
+                    timeSensitiveSpan.className = 'badge bg-danger';
+                } else {
+                    timeSensitiveSpan.textContent = 'No';
+                    timeSensitiveSpan.className = 'badge bg-secondary';
+                }
+                
                 document.getElementById('confirm-delivery-date').textContent = 
                     document.getElementById('pickup_delivery_date').value || '-';
                 document.getElementById('confirm-delivery-time').textContent = 
@@ -1268,6 +1362,8 @@
                     document.getElementById('item_ready_at').value || '-';
                 document.getElementById('confirm-collection-date').textContent = 
                     document.getElementById('collection_date').value || 'Not specified';
+                document.getElementById('confirm-collection-time').textContent = 
+                    document.getElementById('collection_time').value || 'Not specified';
                 document.getElementById('confirm-delivery-address').textContent = 
                     document.getElementById('delivery_address').value || 'Not specified';
 

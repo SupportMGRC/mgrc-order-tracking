@@ -206,11 +206,16 @@
                                             @endif
                                         </div>
                                         <div class="flex-grow-1 ms-2">
-                                            <h6 class="mb-1 fs-13">
-                                                <a href="{{ route('orderdetails', $delivery->id) }}" class="text-dark">
-                                                    Order #{{ $delivery->id }}
-                                                </a>
-                                            </h6>
+                                            <div class="d-flex align-items-center justify-content-between">
+                                                <h6 class="mb-1 fs-13">
+                                                    <a href="{{ route('orderdetails', $delivery->id) }}" class="text-dark">
+                                                        Order #{{ $delivery->id }}
+                                                    </a>
+                                                </h6>
+                                                @if($delivery->time_sensitive)
+                                                    <span class="badge bg-danger">Time Sensitive</span>
+                                                @endif
+                                            </div>
                                             <p class="text-muted fs-12 mb-0">{{ $delivery->customer->name ?? 'N/A' }}</p>
                                             <p class="text-muted fs-11 mb-0">
                                                 <i class="ri-calendar-line"></i> {{ $delivery->pickup_delivery_date->format('M d, Y') }}
@@ -259,14 +264,19 @@
                                             @endif
                                         </div>
                                         <div class="flex-grow-1 ms-2">
-                                            <h6 class="mb-1 fs-13">
-                                                <a href="{{ route('orderdetails', $overdue->id) }}" class="text-dark">
-                                                    Order #{{ $overdue->id }}
-                                                </a>
-                                                <span class="text-danger fs-11 ms-2">
-                                                    <i class="ri-error-warning-line"></i> OVERDUE
-                                                </span>
-                                            </h6>
+                                            <div class="d-flex align-items-center justify-content-between">
+                                                <h6 class="mb-1 fs-13">
+                                                    <a href="{{ route('orderdetails', $overdue->id) }}" class="text-dark">
+                                                        Order #{{ $overdue->id }}
+                                                    </a>
+                                                    <span class="text-danger fs-11 ms-2">
+                                                        <i class="ri-error-warning-line"></i> OVERDUE
+                                                    </span>
+                                                </h6>
+                                                @if($overdue->time_sensitive)
+                                                    <span class="badge bg-danger">Time Sensitive</span>
+                                                @endif
+                                            </div>
                                             <p class="text-muted fs-12 mb-0">{{ $overdue->customer->name ?? 'N/A' }}</p>
                                             <p class="text-danger fs-11 mb-0">
                                                 <i class="ri-calendar-line"></i> {{ $overdue->pickup_delivery_date->format('M d, Y') }}
@@ -319,6 +329,7 @@
                             <span class="badge" style="background-color: #f1b44c; color: white; font-size: 10px;">Preparing</span>
                             <span class="badge" style="background-color: #405189; color: white; font-size: 10px;">Ready</span>
                             <span class="badge" style="background-color: #0ab39c; color: white; font-size: 10px;">Delivered</span>
+                            <span class="badge" style="background-color: #dc3545; color: white; font-size: 10px;">Time Sensitive</span>
                         </div>
                     </div>
                 </div>
@@ -487,6 +498,7 @@
         function createTooltipContent(eventInfo) {
             const eventData = eventInfo.event.extendedProps;
             const productsList = eventData.products_list || [];
+            const timeSensitiveBadge = eventData.time_sensitive ? '<span class="badge bg-danger ms-2">Time Sensitive</span>' : '';
             
             // Format delivery date and time
             const deliveryDate = eventInfo.event.start;
@@ -511,6 +523,7 @@
             return `
                 <div class="tooltip-header">
                     <div class="order-id">Order #${eventInfo.event.id}</div>
+                    ${timeSensitiveBadge}
                 </div>
                 <div class="tooltip-body">
                     <div class="info-row">
@@ -543,6 +556,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             var calendarEl = document.getElementById('delivery-calendar');
             var calendarEvents = @json($calendarEvents);
+            var orderDetailsBaseUrl = @json(url('/orderdetails'));
             
             var calendar = new FullCalendar.Calendar(calendarEl, {
                 timeZone: 'UTC',
@@ -558,7 +572,7 @@
                 events: calendarEvents,
                 eventClick: function(info) {
                     // Navigate to order details when event is clicked
-                    window.location.href = '{{ route("orderdetails", ":id") }}'.replace(':id', info.event.id);
+                    window.location.href = orderDetailsBaseUrl + '/' + info.event.id;
                 },
                 eventDidMount: function(info) {
                     // Set up Bootstrap tooltip with custom HTML content

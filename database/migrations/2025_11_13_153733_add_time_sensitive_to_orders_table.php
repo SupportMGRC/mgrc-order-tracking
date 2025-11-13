@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('order_product', function (Blueprint $table) {
-            $table->dropColumn('price');
+        Schema::table('orders', function (Blueprint $table) {
+            $table->boolean('time_sensitive')->default(false)->after('delivery_type');
         });
     }
 
@@ -21,8 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('order_product', function (Blueprint $table) {
-            $table->decimal('price', 10, 2)->after('quantity'); // Add back the price column
+        Schema::table('orders', function (Blueprint $table) {
+            $table->dropColumn('time_sensitive');
         });
     }
-}; 
+};

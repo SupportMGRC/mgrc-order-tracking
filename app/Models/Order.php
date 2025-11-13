@@ -27,9 +27,11 @@ class Order extends Model
         'order_time',
         'status',
         'delivery_type',
+        'time_sensitive',
         'pickup_delivery_date',
         'pickup_delivery_time',
         'collection_date',
+        'collection_time',
         'remarks',
         'item_ready_at',
         'delivery_address',
@@ -48,9 +50,11 @@ class Order extends Model
         'pickup_delivery_date' => 'date',
         'pickup_delivery_time' => 'datetime',
         'collection_date' => 'date',
+        'collection_time' => 'datetime',
         'item_ready_at' => 'datetime',
         'signature_date' => 'datetime',
         'order_photos' => 'array',
+        'time_sensitive' => 'boolean',
     ];
 
     /**
@@ -75,7 +79,7 @@ class Order extends Model
     public function products()
     {
         return $this->belongsToMany(Product::class, 'order_product')
-            ->withPivot('id', 'quantity', 'batch_number', 'patient_name', 'remarks', 'qc_document_number', 'prepared_by', 'status')
+            ->withPivot('id', 'quantity', 'batch_number', 'patient_name', 'remarks', 'qc_document_number', 'prepared_by', 'status', 'coa_required')
             ->withTimestamps();
     }
 

@@ -131,19 +131,30 @@ class HomeController extends Controller
                     return $product->name . ' (Qty: ' . $product->pivot->quantity . ')';
                 })->toArray();
                 
+                $backgroundColor = $statusColors[$order->status] ?? '#6c757d';
+                $borderColor = $backgroundColor;
+                $textColor = $textColors[$order->status] ?? '#ffffff';
+
+                if ($order->time_sensitive) {
+                    $backgroundColor = '#dc3545';
+                    $borderColor = '#dc3545';
+                    $textColor = '#ffffff';
+                }
+
                 return [
                     'id' => $order->id,
                     'title' => '#' . $order->id . ' - ' . ($order->customer->name ?? 'N/A'),
                     'start' => $order->pickup_delivery_date->format('Y-m-d'),
-                    'backgroundColor' => $statusColors[$order->status] ?? '#6c757d',
-                    'borderColor' => $statusColors[$order->status] ?? '#6c757d',
-                    'textColor' => $textColors[$order->status] ?? '#ffffff',
+                    'backgroundColor' => $backgroundColor,
+                    'borderColor' => $borderColor,
+                    'textColor' => $textColor,
                     'status' => $order->status,
                     'customer' => $order->customer->name ?? 'N/A',
                     'products_count' => $order->products->count(),
                     'products_list' => $productList,
                     'delivery_type' => $order->delivery_type,
-                    'delivery_time' => $order->pickup_delivery_time ? $order->pickup_delivery_time->format('H:i') : null
+                    'delivery_time' => $order->pickup_delivery_time ? $order->pickup_delivery_time->format('H:i') : null,
+                    'time_sensitive' => (bool) $order->time_sensitive
                 ];
             });
         

@@ -193,7 +193,9 @@
                                                 <label class="form-check-label" for="cardtableCheck{{ $order->id }}"></label>
                                             </div>
                                         </td> --}}
-                                        <td class="order_id"><a href="{{ route('orderdetails', $order->id) }}" class="fw-semibold">#{{ $order->id }}</a></td>
+                                        <td class="order_id">
+                                            <a href="{{ route('orderdetails', $order->id) }}" class="fw-semibold">#{{ $order->id }}</a>
+                                        </td>
                                         <td class="customer">{{ $order->customer->name }}</td>
                                         <td class="product">
                                             @if ($order->products->isNotEmpty())
@@ -248,6 +250,13 @@
                                             @else
                                                 <div class="text-primary">
                                                     <i class="ri-user-location-line align-bottom me-1"></i> Self Collect
+                                                </div>
+                                            @endif
+                                            @if($order->time_sensitive)
+                                                <div class="mt-1">
+                                                    <span class="badge bg-danger">
+                                                        <i class="ri-notification-3-line align-bottom me-1"></i> Time Sensitive
+                                                    </span>
                                                 </div>
                                             @endif
                                         </td>

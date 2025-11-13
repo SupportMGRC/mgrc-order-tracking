@@ -80,6 +80,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/orders/{order}/prf', [PRFController::class, 'show'])->name('orders.prf');
     Route::get('/orders/{order}/prf/print', [PRFController::class, 'print'])->name('orders.prf.print');
     
+    // COA routes - unified view for displaying and editing Certificate of Analysis
+    // Both routes now use the same coa-editor.blade.php view with toggle edit mode
+    Route::get('/orders/{order}/coa/{product}', [OrderController::class, 'showCOA'])->name('orders.coa');
+    Route::get('/orders/{order}/coa/{product}/edit', [OrderController::class, 'editCOA'])->name('orders.coa.edit');
+    Route::post('/orders/{order}/coa/{product}/save', [OrderController::class, 'saveCOA'])->name('orders.coa.save');
+    
     Route::get('/calendar', [HomeController::class, 'index'])->name('dashboard');
 
     Route::post('order-batch-update/{id}', [OrderController::class, 'updateBatch'])->name('orders.update.batch');

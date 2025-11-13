@@ -438,7 +438,8 @@
 @endif
 
 <!-- Order Status Guide Card -->
-<div class="card mb-4">
+<div class="card mb-4 {{ $order->time_sensitive ? 'ribbon-box border border-danger' : '' }}">
+
     <div class="card-header">
         <div class="d-sm-flex align-items-center justify-content-between">
             <h5 class="card-title flex-grow-1 mb-0">Order Status</h5>
@@ -473,6 +474,13 @@
                     }} align-middle me-1"></i>
                     Current Status: {{ ucfirst($order->status) }}
                 </span>
+
+                @if($order->time_sensitive)
+                <span class="badge fs-13 bg-danger text-white px-3 py-2">
+                    <i class="ri-notification-3-line align-middle me-1"></i>
+                    Time Sensitive
+                </span>
+                @endif
             </div>
         </div>
     </div>
@@ -595,7 +603,7 @@
     </div>
 </div>
 
-@if($order->status === 'preparing' || $order->status === 'ready')
+@if($order->status === 'preparing' || $order->status === 'ready' || $order->status === 'delivered')
 <div class="card mb-4">
     <div class="card-header">
         <h5 class="card-title mb-0"><i class="ri-image-line align-middle me-1 text-muted"></i> Order Photo</h5>
@@ -612,17 +620,20 @@
                         <div class="col-md-4 mb-3">
                             <div class="position-relative">
                                 <img src="{{ asset('storage/order_photos/' . $photo) }}" alt="Order Photo {{ $index + 1 }}" class="img-fluid rounded shadow-sm" style="max-width: 100%; cursor:pointer;" data-bs-toggle="modal" data-bs-target="#viewOrderPhotoModal" data-photo="{{ $photo }}">
+                                @if($order->status !== 'delivered')
                                 <div class="position-absolute top-0 end-0 p-1">
                                     <button type="button" class="btn btn-sm btn-danger rounded-circle" data-bs-toggle="modal" data-bs-target="#deleteSpecificPhotoModal{{ $index }}" title="Delete this photo">
                                         <i class="ri-close-line"></i>
                                     </button>
                                 </div>
+                                @endif
                             </div>
                         </div>
                         @endforeach
                     </div>
                 @endif
             </div>
+            @if($order->status !== 'delivered')
             <div class="d-flex gap-2 mb-2">
                 <!-- Edit button shows upload form -->
                 <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#editPhotoForm">{{ $order->status === 'preparing' ? 'Add More' : 'Edit' }}</button>
@@ -660,7 +671,9 @@
                     </button>
                 </form>
             </div>
+            @endif
         @else
+            @if($order->status !== 'delivered')
             @if($order->status === 'preparing')
                 <div class="alert alert-info mb-3">
                     <i class="ri-information-line me-2"></i> You can upload photos while preparing the order. Upload photos to track the preparation progress.
@@ -707,6 +720,7 @@
                     <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo(s)
                 </button>
             </form>
+            @endif
         @endif
     </div>
 </div>
@@ -837,6 +851,7 @@
                                 <th scope="col" class="d-none d-lg-table-cell">Remarks</th>
                                 <th scope="col" class="d-none d-md-table-cell">QC Doc</th>
                                 <th scope="col" class="d-none d-lg-table-cell">Prepared By</th>
+                                <th scope="col" class="d-none d-md-table-cell">COA</th>
                                 @if($order->status === 'preparing' && (Auth::user()->department === 'Quality' || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin'))
                                 <th scope="col">Status</th>
                                 @endif
@@ -894,6 +909,16 @@
                                         <span class="fw-medium">{{ $product->pivot->prepared_by }}</span>
                                     @else
                                         <span class="text-muted">-</span>
+                                    @endif
+                                </td>
+                                <td class="d-none d-md-table-cell">
+                                    @if($product->pivot->coa_required)
+                                        <a href="{{ route('orders.coa', ['order' => $order->id, 'product' => $product->id]) }}" class="btn btn-sm btn-info" title="View COA">
+                                            <i class="ri-file-text-line align-middle"></i>
+                                            <span class="d-none d-lg-inline ms-1">COA</span>
+                                        </a>
+                                    @else
+                                        <span class="badge bg-secondary">Not Required</span>
                                     @endif
                                 </td>
                                 @if($order->status === 'preparing' && (Auth::user()->department === 'Quality' || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin'))
