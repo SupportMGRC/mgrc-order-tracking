@@ -238,6 +238,9 @@
                                         <td class="collection_date">
                                             @if($order->collection_date)
                                                 {{ $order->collection_date->format('d M, Y') }}
+                                                @if($order->collection_time)
+                                                    <br><small class="text-muted">{{ $order->collection_time->format('h:i A') }}</small>
+                                                @endif
                                             @else
                                                 <span class="text-muted">-</span>
                                             @endif
@@ -545,11 +548,12 @@
             const deleteButtons = document.querySelectorAll('[data-order-id]');
             const deleteForm = document.getElementById('deleteOrderForm');
 
+            const deleteRouteBase = @json(url('/orders'));
             deleteButtons.forEach(button => {
                 button.addEventListener('click', function() {
                     const orderId = this.getAttribute('data-order-id');
                     // Use the correct route for deleting orders
-                    deleteForm.action = "{{ route('orders.destroy', ':id') }}".replace(':id', orderId);
+                    deleteForm.action = deleteRouteBase + '/' + orderId;
                 });
             });
 
