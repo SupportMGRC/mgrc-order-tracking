@@ -28,7 +28,21 @@ use App\Http\Controllers\ProfileController;
 
 Auth::routes();
 
-Route::get('/', [HomeController::class, 'index'])->name('home');
+// Redirect root based on authentication and user department
+Route::get('/', function () {
+    if (auth()->check()) {
+        $user = auth()->user();
+        
+        // Medical Affairs and Business Development users go to new order page
+        if ($user->department === 'Medical Affairs' || $user->department === 'Business Development') {
+            return redirect('/neworder');
+        }
+        
+        // All other users go to calendar/dashboard
+        return redirect('/calendar');
+    }
+    return redirect('/login');
+});
 
 // Protected routes that require authentication
 Route::middleware(['auth'])->group(function () {

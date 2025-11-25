@@ -55,7 +55,7 @@ class CheckDepartmentPermissions
             case 'view-new-order':
                 // Only Medical Affairs and Business Development departments can view the new order page
                 if ($user->department !== 'Medical Affairs' && $user->department !== 'Business Development' && $user->role !== 'superadmin' && $user->role !== 'admin') {
-                    return redirect()->route('home')->with('error', 'Only Medical Affairs, Business Development departments, and Administrators can access the new order page.');
+                    return redirect()->route('dashboard')->with('error', 'Only Medical Affairs, Business Development departments, and Administrators can access the new order page.');
                 }
                 break;
         }

@@ -32,13 +32,19 @@
             </div>
             <ul class="navbar-nav" id="navbar-nav">
                 <li class="menu-title"><span data-key="t-menu">Menu</span></li>
+                
+                {{-- Dashboard - Only for admin, superadmin, and other departments --}}
+                @if(Auth::user()->role == 'admin' || Auth::user()->role == 'superadmin' || (Auth::user()->department != 'Medical Affairs' && Auth::user()->department != 'Business Development'))
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="{{ route('dashboard') }}">
                         <i class="las la-tachometer-alt"></i> <span data-key="t-calendar">Dashboard</span>
                     </a>
                 </li>
+                @endif
 
                 <li class="menu-title"><span data-key="t-order">Order</span></li>
+                
+                {{-- New Order - Available for Medical Affairs, Business Development, admin, and superadmin --}}
                 @if(Auth::user()->department == 'Medical Affairs' || Auth::user()->department == 'Business Development' || Auth::user()->role == 'superadmin' || Auth::user()->role == 'admin')
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="{{ route('neworder') }}">
@@ -46,14 +52,23 @@
                     </a>
                 </li>
                 @endif
+                
+                {{-- Order History - Available for all authenticated users (MA/BD see only their orders, others see all) --}}
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="{{ route('orderhistory') }}">
-                        <i class="las la-history"></i> <span data-key="t-order-history">Order History</span>
+                        <i class="las la-history"></i> <span data-key="t-order-history">
+                            @if(Auth::user()->department == 'Medical Affairs' || Auth::user()->department == 'Business Development')
+                                My Orders
+                            @else
+                                Order History
+                            @endif
+                        </span>
                     </a>
                 </li>
 
                 
 
+                {{-- Settings section - Only for admin and superadmin --}}
                 @if(Auth::user()->role == 'admin' || Auth::user()->role == 'superadmin')
                 <li class="menu-title"><span data-key="t-setting">Setting</span></li>
                 <li class="nav-item">
@@ -77,6 +92,9 @@
                     </a>
                 </li>
                 @endif
+
+                {{-- Hide all other menu sections from Medical Affairs and Business Development users --}}
+                @if(Auth::user()->role == 'admin' || Auth::user()->role == 'superadmin' || (Auth::user()->department != 'Medical Affairs' && Auth::user()->department != 'Business Development'))
 
                 {{-- <li class="nav-item">
                     <a class="nav-link menu-link" href="#sidebarDashboards" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="sidebarDashboards">
@@ -1026,6 +1044,8 @@
                         </ul>
                     </div>
                 </li> --}}
+
+                @endif {{-- End restriction for Medical Affairs and Business Development --}}
 
             </ul>
         </div>

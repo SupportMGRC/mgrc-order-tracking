@@ -294,6 +294,16 @@ class OrderController extends Controller
     {
         $query = Order::with(['customer', 'products'])
             ->latest('order_date');
+        
+        // Filter orders for Medical Affairs and Business Development users
+        $user = Auth::user();
+        if ($user->department === 'Medical Affairs' || $user->department === 'Business Development') {
+            // Show only orders placed by this user (matching user_id or order_placed_by name)
+            $query->where(function($q) use ($user) {
+                $q->where('user_id', $user->id)
+                  ->orWhere('order_placed_by', $user->name);
+            });
+        }
             
         // Filter by status if provided
         if ($request->has('status') && $request->status != 'all') {
@@ -435,11 +445,41 @@ class OrderController extends Controller
         }
         
         $orders = $query->paginate(10)->withQueryString();
-            
-        $newCount = Order::where('status', 'new')->count();
-        $preparingCount = Order::where('status', 'preparing')->count();
-        $readyCount = Order::where('status', 'ready')->count();
-        $deliveredCount = Order::where('status', 'delivered')->count();
+        
+        // Filter status counts for MA and BD users
+        if ($user->department === 'Medical Affairs' || $user->department === 'Business Development') {
+            // Count only orders placed by this user
+            $newCount = Order::where('status', 'new')
+                ->where(function($q) use ($user) {
+                    $q->where('user_id', $user->id)
+                      ->orWhere('order_placed_by', $user->name);
+                })
+                ->count();
+            $preparingCount = Order::where('status', 'preparing')
+                ->where(function($q) use ($user) {
+                    $q->where('user_id', $user->id)
+                      ->orWhere('order_placed_by', $user->name);
+                })
+                ->count();
+            $readyCount = Order::where('status', 'ready')
+                ->where(function($q) use ($user) {
+                    $q->where('user_id', $user->id)
+                      ->orWhere('order_placed_by', $user->name);
+                })
+                ->count();
+            $deliveredCount = Order::where('status', 'delivered')
+                ->where(function($q) use ($user) {
+                    $q->where('user_id', $user->id)
+                      ->orWhere('order_placed_by', $user->name);
+                })
+                ->count();
+        } else {
+            // Show all orders for other departments
+            $newCount = Order::where('status', 'new')->count();
+            $preparingCount = Order::where('status', 'preparing')->count();
+            $readyCount = Order::where('status', 'ready')->count();
+            $deliveredCount = Order::where('status', 'delivered')->count();
+        }
         
         return view('orders.orderhistory', compact(
             'orders', 
@@ -804,6 +844,40 @@ class OrderController extends Controller
     public function orderDetails(Order $order)
     {
         $order->load(['customer', 'user', 'products']);
+        
+        // Check if MA or BD user is trying to access an order they didn't place
+        $user = Auth::user();
+        if ($user->department === 'Medical Affairs' || $user->department === 'Business Development') {
+            // Check if this user placed the order (check both user_id and order_placed_by)
+            $canAccess = false;
+            
+            // Check if user_id matches
+            if ($order->user_id == $user->id) {
+                $canAccess = true;
+            }
+            
+            // Check if order_placed_by matches user's name (case-insensitive)
+            if ($order->order_placed_by && 
+                (strtolower(trim($order->order_placed_by)) === strtolower(trim($user->name)) ||
+                 strtolower(trim($order->order_placed_by)) === strtolower(trim($user->first_name . ' ' . $user->last_name)))) {
+                $canAccess = true;
+            }
+            
+            // If user cannot access this order, redirect with error
+            if (!$canAccess) {
+                \Log::warning('MA/BD user attempted to access unauthorized order', [
+                    'user_id' => $user->id,
+                    'user_name' => $user->name,
+                    'order_id' => $order->id,
+                    'order_user_id' => $order->user_id,
+                    'order_placed_by' => $order->order_placed_by
+                ]);
+                
+                return redirect()->route('orderhistory')
+                    ->with('error', 'You can only view orders that you have placed.');
+            }
+        }
+        
         return view('orders.orderdetails', compact('order'));
     }
 
@@ -1544,6 +1618,18 @@ class OrderController extends Controller
                         throw new \Exception('File upload verification failed for: ' . $originalName);
                     }
                     
+                    // Copy to public/storage/order_photos for cPanel compatibility
+                    $publicPath = public_path('storage/order_photos/' . $filename);
+                    $publicDir = public_path('storage/order_photos');
+                    
+                    // Create directory if it doesn't exist
+                    if (!file_exists($publicDir)) {
+                        mkdir($publicDir, 0755, true);
+                    }
+                    
+                    // Copy file to public folder
+                    copy(storage_path('app/public/order_photos/' . $filename), $publicPath);
+                    
                     $uploadedFiles[] = [
                         'filename' => $filename,
                         'original_name' => $originalName,
@@ -1553,9 +1639,14 @@ class OrderController extends Controller
                 } catch (\Exception $e) {
                     Log::error('File storage error for Order #' . $order->id . ': ' . $e->getMessage());
                     
-                    // Clean up any already uploaded files
+                    // Clean up any already uploaded files from BOTH locations
                     foreach ($uploadedFiles as $uploadedFile) {
                         \Storage::delete('public/order_photos/' . $uploadedFile['filename']);
+                        // Also delete from public folder
+                        $publicFile = public_path('storage/order_photos/' . $uploadedFile['filename']);
+                        if (file_exists($publicFile)) {
+                            unlink($publicFile);
+                        }
                     }
                     
                     return redirect()->back()->with('error', 'Failed to save uploaded image: ' . $originalName . '. Please try again.');
@@ -1565,6 +1656,11 @@ class OrderController extends Controller
             // If this is a single file upload (backward compatibility), delete old photo
             if (!$request->hasFile('order_photos') && $order->order_photo) {
                 \Storage::delete('public/order_photos/' . $order->order_photo);
+                // Also delete from public folder
+                $publicFile = public_path('storage/order_photos/' . $order->order_photo);
+                if (file_exists($publicFile)) {
+                    unlink($publicFile);
+                }
             }
 
             // Update the order with new photos
@@ -1619,6 +1715,11 @@ class OrderController extends Controller
         // Delete all files from storage
         foreach ($allPhotos as $photo) {
             \Storage::delete('public/order_photos/' . $photo);
+            // Also delete from public folder
+            $publicFile = public_path('storage/order_photos/' . $photo);
+            if (file_exists($publicFile)) {
+                unlink($publicFile);
+            }
         }
 
         // Remove all photo references from the order
@@ -1651,6 +1752,11 @@ class OrderController extends Controller
 
         // Delete the file from storage
         \Storage::delete('public/order_photos/' . $filename);
+        // Also delete from public folder
+        $publicFile = public_path('storage/order_photos/' . $filename);
+        if (file_exists($publicFile)) {
+            unlink($publicFile);
+        }
 
         // Remove the photo from the order
         $order->removePhoto($filename);
