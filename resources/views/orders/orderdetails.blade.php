@@ -654,7 +654,7 @@
                                    {{ $order->status === 'preparing' ? 'multiple' : '' }}
                                    required>
                             <div class="form-text text-muted">
-                                <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB{{ $order->status === 'preparing' ? ' each. You can select multiple photos.' : '' }}</small>
+                                <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 10MB{{ $order->status === 'preparing' ? ' each. Images will be automatically compressed.' : '. Image will be automatically compressed.' }}</small>
                             </div>
                         </div>
                         
@@ -696,7 +696,7 @@
                                multiple
                                required>
                         <div id="{{ $order->status === 'preparing' ? 'file-size-info-preparing' : 'file-size-info' }}" class="form-text text-muted">
-                            <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 50MB each. You can select multiple photos.</small>
+                            <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 10MB each. Images will be automatically compressed to save space.</small>
                         </div>
                     </div>
                     

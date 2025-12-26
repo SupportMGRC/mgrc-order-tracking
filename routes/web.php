@@ -101,6 +101,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/orders/{order}/coa/{product}/save', [OrderController::class, 'saveCOA'])->name('orders.coa.save');
     
     Route::get('/calendar', [HomeController::class, 'index'])->name('dashboard');
+    Route::post('/dashboard/verify-password', [HomeController::class, 'verifyPassword'])->name('dashboard.verify.password');
 
     Route::post('order-batch-update/{id}', [OrderController::class, 'updateBatch'])->name('orders.update.batch');
     

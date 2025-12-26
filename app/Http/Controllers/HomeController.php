@@ -7,6 +7,8 @@ use App\Models\Order;
 use App\Models\Customer;
 use App\Models\Product;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Carbon\Carbon;
 
 class HomeController extends Controller
@@ -199,5 +201,36 @@ class HomeController extends Controller
             'upcomingDeliveries',
             'overdueDeliveries'
         ));
+    }
+
+    /**
+     * Verify password for dashboard access
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function verifyPassword(Request $request)
+    {
+        $request->validate([
+            'password' => 'required|string',
+        ]);
+
+        $user = Auth::user();
+
+        if (Hash::check($request->password, $user->password)) {
+            // Store in session that dashboard is unlocked
+            session(['dashboard_unlocked' => true]);
+            session(['dashboard_unlocked_at' => now()]);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Password verified successfully'
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Invalid password. Please try again.'
+        ], 401);
     }
 }
