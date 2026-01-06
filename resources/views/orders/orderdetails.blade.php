@@ -633,7 +633,54 @@
                     </div>
                 @endif
             </div>
-            @if($order->status !== 'delivered')
+            @if($order->status === 'delivered')
+            {{-- Delivered orders: can upload more, but cannot delete --}}
+            <div class="alert alert-info mb-3">
+                <i class="ri-information-line me-2"></i> <strong>Delivered Order:</strong> Photos cannot be deleted for record-keeping purposes. You can still add more photos if needed.
+            </div>
+            <button type="button" class="btn btn-outline-primary btn-sm mb-2" data-bs-toggle="collapse" data-bs-target="#addPhotoFormDelivered">
+                <i class="ri-add-line me-1"></i> Add More Photos
+            </button>
+            <div class="collapse" id="addPhotoFormDelivered">
+                <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="photoUploadFormDelivered">
+                    @csrf
+                    <div class="mb-3">
+                        <label for="order_photo_delivered" class="form-label">Add More Photos</label>
+                        <div class="position-relative">
+                            <input type="file" 
+                                   class="form-control" 
+                                   id="order_photo_delivered" 
+                                   name="order_photos[]" 
+                                   accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
+                                   multiple
+                                   required>
+                            <div id="file-size-info-delivered" class="form-text text-muted">
+                                <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 10MB each. Images will be automatically compressed.</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Image Preview for Delivered -->
+                        <div id="image-preview-delivered" class="mt-3" style="display: none;">
+                            <img id="preview-img-delivered" src="" alt="Preview" class="img-fluid rounded shadow-sm" style="max-width: 200px; max-height: 200px;">
+                            <div class="mt-2">
+                                <small class="text-muted">Preview - Image will be uploaded when you click submit</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Upload Progress for Delivered -->
+                        <div id="upload-progress-delivered" class="mt-3" style="display: none;">
+                            <div class="progress">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <small class="text-muted">Uploading photo...</small>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo(s)
+                    </button>
+                </form>
+            </div>
+            @elseif($order->status !== 'delivered')
             <div class="d-flex gap-2 mb-2">
                 <!-- Edit button shows upload form -->
                 <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#editPhotoForm">{{ $order->status === 'preparing' ? 'Add More' : 'Edit' }}</button>
@@ -673,50 +720,127 @@
             </div>
             @endif
         @else
-            @if($order->status !== 'delivered')
-            @if($order->status === 'preparing')
-                <div class="alert alert-info mb-3">
-                    <i class="ri-information-line me-2"></i> You can upload photos while preparing the order. Upload photos to track the preparation progress.
-                </div>
-            @else
-                <div class="alert alert-info mb-3">
-                    <i class="ri-information-line me-2"></i> Order is ready! Please upload a photo of the completed order.
-                </div>
-            @endif
-            <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="{{ $order->status === 'preparing' ? 'photoUploadFormPreparing' : 'photoUploadForm' }}">
+            @if($order->status === 'delivered')
+            {{-- Delivered orders without photos: can still upload --}}
+            <div class="alert alert-info mb-3">
+                <i class="ri-information-line me-2"></i> <strong>Delivered Order:</strong> You can upload photos for record-keeping. Once uploaded, photos cannot be deleted.
+            </div>
+            <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="photoUploadFormDeliveredNew">
                 @csrf
                 <div class="mb-3">
-                    <label for="{{ $order->status === 'preparing' ? 'order_photo_preparing' : 'order_photo' }}" class="form-label">Upload Photo(s) <span class="text-danger">*</span></label>
+                    <label for="order_photo_delivered_new" class="form-label">Upload Photo(s) <span class="text-danger">*</span></label>
                     <div class="position-relative">
                         <input type="file" 
                                class="form-control" 
-                               id="{{ $order->status === 'preparing' ? 'order_photo_preparing' : 'order_photo' }}" 
+                               id="order_photo_delivered_new" 
                                name="order_photos[]" 
                                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
                                multiple
                                required>
-                        <div id="{{ $order->status === 'preparing' ? 'file-size-info-preparing' : 'file-size-info' }}" class="form-text text-muted">
-                            <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 10MB each. Images will be automatically compressed to save space.</small>
+                        <div id="file-size-info-delivered-new" class="form-text text-muted">
+                            <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 10MB each. Images will be automatically compressed.</small>
                         </div>
                     </div>
                     
-                    <!-- Image Preview -->
-                    <div id="{{ $order->status === 'preparing' ? 'image-preview-preparing' : 'image-preview' }}" class="mt-3" style="display: none;">
-                        <img id="{{ $order->status === 'preparing' ? 'preview-img-preparing' : 'preview-img' }}" src="" alt="Preview" class="img-fluid rounded shadow-sm" style="max-width: 300px; max-height: 300px;">
+                    <!-- Image Preview for Delivered New -->
+                    <div id="image-preview-delivered-new" class="mt-3" style="display: none;">
+                        <img id="preview-img-delivered-new" src="" alt="Preview" class="img-fluid rounded shadow-sm" style="max-width: 300px; max-height: 300px;">
                         <div class="mt-2">
                             <small class="text-muted">Preview - Image will be uploaded when you click submit</small>
                         </div>
                     </div>
                     
-                    <!-- Upload Progress -->
-                    <div id="{{ $order->status === 'preparing' ? 'upload-progress-preparing' : 'upload-progress' }}" class="mt-3" style="display: none;">
+                    <!-- Upload Progress for Delivered New -->
+                    <div id="upload-progress-delivered-new" class="mt-3" style="display: none;">
                         <div class="progress">
                             <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
                         </div>
                         <small class="text-muted">Uploading photo...</small>
                     </div>
                 </div>
-                <button type="submit" class="btn btn-primary" id="{{ $order->status === 'preparing' ? 'upload-btn-preparing' : 'upload-btn' }}">
+                <button type="submit" class="btn btn-primary" id="upload-btn-delivered-new">
+                    <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo(s)
+                </button>
+            </form>
+            @elseif($order->status === 'preparing')
+                <div class="alert alert-info mb-3">
+                    <i class="ri-information-line me-2"></i> You can upload photos while preparing the order. Upload photos to track the preparation progress.
+                </div>
+            <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="photoUploadFormPreparing">
+                @csrf
+                <div class="mb-3">
+                    <label for="order_photo_preparing" class="form-label">Upload Photo(s) <span class="text-danger">*</span></label>
+                    <div class="position-relative">
+                        <input type="file" 
+                               class="form-control" 
+                               id="order_photo_preparing" 
+                               name="order_photos[]" 
+                               accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
+                               multiple
+                               required>
+                        <div id="file-size-info-preparing" class="form-text text-muted">
+                            <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 10MB each. Images will be automatically compressed to save space.</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Image Preview -->
+                    <div id="image-preview-preparing" class="mt-3" style="display: none;">
+                        <img id="preview-img-preparing" src="" alt="Preview" class="img-fluid rounded shadow-sm" style="max-width: 300px; max-height: 300px;">
+                        <div class="mt-2">
+                            <small class="text-muted">Preview - Image will be uploaded when you click submit</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Upload Progress -->
+                    <div id="upload-progress-preparing" class="mt-3" style="display: none;">
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <small class="text-muted">Uploading photo...</small>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary" id="upload-btn-preparing">
+                    <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo(s)
+                </button>
+            </form>
+            @else
+                <div class="alert alert-info mb-3">
+                    <i class="ri-information-line me-2"></i> Order is ready! Please upload a photo of the completed order.
+                </div>
+            <form action="{{ route('orders.upload.photo', $order->id) }}" method="POST" enctype="multipart/form-data" id="photoUploadForm">
+                @csrf
+                <div class="mb-3">
+                    <label for="order_photo" class="form-label">Upload Photo(s) <span class="text-danger">*</span></label>
+                    <div class="position-relative">
+                        <input type="file" 
+                               class="form-control" 
+                               id="order_photo" 
+                               name="order_photos[]" 
+                               accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/heic,image/heif" 
+                               multiple
+                               required>
+                        <div id="file-size-info" class="form-text text-muted">
+                            <small>Supports: JPEG, PNG, GIF, WebP, HEIC. Max size: 10MB each. Images will be automatically compressed to save space.</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Image Preview -->
+                    <div id="image-preview" class="mt-3" style="display: none;">
+                        <img id="preview-img" src="" alt="Preview" class="img-fluid rounded shadow-sm" style="max-width: 300px; max-height: 300px;">
+                        <div class="mt-2">
+                            <small class="text-muted">Preview - Image will be uploaded when you click submit</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Upload Progress -->
+                    <div id="upload-progress" class="mt-3" style="display: none;">
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <small class="text-muted">Uploading photo...</small>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary" id="upload-btn">
                     <i class="ri-upload-cloud-2-line align-middle me-1"></i> Upload Photo(s)
                 </button>
             </form>
@@ -1740,6 +1864,7 @@
         setupPhotoUpload('order_photo_ready', 'image-preview-2', 'upload-progress-2', 'photoUploadForm2');
         setupPhotoUpload('order_photo_edit', 'edit-image-preview', null, 'editPhotoUploadForm');
         setupPhotoUpload('order_photo_delivered', 'image-preview-delivered', 'upload-progress-delivered', 'photoUploadFormDelivered');
+        setupPhotoUpload('order_photo_delivered_new', 'image-preview-delivered-new', 'upload-progress-delivered-new', 'photoUploadFormDeliveredNew');
         setupPhotoUpload('order_photo_edit_delivered', 'edit-image-preview-delivered', null, 'editPhotoUploadFormDelivered');
 
         // Mobile-specific optimizations

@@ -1743,6 +1743,11 @@ class OrderController extends Controller
     {
         $order = Order::findOrFail($orderId);
 
+        // Block deletion for delivered orders
+        if ($order->status === 'delivered') {
+            return redirect()->back()->with('error', 'Cannot delete photos from delivered orders. Photos are retained for record-keeping purposes.');
+        }
+
         // Get all photos
         $allPhotos = $order->getAllPhotos();
 
@@ -1780,6 +1785,11 @@ class OrderController extends Controller
     public function deleteSpecificOrderPhoto($orderId, $filename)
     {
         $order = Order::findOrFail($orderId);
+
+        // Block deletion for delivered orders
+        if ($order->status === 'delivered') {
+            return redirect()->back()->with('error', 'Cannot delete photos from delivered orders. Photos are retained for record-keeping purposes.');
+        }
 
         // Get all photos
         $allPhotos = $order->getAllPhotos();
