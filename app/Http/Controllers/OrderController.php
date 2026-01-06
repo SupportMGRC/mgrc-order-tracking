@@ -43,7 +43,7 @@ class OrderController extends Controller
     {
         // Start a database transaction for data consistency
         DB::beginTransaction();
-        
+
         try {
             // Validate the request
             $validator = Validator::make($request->all(), [
@@ -105,16 +105,16 @@ class OrderController extends Controller
             // Attach products to the order
             foreach ($request->products as $productData) {
                 $product = Product::findOrFail($productData['id']);
-                
+
                 // Check if enough stock
                 if ($product->stock < $productData['quantity']) {
                     throw new \Exception("Not enough stock for product: {$product->name}. Available: {$product->stock}");
                 }
-                
+
                 // Decrease stock
                 $product->stock -= $productData['quantity'];
                 $product->save();
-                
+
                 // Create single record with actual quantity
                 $order->products()->attach($product->id, [
                     'quantity' => $productData['quantity'],
@@ -123,9 +123,9 @@ class OrderController extends Controller
                     'remarks' => $productData['remarks'] ?? null,
                 ]);
             }
-            
+
             DB::commit();
-            
+
             return redirect()->route('orderdetails', $order->id)->with('success', 'Order created successfully!');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -163,7 +163,7 @@ class OrderController extends Controller
     {
         // Begin transaction
         DB::beginTransaction();
-        
+
         try {
             $validator = Validator::make($request->all(), [
                 'customer_id' => 'required|exists:customers,id',
@@ -200,7 +200,7 @@ class OrderController extends Controller
                 'pickup_delivery_time' => $request->pickup_delivery_time,
                 'remarks' => $request->remarks,
             ]);
-            
+
             // If products are being updated
             if ($request->has('products')) {
                 // First, return stock for all current products
@@ -209,23 +209,23 @@ class OrderController extends Controller
                     $product->stock += $existingProduct->pivot->quantity;
                     $product->save();
                 }
-                
+
                 // Clear existing products
                 $order->products()->detach();
-                
+
                 // Add new products and decrease stock
                 foreach ($request->products as $productData) {
                     $product = Product::findOrFail($productData['id']);
-                    
+
                     // Check if enough stock
                     if ($product->stock < $productData['quantity']) {
                         throw new \Exception("Not enough stock for product: {$product->name}. Available: {$product->stock}");
                     }
-                    
+
                     // Decrease stock
                     $product->stock -= $productData['quantity'];
                     $product->save();
-                    
+
                     // Create single record with actual quantity
                     $order->products()->attach($product->id, [
                         'quantity' => $productData['quantity'],
@@ -235,7 +235,7 @@ class OrderController extends Controller
                     ]);
                 }
             }
-            
+
             DB::commit();
 
             return redirect()->route('orderdetails', $order->id)
@@ -255,7 +255,7 @@ class OrderController extends Controller
     {
         // Begin transaction
         DB::beginTransaction();
-        
+
         try {
             // Return products to stock
             foreach ($order->products as $product) {
@@ -264,19 +264,19 @@ class OrderController extends Controller
                 $freshProduct->stock += $product->pivot->quantity;
                 $freshProduct->save();
             }
-            
+
             // Delete order (pivot relationships will be deleted automatically)
             $order->delete();
-            
+
             DB::commit();
-            
+
             // Check if we're coming from the order history page with a status filter
             if ($request->session()->has('status_filter')) {
                 $status = $request->session()->get('status_filter');
                 return redirect()->route('orderhistory', ['status' => $status])
                     ->with('success', 'Order deleted successfully.');
             }
-            
+
             // Default to order history page for "All Orders" section
             return redirect()->route('orderhistory')
                 ->with('success', 'Order deleted successfully.');
@@ -294,17 +294,17 @@ class OrderController extends Controller
     {
         $query = Order::with(['customer', 'products'])
             ->latest('order_date');
-        
+
         // Filter orders for Medical Affairs and Business Development users
         $user = Auth::user();
         if ($user->department === 'Medical Affairs' || $user->department === 'Business Development') {
             // Show only orders placed by this user (matching user_id or order_placed_by name)
-            $query->where(function($q) use ($user) {
+            $query->where(function ($q) use ($user) {
                 $q->where('user_id', $user->id)
-                  ->orWhere('order_placed_by', $user->name);
+                    ->orWhere('order_placed_by', $user->name);
             });
         }
-            
+
         // Filter by status if provided
         if ($request->has('status') && $request->status != 'all') {
             $query->where('status', $request->status);
@@ -314,41 +314,41 @@ class OrderController extends Controller
             // Clear the status filter from session
             $request->session()->forget('status_filter');
         }
-        
+
         // Only apply date filtering for 'all' or 'delivered' status
         // For 'new', 'preparing', and 'ready' statuses, show all orders regardless of date
         if (!in_array($request->status, ['new', 'preparing', 'ready'])) {
             // Filter by date range - using predefined options
             $dateRange = $request->get('date_range', 'all'); // Default to all if not specified
-            
+
             switch ($dateRange) {
                 case 'today':
                     $today = Carbon::today();
                     $query->whereDate('order_date', $today);
                     break;
-                    
+
                 case 'weekly':
                     $startOfWeek = Carbon::now()->startOfWeek();
                     $endOfWeek = Carbon::now()->endOfWeek();
                     $query->whereBetween('order_date', [$startOfWeek, $endOfWeek]);
                     break;
-                    
+
                 case 'monthly':
                     $startOfMonth = Carbon::now()->startOfMonth();
                     $endOfMonth = Carbon::now()->endOfMonth();
                     $query->whereBetween('order_date', [$startOfMonth, $endOfMonth]);
                     break;
-                    
+
                 case 'yearly':
                     $startOfYear = Carbon::now()->startOfYear();
                     $endOfYear = Carbon::now()->endOfYear();
                     $query->whereBetween('order_date', [$startOfYear, $endOfYear]);
                     break;
-                    
+
                 case 'all':
                     // No date filtering
                     break;
-                    
+
                 default:
                     // If it's a custom date range string (for backwards compatibility)
                     if (strpos($dateRange, ' to ') !== false) {
@@ -362,78 +362,78 @@ class OrderController extends Controller
                     break;
             }
         }
-        
+
         // Filter by reach client date if provided
         if ($request->has('reach_client_date') && !empty($request->reach_client_date)) {
             $reachClientDate = $request->reach_client_date;
             $query->whereDate('pickup_delivery_date', $reachClientDate);
         }
-        
+
         // Search by ID, customer name, product name, or status
         if ($request->has('search') && !empty($request->search)) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('id', 'like', "%$search%")
-                  ->orWhereHas('customer', function($query) use ($search) {
-                      $query->where('name', 'like', "%$search%");
-                  })
-                  ->orWhereHas('products', function($query) use ($search) {
-                      $query->where('name', 'like', "%$search%");
-                  })
-                  ->orWhere('status', 'like', "%$search%");
+                    ->orWhereHas('customer', function ($query) use ($search) {
+                        $query->where('name', 'like', "%$search%");
+                    })
+                    ->orWhereHas('products', function ($query) use ($search) {
+                        $query->where('name', 'like', "%$search%");
+                    })
+                    ->orWhere('status', 'like', "%$search%");
             });
         }
-        
+
         // Apply sorting if provided
         if ($request->has('sort_by') && !empty($request->sort_by)) {
             $sortBy = $request->sort_by;
             $sortOrder = $request->get('sort_order', 'asc');
-            
+
             // Handle sorting based on column
             switch ($sortBy) {
                 case 'id':
                     $query->orderBy('id', $sortOrder);
                     break;
-                    
+
                 case 'customer_name':
                     $query->join('customers', 'orders.customer_id', '=', 'customers.id')
-                          ->orderBy('customers.name', $sortOrder)
-                          ->select('orders.*');
+                        ->orderBy('customers.name', $sortOrder)
+                        ->select('orders.*');
                     break;
-                    
+
                 case 'product_name':
                     // Sort by first product name - more complex sorting
                     $query->leftJoin('order_product', 'orders.id', '=', 'order_product.order_id')
-                          ->leftJoin('products', 'order_product.product_id', '=', 'products.id')
-                          ->orderBy('products.name', $sortOrder)
-                          ->select('orders.*')
-                          ->groupBy('orders.id');
+                        ->leftJoin('products', 'order_product.product_id', '=', 'products.id')
+                        ->orderBy('products.name', $sortOrder)
+                        ->select('orders.*')
+                        ->groupBy('orders.id');
                     break;
-                    
+
                 case 'placed_by':
                     $query->orderBy('order_placed_by', $sortOrder);
                     break;
-                    
+
                 case 'delivered_by':
                     $query->orderBy('delivered_by', $sortOrder);
                     break;
-                
+
                 case 'order_date':
                     // Sort by both date and time
                     $query->orderBy('order_date', $sortOrder)
-                          ->orderBy('order_time', $sortOrder);
+                        ->orderBy('order_time', $sortOrder);
                     break;
-                    
+
                 case 'delivery_time':
                     // Sort by both delivery date and time
                     $query->orderBy('delivery_date', $sortOrder)
-                          ->orderBy('delivery_time', $sortOrder);
+                        ->orderBy('delivery_time', $sortOrder);
                     break;
-                    
+
                 case 'status':
                     $query->orderBy('status', $sortOrder);
                     break;
-                    
+
                 default:
                     // Default to latest order by date and time if no valid sort provided
                     $query->latest('order_date')->latest('order_time');
@@ -443,34 +443,34 @@ class OrderController extends Controller
             // Default sorting by latest order date and time
             $query->latest('order_date')->latest('order_time');
         }
-        
+
         $orders = $query->paginate(10)->withQueryString();
-        
+
         // Filter status counts for MA and BD users
         if ($user->department === 'Medical Affairs' || $user->department === 'Business Development') {
             // Count only orders placed by this user
             $newCount = Order::where('status', 'new')
-                ->where(function($q) use ($user) {
+                ->where(function ($q) use ($user) {
                     $q->where('user_id', $user->id)
-                      ->orWhere('order_placed_by', $user->name);
+                        ->orWhere('order_placed_by', $user->name);
                 })
                 ->count();
             $preparingCount = Order::where('status', 'preparing')
-                ->where(function($q) use ($user) {
+                ->where(function ($q) use ($user) {
                     $q->where('user_id', $user->id)
-                      ->orWhere('order_placed_by', $user->name);
+                        ->orWhere('order_placed_by', $user->name);
                 })
                 ->count();
             $readyCount = Order::where('status', 'ready')
-                ->where(function($q) use ($user) {
+                ->where(function ($q) use ($user) {
                     $q->where('user_id', $user->id)
-                      ->orWhere('order_placed_by', $user->name);
+                        ->orWhere('order_placed_by', $user->name);
                 })
                 ->count();
             $deliveredCount = Order::where('status', 'delivered')
-                ->where(function($q) use ($user) {
+                ->where(function ($q) use ($user) {
                     $q->where('user_id', $user->id)
-                      ->orWhere('order_placed_by', $user->name);
+                        ->orWhere('order_placed_by', $user->name);
                 })
                 ->count();
         } else {
@@ -480,10 +480,10 @@ class OrderController extends Controller
             $readyCount = Order::where('status', 'ready')->count();
             $deliveredCount = Order::where('status', 'delivered')->count();
         }
-        
+
         return view('orders.orderhistory', compact(
-            'orders', 
-            'newCount', 
+            'orders',
+            'newCount',
             'preparingCount',
             'readyCount',
             'deliveredCount'
@@ -500,7 +500,7 @@ class OrderController extends Controller
         $dispatchers = User::all();
         $blockedDates = BlockedDate::getBlockedDatesArray();
         $blockedDatesWithReasons = BlockedDate::getBlockedDatesWithReasons();
-        
+
         return view('orders.neworder', compact('customers', 'products', 'dispatchers', 'blockedDates', 'blockedDatesWithReasons'));
     }
 
@@ -514,7 +514,7 @@ class OrderController extends Controller
             $blockedDate = BlockedDate::where('blocked_date', $request->pickup_delivery_date)
                 ->where('is_active', true)
                 ->first();
-            
+
             $reason = $blockedDate ? $blockedDate->reason : 'Holiday/Maintenance';
             return redirect()->back()
                 ->withInput()
@@ -562,7 +562,7 @@ class OrderController extends Controller
                 ->withInput()
                 ->with('error', 'Please fix the errors in the form.');
         }
-        
+
         // Additional validation to ensure products exist
         if (!isset($request->products) || count($request->products) < 1) {
             return redirect()->back()
@@ -572,7 +572,7 @@ class OrderController extends Controller
 
         // Begin transaction
         DB::beginTransaction();
-        
+
         try {
             // Handle customer (existing or new)
             if ($request->customer_id) {
@@ -587,10 +587,10 @@ class OrderController extends Controller
                 $customer->address = $request->customer_address;
                 $customer->userID = Auth::id();
                 $customer->save();
-                
+
                 $customer_id = $customer->id;
             }
-            
+
             // Create new order
             $order = new Order();
             $order->customer_id = $customer_id;
@@ -611,34 +611,34 @@ class OrderController extends Controller
                 $order->item_ready_at = \Carbon\Carbon::createFromFormat('g:i A', $request->item_ready_at)->format('H:i:s');
             }
             $order->save();
-            
+
             // Attach products to order
             foreach ($request->products as $product) {
                 // Find product by name
                 $productModel = Product::where('name', $product['type'])->first();
-                
+
                 if (!$productModel) {
                     throw new \Exception("Product not found: {$product['type']}");
                 }
-                
+
                 // Check stock
                 if ($productModel->stock < $product['quantity']) {
                     throw new \Exception("Not enough stock for product: {$productModel->name}. Available: {$productModel->stock}");
                 }
-                
+
                 // Reduce stock
                 $productModel->stock -= $product['quantity'];
                 $productModel->save();
-                
+
                 // Create single record with actual quantity
                 $order->products()->attach($productModel->id, [
                     'quantity' => $product['quantity'],
                     'patient_name' => isset($product['patient_name']) ? $product['patient_name'] : null,
                     'remarks' => isset($product['remarks']) ? $product['remarks'] : null,
-                    'coa_required' => isset($product['coa_required']) ? (bool)$product['coa_required'] : false,
+                    'coa_required' => isset($product['coa_required']) ? (bool) $product['coa_required'] : false,
                 ]);
             }
-            
+
             DB::commit();
 
             // Send new order notification emails
@@ -664,12 +664,12 @@ class OrderController extends Controller
     public function editBatchInfo($id)
     {
         $order = Order::with(['customer', 'products'])->findOrFail($id);
-        
+
         // Debug logging to see what products and pivot data we have
         \Log::info('Loading batch edit form', [
             'order_id' => $order->id,
             'products_count' => $order->products->count(),
-            'products_data' => $order->products->map(function($product) {
+            'products_data' => $order->products->map(function ($product) {
                 return [
                     'product_id' => $product->id,
                     'product_name' => $product->name,
@@ -678,11 +678,11 @@ class OrderController extends Controller
                 ];
             })
         ]);
-        
+
         $products = Product::all();
         return view('orders.batch-edit', compact('order', 'products'));
     }
-    
+
     /**
      * Update batch information for all products in an order
      */
@@ -693,9 +693,9 @@ class OrderController extends Controller
             'request_data' => $request->all(),
             'order_id' => $id
         ]);
-        
+
         $order = Order::with(['customer', 'products'])->findOrFail($id);
-        
+
         // Create custom validation rules
         $rules = [
             'products' => 'required|array',
@@ -706,35 +706,35 @@ class OrderController extends Controller
             'products.*.prepared_by' => 'nullable|string',
             'products.*.batch_number' => 'nullable|string',
         ];
-        
+
         try {
             // Log validation attempt
             \Log::info('Validating batch info data');
-            
+
             // Validate with the rules
             $validated = $request->validate($rules);
-            
+
             \Log::info('Validation passed', ['validated_data' => $validated]);
-            
+
             $user = Auth::user();
-            
+
             // Begin transaction to ensure data consistency
             DB::beginTransaction();
-            
+
             $hasBatchInfo = false;
             $hasErrors = false;
             $errorMessage = '';
-            
+
             foreach ($request->products as $productData) {
                 // Log each product data being processed
                 \Log::info('Processing product data', ['product_data' => $productData]);
-                
+
                 // Find the pivot record directly
                 $pivotRecord = DB::table('order_product')
                     ->where('id', $productData['pivot_id'])
                     ->where('order_id', $order->id)
                     ->first();
-                
+
                 if (!$pivotRecord) {
                     $hasErrors = true;
                     $errorMessage = 'Invalid product record.';
@@ -744,16 +744,18 @@ class OrderController extends Controller
                     ]);
                     break;
                 }
-                
+
                 $updateData = [
                     'patient_name' => $productData['patient_name'] ?? null,
                     'remarks' => $productData['remarks'] ?? null,
                     'prepared_by' => $productData['prepared_by'] ?? null,
                 ];
-                
+
                 // Handle batch number permissions
-                if (isset($productData['batch_number']) && !empty($productData['batch_number']) && 
-                    $pivotRecord->batch_number !== $productData['batch_number']) {
+                if (
+                    isset($productData['batch_number']) && !empty($productData['batch_number']) &&
+                    $pivotRecord->batch_number !== $productData['batch_number']
+                ) {
                     if ($user->department === 'Cell Lab' || $user->department === 'Quality' || $user->role === 'superadmin') {
                         $updateData['batch_number'] = $productData['batch_number'];
                     } else {
@@ -770,10 +772,12 @@ class OrderController extends Controller
                 } else {
                     $updateData['batch_number'] = $productData['batch_number'] ?? null;
                 }
-                
+
                 // Handle QC document number permissions
-                if (isset($productData['qc_document_number']) && !empty($productData['qc_document_number']) && 
-                    $pivotRecord->qc_document_number !== $productData['qc_document_number']) {
+                if (
+                    isset($productData['qc_document_number']) && !empty($productData['qc_document_number']) &&
+                    $pivotRecord->qc_document_number !== $productData['qc_document_number']
+                ) {
                     if ($user->department === 'Quality' || $user->role === 'superadmin') {
                         $updateData['qc_document_number'] = $productData['qc_document_number'];
                     } else {
@@ -790,41 +794,43 @@ class OrderController extends Controller
                 } else {
                     $updateData['qc_document_number'] = $productData['qc_document_number'] ?? null;
                 }
-                
+
                 // Log update attempt
                 \Log::info('Updating pivot record', [
                     'pivot_id' => $productData['pivot_id'],
                     'update_data' => $updateData
                 ]);
-                
+
                 // Update the pivot record directly
                 DB::table('order_product')
                     ->where('id', $productData['pivot_id'])
                     ->update($updateData);
-                
+
                 // Check if any batch information exists
-                if (!empty($updateData['batch_number']) || 
-                    !empty($updateData['qc_document_number']) || 
-                    !empty($updateData['prepared_by'])) {
+                if (
+                    !empty($updateData['batch_number']) ||
+                    !empty($updateData['qc_document_number']) ||
+                    !empty($updateData['prepared_by'])
+                ) {
                     $hasBatchInfo = true;
                 }
             }
-            
+
             if ($hasErrors) {
                 DB::rollBack();
                 \Log::error('Batch info update failed', ['error_message' => $errorMessage]);
                 return redirect()->back()->with('error', $errorMessage);
             }
-            
+
             // Update order status to "preparing" if it's still "new" and batch information exists
             if ($order->status === 'new' && $hasBatchInfo) {
                 $order->update(['status' => 'preparing']);
                 \Log::info('Updated order status to preparing', ['order_id' => $order->id]);
             }
-            
+
             DB::commit();
             \Log::info('Batch info update completed successfully', ['order_id' => $order->id]);
-            
+
             return redirect()->route('orderdetails', $order->id)
                 ->with('success', 'Batch information updated successfully!');
         } catch (\Exception $e) {
@@ -844,25 +850,27 @@ class OrderController extends Controller
     public function orderDetails(Order $order)
     {
         $order->load(['customer', 'user', 'products']);
-        
+
         // Check if MA or BD user is trying to access an order they didn't place
         $user = Auth::user();
         if ($user->department === 'Medical Affairs' || $user->department === 'Business Development') {
             // Check if this user placed the order (check both user_id and order_placed_by)
             $canAccess = false;
-            
+
             // Check if user_id matches
             if ($order->user_id == $user->id) {
                 $canAccess = true;
             }
-            
+
             // Check if order_placed_by matches user's name (case-insensitive)
-            if ($order->order_placed_by && 
+            if (
+                $order->order_placed_by &&
                 (strtolower(trim($order->order_placed_by)) === strtolower(trim($user->name)) ||
-                 strtolower(trim($order->order_placed_by)) === strtolower(trim($user->first_name . ' ' . $user->last_name)))) {
+                    strtolower(trim($order->order_placed_by)) === strtolower(trim($user->first_name . ' ' . $user->last_name)))
+            ) {
                 $canAccess = true;
             }
-            
+
             // If user cannot access this order, redirect with error
             if (!$canAccess) {
                 \Log::warning('MA/BD user attempted to access unauthorized order', [
@@ -872,12 +880,12 @@ class OrderController extends Controller
                     'order_user_id' => $order->user_id,
                     'order_placed_by' => $order->order_placed_by
                 ]);
-                
+
                 return redirect()->route('orderhistory')
                     ->with('error', 'You can only view orders that you have placed.');
             }
         }
-        
+
         return view('orders.orderdetails', compact('order'));
     }
 
@@ -888,22 +896,22 @@ class OrderController extends Controller
     {
         // Load necessary relationships
         $order->load(['customer', 'user', 'products']);
-        
+
         // Get the pivot data for this specific product
         $orderProduct = $order->products()->where('product_id', $product->id)->first();
-        
+
         // Check if the product exists in this order
         if (!$orderProduct) {
             return redirect()->route('orderdetails', $order->id)
                 ->with('error', 'Product not found in this order.');
         }
-        
+
         // Check if COA is required for this product
         if (!$orderProduct->pivot->coa_required) {
             return redirect()->route('orderdetails', $order->id)
                 ->with('error', 'COA is not required for this product.');
         }
-        
+
         return view('orders.coa-editor', compact('order', 'product', 'orderProduct'));
     }
 
@@ -914,22 +922,22 @@ class OrderController extends Controller
     {
         // Load necessary relationships
         $order->load(['customer', 'user', 'products']);
-        
+
         // Get the pivot data for this specific product
         $orderProduct = $order->products()->where('product_id', $product->id)->first();
-        
+
         // Check if the product exists in this order
         if (!$orderProduct) {
             return redirect()->route('orderdetails', $order->id)
                 ->with('error', 'Product not found in this order.');
         }
-        
+
         // Check if COA is required for this product
         if (!$orderProduct->pivot->coa_required) {
             return redirect()->route('orderdetails', $order->id)
                 ->with('error', 'COA is not required for this product.');
         }
-        
+
         return view('orders.coa-editor', compact('order', 'product', 'orderProduct'));
     }
 
@@ -941,21 +949,21 @@ class OrderController extends Controller
         try {
             // Get the pivot data for this specific product
             $orderProduct = $order->products()->where('product_id', $product->id)->first();
-            
+
             if (!$orderProduct) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Product not found in this order.'
                 ], 404);
             }
-            
+
             // Update the pivot table with the COA field data
             $order->products()->updateExistingPivot($product->id, [
                 'batch_number' => $request->input('batch_number', $orderProduct->pivot->batch_number),
                 'prepared_by' => $request->input('prepared_by', $orderProduct->pivot->prepared_by),
                 'qc_document_number' => $request->input('qc_document_number', $orderProduct->pivot->qc_document_number),
             ]);
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'COA data saved successfully.'
@@ -966,7 +974,7 @@ class OrderController extends Controller
                 'product_id' => $product->id,
                 'error' => $e->getMessage()
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error saving COA data: ' . $e->getMessage()
@@ -990,23 +998,25 @@ class OrderController extends Controller
 
         // Begin transaction
         DB::beginTransaction();
-        
+
         try {
             $order = Order::findOrFail($id);
             $user = Auth::user();
-            
+
             // Get existing pivot data
             $existingPivot = $order->products()->wherePivot('product_id', $request->product_id)->first()->pivot;
-            
+
             $updateData = [
                 'patient_name' => $request->patient_name,
                 'remarks' => $request->remarks,
                 'prepared_by' => $request->prepared_by,
             ];
-            
+
             // Handle batch number permissions
-            if (isset($request->batch_number) && !empty($request->batch_number) && 
-                $existingPivot->batch_number !== $request->batch_number) {
+            if (
+                isset($request->batch_number) && !empty($request->batch_number) &&
+                $existingPivot->batch_number !== $request->batch_number
+            ) {
                 if ($user->department === 'Cell Lab' || $user->department === 'Quality' || $user->role === 'superadmin') {
                     $updateData['batch_number'] = $request->batch_number;
                 } else {
@@ -1017,10 +1027,12 @@ class OrderController extends Controller
             } else {
                 $updateData['batch_number'] = $request->batch_number ?? null;
             }
-            
+
             // Handle QC document number permissions
-            if (isset($request->qc_document_number) && !empty($request->qc_document_number) && 
-                $existingPivot->qc_document_number !== $request->qc_document_number) {
+            if (
+                isset($request->qc_document_number) && !empty($request->qc_document_number) &&
+                $existingPivot->qc_document_number !== $request->qc_document_number
+            ) {
                 if ($user->department === 'Quality' || $user->role === 'superadmin') {
                     $updateData['qc_document_number'] = $request->qc_document_number;
                 } else {
@@ -1031,19 +1043,21 @@ class OrderController extends Controller
             } else {
                 $updateData['qc_document_number'] = $request->qc_document_number ?? null;
             }
-            
+
             // Update the pivot table
             $order->products()->updateExistingPivot($request->product_id, $updateData);
 
             // Update order status to "preparing" if it's still "new" 
             // and any of these fields are filled
-            if ($order->status === 'new' && 
-                (!empty($updateData['batch_number']) || !empty($updateData['qc_document_number']) || !empty($updateData['prepared_by']))) {
+            if (
+                $order->status === 'new' &&
+                (!empty($updateData['batch_number']) || !empty($updateData['qc_document_number']) || !empty($updateData['prepared_by']))
+            ) {
                 $order->update(['status' => 'preparing']);
             }
-            
+
             DB::commit();
-            
+
             return redirect()->route('orderdetails', $order->id)
                 ->with('success', 'Batch information updated successfully!');
         } catch (\Exception $e) {
@@ -1067,14 +1081,14 @@ class OrderController extends Controller
         // Parse the datetime with flexible format handling
         try {
             $dateTimeString = trim($request->delivery_datetime);
-            
+
             // Log the incoming datetime string for debugging
             Log::info('Datetime parsing attempt', [
                 'original_string' => $dateTimeString,
                 'order_id' => $id,
                 'user' => Auth::user()->name
             ]);
-            
+
             // Try multiple formats to handle different flatpickr outputs
             $formats = [
                 'd.m.Y H:i',      // 31.12.2023 15:30 (expected flatpickr format)
@@ -1090,10 +1104,10 @@ class OrderController extends Controller
                 'Y-m-d\TH:i:s',   // ISO 8601 format
                 'Y-m-d\TH:i:s.u\Z', // ISO 8601 with microseconds
             ];
-            
+
             $dateTime = null;
             $usedFormat = null;
-            
+
             foreach ($formats as $format) {
                 try {
                     $parsed = Carbon::createFromFormat($format, $dateTimeString);
@@ -1106,7 +1120,7 @@ class OrderController extends Controller
                     continue;
                 }
             }
-            
+
             // If specific formats fail, try Carbon's flexible parsing
             if (!$dateTime) {
                 try {
@@ -1123,7 +1137,7 @@ class OrderController extends Controller
                     throw new \Exception('Unable to parse the date and time. Please ensure you have selected both a valid date and time.');
                 }
             }
-            
+
             // Log successful parsing
             Log::info('Datetime parsing successful', [
                 'input_string' => $dateTimeString,
@@ -1131,7 +1145,7 @@ class OrderController extends Controller
                 'parsed_datetime' => $dateTime->format('Y-m-d H:i:s'),
                 'order_id' => $id
             ]);
-            
+
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Datetime parsing error in updateStatus', [
@@ -1141,7 +1155,7 @@ class OrderController extends Controller
             ]);
             return redirect()->back()->with('error', 'Invalid date/time format. Please select a valid date and time from the date picker. Error: ' . $e->getMessage());
         }
-        
+
         $order = Order::findOrFail($id);
         $order->status = 'delivered';
         $order->delivery_type = $request->delivery_type;
@@ -1165,14 +1179,14 @@ class OrderController extends Controller
 
         // Begin transaction
         DB::beginTransaction();
-        
+
         try {
             $order = Order::findOrFail($id);
             $user = Auth::user();
-            
+
             // Store original status to detect changes
             $oldStatus = $order->status;
-            
+
             // Check permissions for status changes
             if ($request->status === 'preparing' && $order->status !== 'preparing') {
                 if (!($user->department === 'Quality' || $user->department === 'Cell Lab' || $user->role === 'admin' || $user->role === 'superadmin')) {
@@ -1180,7 +1194,7 @@ class OrderController extends Controller
                     return redirect()->back()->with('error', 'Only Quality, Cell Lab, Admin or Superadmin can mark orders as preparing.');
                 }
             }
-            
+
             if ($request->status === 'ready' && $order->status !== 'ready') {
                 if ($user->department !== 'Quality' && $user->department !== 'Cell Lab' && $user->role !== 'admin' && $user->role !== 'superadmin') {
                     DB::rollBack();
@@ -1191,13 +1205,13 @@ class OrderController extends Controller
                     $order->item_ready_at = now();
                 }
             }
-            
+
             if ($request->status === 'delivered' && $order->status !== 'delivered') {
                 if ($user->department !== 'Admin & Human Resource' && $user->role !== 'admin' && $user->role !== 'superadmin') {
                     DB::rollBack();
                     return redirect()->back()->with('error', 'Only Admin department can mark orders as delivered.');
                 }
-                
+
                 // Additional validation for delivered status
                 $request->validate([
                     'dispatcher' => 'required|string',
@@ -1208,14 +1222,14 @@ class OrderController extends Controller
                 // Parse the datetime with flexible format handling
                 try {
                     $dateTimeString = trim($request->delivery_datetime);
-                    
+
                     // Log the incoming datetime string for debugging
                     Log::info('Datetime parsing attempt', [
                         'original_string' => $dateTimeString,
                         'order_id' => $id,
                         'user' => Auth::user()->name
                     ]);
-                    
+
                     // Try multiple formats to handle different flatpickr outputs
                     $formats = [
                         'd.m.Y H:i',      // 31.12.2023 15:30 (expected flatpickr format)
@@ -1231,10 +1245,10 @@ class OrderController extends Controller
                         'Y-m-d\TH:i:s',   // ISO 8601 format
                         'Y-m-d\TH:i:s.u\Z', // ISO 8601 with microseconds
                     ];
-                    
+
                     $dateTime = null;
                     $usedFormat = null;
-                    
+
                     foreach ($formats as $format) {
                         try {
                             $parsed = Carbon::createFromFormat($format, $dateTimeString);
@@ -1247,7 +1261,7 @@ class OrderController extends Controller
                             continue;
                         }
                     }
-                    
+
                     // If specific formats fail, try Carbon's flexible parsing
                     if (!$dateTime) {
                         try {
@@ -1264,7 +1278,7 @@ class OrderController extends Controller
                             throw new \Exception('Unable to parse the date and time. Please ensure you have selected both a valid date and time.');
                         }
                     }
-                    
+
                     // Log successful parsing
                     Log::info('Datetime parsing successful', [
                         'input_string' => $dateTimeString,
@@ -1272,7 +1286,7 @@ class OrderController extends Controller
                         'parsed_datetime' => $dateTime->format('Y-m-d H:i:s'),
                         'order_id' => $id
                     ]);
-                    
+
                 } catch (\Exception $e) {
                     DB::rollBack();
                     Log::error('Datetime parsing error in updateStatus', [
@@ -1282,16 +1296,16 @@ class OrderController extends Controller
                     ]);
                     return redirect()->back()->with('error', 'Invalid date/time format. Please select a valid date and time from the date picker. Error: ' . $e->getMessage());
                 }
-                
+
                 $order->delivery_type = $request->delivery_type;
                 $order->pickup_delivery_date = $dateTime->toDateString();
                 $order->pickup_delivery_time = $dateTime->toTimeString();
                 $order->delivered_by = $request->dispatcher;
             }
-            
+
             $order->status = $request->status;
             $order->save();
-            
+
             DB::commit();
 
             // Send order cancellation notification emails if status changed to cancel
@@ -1326,17 +1340,17 @@ class OrderController extends Controller
 
         try {
             $order = Order::with('customer', 'products')->findOrFail($id);
-            
+
             // Check if order is already ready
             if ($order->status === 'ready') {
                 return redirect()->back()->with('info', 'Order is already marked as Ready.');
             }
-            
+
             // Only allow marking as ready if current status is preparing
             if ($order->status !== 'preparing') {
                 return redirect()->back()->with('error', 'Only orders in preparing status can be marked as Ready.');
             }
-            
+
             // Update the status to Ready
             $order->status = 'ready';
             // Set item_ready_at if not already set
@@ -1344,7 +1358,7 @@ class OrderController extends Controller
                 $order->item_ready_at = now();
             }
             $order->save();
-            
+
             DB::commit();
 
             // Send order ready notification emails
@@ -1377,9 +1391,9 @@ class OrderController extends Controller
                 'route_parameters' => $request->route()->parameters(),
                 'headers' => $request->header(),
             ]);
-            
+
             $order = Order::findOrFail($orderId);
-            
+
             // Add debug logging
             Log::info('Product ready status update request', [
                 'order_id' => $orderId,
@@ -1389,46 +1403,48 @@ class OrderController extends Controller
                 'current_order_status' => $order->status,
                 'user' => Auth::user()->name . ' (' . Auth::user()->department . ')',
             ]);
-            
+
             // Check if user has permission
-            if (!(Auth::user()->department === 'Quality' || 
-                Auth::user()->department === 'Cell Lab' || 
-                Auth::user()->role === 'admin' || 
-                Auth::user()->role === 'superadmin')) {
+            if (
+                !(Auth::user()->department === 'Quality' ||
+                    Auth::user()->department === 'Cell Lab' ||
+                    Auth::user()->role === 'admin' ||
+                    Auth::user()->role === 'superadmin')
+            ) {
                 Log::warning('Permission denied for product ready status update');
-                
+
                 if ($request->wantsJson() || $request->ajax()) {
                     return response()->json(['success' => false, 'message' => 'You do not have permission to perform this action.'], 403);
                 }
-                
+
                 return redirect()->back()->with('error', 'You do not have permission to perform this action.');
             }
-            
+
             // Validate request
             $validator = Validator::make($request->all(), [
                 'status' => 'required|in:ready,not_ready',
                 'pivot_id' => 'required|integer|exists:order_product,id',
             ]);
-            
+
             if ($validator->fails()) {
                 Log::warning('Validation failed for product ready status update', [
                     'errors' => $validator->errors()->toArray(),
                     'input' => $request->all()
                 ]);
-                
+
                 if ($request->wantsJson() || $request->ajax()) {
                     return response()->json(['success' => false, 'message' => 'Validation failed: ' . implode(', ', $validator->errors()->all())], 422);
                 }
-                
+
                 return redirect()->back()->with('error', 'Validation failed: ' . implode(', ', $validator->errors()->all()));
             }
-            
+
             // Get the specific pivot record
             $pivotRecord = DB::table('order_product')
                 ->where('id', $request->pivot_id)
                 ->where('order_id', $orderId)
                 ->first();
-                
+
             if (!$pivotRecord) {
                 Log::error('Pivot record not found', [
                     'pivot_id' => $request->pivot_id,
@@ -1436,13 +1452,13 @@ class OrderController extends Controller
                 ]);
                 return redirect()->back()->with('error', 'Product record not found.');
             }
-            
+
             // Log before update
             Log::info('Before updating pivot', [
                 'pivot_id' => $request->pivot_id,
                 'current_status' => $pivotRecord->status
             ]);
-            
+
             // Update the specific pivot record
             $updated = DB::table('order_product')
                 ->where('id', $request->pivot_id)
@@ -1451,35 +1467,35 @@ class OrderController extends Controller
                     'status' => $request->status,
                     'updated_at' => now()
                 ]);
-            
+
             Log::info('Pivot update result', [
                 'updated' => $updated,
                 'status_value' => $request->status,
                 'pivot_id' => $request->pivot_id
             ]);
-            
+
             // Force refresh the relationship
             $order->load('products');
-            
+
             // Check if all products are ready after this update
             $allProductsReady = true;
             $readyCount = 0;
             $totalProducts = count($order->products);
-            
-            foreach($order->products as $product) {
-                if($product->pivot->status === 'ready') {
+
+            foreach ($order->products as $product) {
+                if ($product->pivot->status === 'ready') {
                     $readyCount++;
                 } else {
                     $allProductsReady = false;
                 }
             }
-            
+
             // Log the status of products
             Log::info('Product ready status after update', [
                 'ready_count' => $readyCount,
                 'total_products' => $totalProducts,
                 'all_ready' => $allProductsReady,
-                'products' => $order->products->map(function($p) {
+                'products' => $order->products->map(function ($p) {
                     return [
                         'id' => $p->id,
                         'name' => $p->name,
@@ -1487,12 +1503,12 @@ class OrderController extends Controller
                     ];
                 })
             ]);
-            
+
             $statusMessage = $request->status === 'ready' ? 'Product marked as ready.' : 'Product marked as not ready.';
-            
+
             if ($request->wantsJson() || $request->ajax()) {
                 return response()->json([
-                    'success' => true, 
+                    'success' => true,
                     'message' => $statusMessage,
                     'order_status' => $order->status,
                     'all_ready' => $allProductsReady,
@@ -1500,20 +1516,20 @@ class OrderController extends Controller
                     'total_products' => $totalProducts
                 ]);
             }
-            
+
             return redirect()->route('orderdetails', $order->id)->with('success', $statusMessage);
-            
+
         } catch (\Exception $e) {
             Log::error('Error in updateProductReadyStatus: ' . $e->getMessage(), [
                 'order_id' => $orderId ?? null,
                 'product_id' => $productId ?? null,
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             if ($request->wantsJson() || $request->ajax()) {
                 return response()->json(['success' => false, 'message' => 'Error updating product status: ' . $e->getMessage()], 500);
             }
-            
+
             return redirect()->back()->with('error', 'Error updating product status: ' . $e->getMessage());
         }
     }
@@ -1525,6 +1541,10 @@ class OrderController extends Controller
      */
     public function uploadOrderPhoto(Request $request, $orderId)
     {
+        // Increase execution time and memory limit for large file uploads
+        set_time_limit(300); // 5 minutes
+        ini_set('memory_limit', '512M');
+
         try {
             $order = Order::findOrFail($orderId);
 
@@ -1541,7 +1561,7 @@ class OrderController extends Controller
             // Enhanced validation with better error messages for both single and multiple uploads
             $validationRules = [];
             $validationMessages = [];
-            
+
             // Support both single and multiple file uploads
             if ($request->hasFile('order_photos')) {
                 // Multiple files
@@ -1562,7 +1582,7 @@ class OrderController extends Controller
                     'order_photo.max' => 'Image size must not exceed 50MB. Please compress your image and try again.'
                 ]);
             }
-            
+
             $validator = Validator::make($request->all(), $validationRules, $validationMessages);
 
             if ($validator->fails()) {
@@ -1575,7 +1595,7 @@ class OrderController extends Controller
             $uploadedFiles = [];
             $totalSize = 0;
             $maxFileSize = 52428800; // 50MB in bytes
-            
+
             // Handle multiple files or single file
             if ($request->hasFile('order_photos')) {
                 $files = $request->file('order_photos');
@@ -1585,7 +1605,7 @@ class OrderController extends Controller
             } else {
                 $files = [$request->file('order_photo')];
             }
-            
+
             // Validate and process each file
             foreach ($files as $index => $file) {
                 // Additional file validation
@@ -1597,48 +1617,48 @@ class OrderController extends Controller
                 if ($file->getSize() > $maxFileSize) {
                     return redirect()->back()->with('error', 'File size exceeds 50MB limit for file: ' . $file->getClientOriginalName() . '. Please compress your image and try again.');
                 }
-                
+
                 $totalSize += $file->getSize();
-                
+
                 // Generate unique filename with timestamp and order ID
                 $originalName = $file->getClientOriginalName();
                 $extension = $file->getClientOriginalExtension();
                 $filename = 'order_' . $order->id . '_' . time() . '_' . uniqid() . '.' . $extension;
-                
+
                 // Store the uploaded photo with error handling
                 try {
                     $path = $file->storeAs('public/order_photos', $filename);
-                    
+
                     if (!$path) {
                         throw new \Exception('Failed to store uploaded file: ' . $originalName);
                     }
-                    
+
                     // Verify file was actually saved
                     if (!\Storage::exists($path)) {
                         throw new \Exception('File upload verification failed for: ' . $originalName);
                     }
-                    
+
                     // Copy to public/storage/order_photos for cPanel compatibility
                     $publicPath = public_path('storage/order_photos/' . $filename);
                     $publicDir = public_path('storage/order_photos');
-                    
+
                     // Create directory if it doesn't exist
                     if (!file_exists($publicDir)) {
                         mkdir($publicDir, 0755, true);
                     }
-                    
+
                     // Copy file to public folder
                     copy(storage_path('app/public/order_photos/' . $filename), $publicPath);
-                    
+
                     $uploadedFiles[] = [
                         'filename' => $filename,
                         'original_name' => $originalName,
                         'size' => $file->getSize()
                     ];
-                    
+
                 } catch (\Exception $e) {
                     Log::error('File storage error for Order #' . $order->id . ': ' . $e->getMessage());
-                    
+
                     // Clean up any already uploaded files from BOTH locations
                     foreach ($uploadedFiles as $uploadedFile) {
                         \Storage::delete('public/order_photos/' . $uploadedFile['filename']);
@@ -1648,11 +1668,11 @@ class OrderController extends Controller
                             unlink($publicFile);
                         }
                     }
-                    
+
                     return redirect()->back()->with('error', 'Failed to save uploaded image: ' . $originalName . '. Please try again.');
                 }
             }
-            
+
             // If this is a single file upload (backward compatibility), delete old photo
             if (!$request->hasFile('order_photos') && $order->order_photo) {
                 \Storage::delete('public/order_photos/' . $order->order_photo);
@@ -1676,19 +1696,38 @@ class OrderController extends Controller
 
             // Send photo upload notification to the person who placed the order
             // Skip email notifications if admin uploads photo for delivered/canceled orders
+            // TEMPORARILY DISABLED FOR TESTING - uncomment to re-enable
+            /*
             $shouldSendEmail = !($isAdmin && in_array($order->status, ['delivered', 'cancel']));
-            
-            if ($shouldSendEmail) {
-                $emailController = new EmailController();
-                $emailController->sendPhotoUploadNotification($order);
-            }
 
-            $successMessage = $fileCount === 1 
+            if ($shouldSendEmail) {
+                $orderId = $order->id;
+                dispatch(function () use ($orderId) {
+                    $order = Order::find($orderId);
+                    if ($order) {
+                        $emailController = new EmailController();
+                        $emailController->sendPhotoUploadNotification($order);
+                    }
+                })->afterResponse();
+            }
+            */
+
+            $successMessage = $fileCount === 1
                 ? 'Order photo uploaded successfully! (' . round($totalSize / 1024 / 1024, 2) . 'MB)'
                 : $fileCount . ' order photos uploaded successfully! (Total: ' . round($totalSize / 1024 / 1024, 2) . 'MB)';
-                
+
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => $successMessage,
+                    'file_count' => $fileCount,
+                    'uploaded_files' => $uploadedFiles,
+                    'total_size' => $totalSize
+                ]);
+            }
+
             return redirect()->back()->with('success', $successMessage);
-            
+
         } catch (\Exception $e) {
             Log::error('Photo upload error for Order #' . $orderId . ': ' . $e->getMessage());
             return redirect()->back()->with('error', 'An error occurred while uploading the photo. Please try again.');
@@ -1706,7 +1745,7 @@ class OrderController extends Controller
 
         // Get all photos
         $allPhotos = $order->getAllPhotos();
-        
+
         // Only allow delete if order has photos
         if (empty($allPhotos)) {
             return redirect()->back()->with('error', 'No photos to delete.');
@@ -1728,8 +1767,8 @@ class OrderController extends Controller
         $order->save();
 
         $photoCount = count($allPhotos);
-        $successMessage = $photoCount === 1 
-            ? 'Order photo deleted successfully!' 
+        $successMessage = $photoCount === 1
+            ? 'Order photo deleted successfully!'
             : $photoCount . ' order photos deleted successfully!';
 
         return redirect()->back()->with('success', $successMessage);
@@ -1744,7 +1783,7 @@ class OrderController extends Controller
 
         // Get all photos
         $allPhotos = $order->getAllPhotos();
-        
+
         // Check if the photo exists
         if (!in_array($filename, $allPhotos)) {
             return redirect()->back()->with('error', 'Photo not found.');
@@ -1799,39 +1838,39 @@ class OrderController extends Controller
         ]);
 
         DB::beginTransaction();
-        
+
         try {
             $order = Order::with(['customer', 'products'])->findOrFail($id);
-            
+
             // Store original values for comparison
             $originalDateTime = null;
             if ($order->pickup_delivery_date && $order->pickup_delivery_time) {
                 $originalDateTime = Carbon::parse($order->pickup_delivery_date->format('Y-m-d') . ' ' . $order->pickup_delivery_time->format('H:i:s'));
             }
-            
+
             // Store original ready time for comparison
             $originalReadyTime = null;
             if ($order->item_ready_at) {
                 $originalReadyTime = Carbon::parse($order->item_ready_at)->format('g:i A');
             }
-            
+
             // Update delivery date, time, ready time, and collection date
             $order->pickup_delivery_date = $request->pickup_delivery_date;
             $order->pickup_delivery_time = $request->pickup_delivery_time;
             $order->item_ready_at = $request->item_ready_time;
             $order->collection_date = $request->collection_date;
             $order->save();
-            
+
             // Create new datetime and ready time for comparison
             $newDateTime = Carbon::parse($request->pickup_delivery_date . ' ' . $request->pickup_delivery_time);
             $newReadyTime = Carbon::parse($request->item_ready_time)->format('g:i A');
-            
+
             DB::commit();
-            
+
             // Send delivery update notification emails
             $emailController = new EmailController();
             $emailController->sendDeliveryUpdateNotification($order, $originalDateTime, $newDateTime, $originalReadyTime, $newReadyTime);
-            
+
             return redirect()->route('orderdetails', $order->id)
                 ->with('success', 'Delivery schedule and ready time updated successfully!');
         } catch (\Exception $e) {
@@ -1865,7 +1904,7 @@ class OrderController extends Controller
             // Parse the date and time from form
             $date = $request->signature_date;
             $time = $request->signature_time;
-            
+
             // Handle 12-hour format time (e.g., "02:30 PM") from Flatpickr
             try {
                 $signatureDateTime = \Carbon\Carbon::createFromFormat('Y-m-d h:i A', $date . ' ' . $time);

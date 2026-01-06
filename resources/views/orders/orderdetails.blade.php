@@ -1480,17 +1480,66 @@
             });
         }
 
-        // Enhanced Photo Upload Handling for Mobile with Multiple File Support
+        // Enhanced Photo Upload Handling with Compression and Real Progress
         function setupPhotoUpload(fileInputId, previewId, progressId, formId) {
             const fileInput = document.getElementById(fileInputId);
             const preview = document.getElementById(previewId);
-            const previewImg = document.getElementById(previewId.replace('preview', 'preview-img'));
+            const previewImg = document.getElementById(previewId ? previewId.replace('preview', 'preview-img') : null);
             const progress = document.getElementById(progressId);
             const form = document.getElementById(formId);
 
-            if (!fileInput) return;
+            if (!fileInput || !form) return;
 
-            // File selection handler for multiple files
+            // Helper function to compress image
+            const compressImage = async (file, { quality = 0.7, maxWidth = 1280, maxHeight = 1280 } = {}) => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = event => {
+                        const img = new Image();
+                        img.src = event.target.result;
+                        img.onload = () => {
+                            let width = img.width;
+                            let height = img.height;
+
+                            // Calculate new dimensions
+                            if (width > height) {
+                                if (width > maxWidth) {
+                                    height = Math.round(height * (maxWidth / width));
+                                    width = maxWidth;
+                                }
+                            } else {
+                                if (height > maxHeight) {
+                                    width = Math.round(width * (maxHeight / height));
+                                    height = maxHeight;
+                                }
+                            }
+
+                            const canvas = document.createElement('canvas');
+                            canvas.width = width;
+                            canvas.height = height;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, width, height);
+
+                            canvas.toBlob(blob => {
+                                if (!blob) {
+                                    reject(new Error('Canvas is empty'));
+                                    return;
+                                }
+                                const compressedFile = new File([blob], file.name, {
+                                    type: 'image/jpeg',
+                                    lastModified: Date.now()
+                                });
+                                resolve(compressedFile);
+                            }, 'image/jpeg', quality);
+                        };
+                        img.onerror = error => reject(error);
+                    };
+                    reader.onerror = error => reject(error);
+                });
+            };
+
+            // File selection handler
             fileInput.addEventListener('change', function(e) {
                 const files = e.target.files;
                 if (!files || files.length === 0) {
@@ -1513,32 +1562,16 @@
                         if (preview) preview.style.display = 'none';
                         return;
                     }
-
-                    // Validate file size (50MB = 52428800 bytes)
-                    const maxSize = 52428800; // 50MB
-                    if (file.size > maxSize) {
-                        alert(`File "${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(2)} MB). Maximum size is 50MB. Please compress the image.`);
-                        fileInput.value = '';
-                        if (preview) preview.style.display = 'none';
-                        return;
-                    }
                     
                     totalSize += file.size;
-                    fileInfos.push({
-                        name: file.name,
-                        size: file.size
-                    });
+                    fileInfos.push(file);
                 }
 
                 // Show file size info
                 const sizeInfo = document.querySelector(`#${fileInputId} ~ .form-text small`);
                 if (sizeInfo) {
                     const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
-                    if (files.length === 1) {
-                        sizeInfo.innerHTML = `Selected: ${fileInfos[0].name} (${(fileInfos[0].size / (1024 * 1024)).toFixed(2)} MB) - Ready to upload`;
-                    } else {
-                        sizeInfo.innerHTML = `Selected: ${files.length} files (Total: ${totalSizeMB} MB) - Ready to upload`;
-                    }
+                    sizeInfo.innerHTML = `Selected: ${files.length} file(s) (Original: ${totalSizeMB} MB) - Will be compressed before upload`;
                     sizeInfo.style.color = '#28a745';
                 }
 
@@ -1549,69 +1582,156 @@
                         previewImg.src = e.target.result;
                         preview.style.display = 'block';
                         
-                        // Update preview text
                         const previewText = preview.querySelector('.text-muted');
                         if (previewText) {
-                            if (files.length === 1) {
-                                previewText.textContent = 'Preview - Image will be uploaded when you click submit';
-                            } else {
-                                previewText.textContent = `Preview of first image - ${files.length} images will be uploaded when you click submit`;
-                            }
+                            previewText.textContent = files.length === 1 
+                                ? 'Preview - Image will be compressed and uploaded' 
+                                : `Preview of first image - ${files.length} images will be compressed and uploaded`;
                         }
                     };
                     reader.readAsDataURL(files[0]);
                 }
             });
 
-            // Form submission handler
-            if (form) {
-                form.addEventListener('submit', function(e) {
-                    const files = fileInput.files;
-                    if (!files || files.length === 0) {
-                        alert('Please select at least one image to upload.');
-                        e.preventDefault();
-                        return;
-                    }
+            // Handle Form Submission via AJAX for Real Progress
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const files = fileInput.files;
+                if (!files || files.length === 0) {
+                    alert('Please select at least one image to upload.');
+                    return;
+                }
 
-                    // Show progress and disable button
-                    const submitBtn = form.querySelector('button[type="submit"]');
-                    if (submitBtn) {
-                        submitBtn.disabled = true;
-                        submitBtn.innerHTML = files.length === 1 
-                            ? '<i class="ri-loader-2-line spinning"></i> Uploading...' 
-                            : `<i class="ri-loader-2-line spinning"></i> Uploading ${files.length} photos...`;
-                    }
+                // UI Updates
+                const submitBtn = form.querySelector('button[type="submit"]');
+                constoriginalBtnText = submitBtn ? submitBtn.innerHTML : 'Upload';
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="ri-loader-2-line spinning"></i> Compressing...';
+                }
 
-                    if (progress) {
-                        progress.style.display = 'block';
-                        const progressBar = progress.querySelector('.progress-bar');
-                        if (progressBar) {
-                            progressBar.style.width = '20%';
-                        }
+                if (progress) {
+                    progress.style.display = 'block';
+                    const progressBar = progress.querySelector('.progress-bar');
+                    const progressText = progress.querySelector('.text-muted');
+                    if (progressBar) progressBar.style.width = '0%';
+                    // Enhanced message as requested
+                    if (progressText) {
+                        progressText.innerHTML = `
+                            <strong>Compressing ${files.length} image(s)...</strong><br>
+                            <span class="small">We are optimizing your images for faster upload. This may take a few moments.</span>
+                        `;
                     }
+                }
 
-                    // Simulate progress (since we can't track actual upload progress with standard form submission)
-                    let progressValue = 20;
-                    const progressInterval = setInterval(() => {
-                        progressValue += Math.random() * 30;
-                        if (progressValue >= 90) {
-                            progressValue = 90;
-                            clearInterval(progressInterval);
-                        }
+                try {
+                    // 1. Compress Images
+                    const compressedFiles = [];
+                    for (let i = 0; i < files.length; i++) {
+                        // Update progress text for each image
                         if (progress) {
-                            const progressBar = progress.querySelector('.progress-bar');
-                            if (progressBar) {
-                                progressBar.style.width = progressValue + '%';
+                            const progressText = progress.querySelector('.text-muted');
+                            if (progressText) {
+                                progressText.innerHTML = `
+                                    <strong>Compressing image ${i + 1} of ${files.length}...</strong><br>
+                                    <span class="small">Please wait while we optimize your photos.</span>
+                                `;
                             }
                         }
-                    }, 500);
 
-                    // Clean up on form submission complete
-                    setTimeout(() => {
-                        clearInterval(progressInterval);
-                    }, 10000);
-                });
-            }
+                        // Skip compression for small files (< 1MB) or non-convertible types if needed
+                        // But here we compress everything to ensure consistency and speed
+                        try {
+                            const compressed = await compressImage(files[i]);
+                            compressedFiles.push(compressed);
+                        } catch (err) {
+                            console.error('Compression failed for', files[i].name, err);
+                            // Fallback to original if compression fails
+                            compressedFiles.push(files[i]);
+                        }
+                    }
+
+                    // 2. Prepare FormData
+                    const formData = new FormData(form);
+                    // Remove old files invocation if they exist in FormData automatically
+                    formData.delete(fileInput.name); 
+                    
+                    // Append compressed files
+                    compressedFiles.forEach(file => {
+                        // Handle array naming convention
+                        const fieldName = fileInput.name.endsWith('[]') ? 'order_photos[]' : 'order_photo';
+                        formData.append(fieldName, file);
+                    });
+
+                    // Update Status to Uploading
+                    if (submitBtn) submitBtn.innerHTML = '<i class="ri-upload-cloud-2-line"></i> Uploading...';
+                    if (progress) {
+                        const progressText = progress.querySelector('.text-muted');
+                        if (progressText) {
+                            progressText.innerHTML = `
+                                <strong>Uploading ${files.length} image(s)...</strong><br>
+                                <span class="small">Almost done! Please don't close this page.</span>
+                            `;
+                        }
+                    }
+
+                    // 3. Perform AJAX Upload
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', form.action, true);
+                    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+                    
+                    // Progress Handler
+                    xhr.upload.onprogress = function(e) {
+                        if (e.lengthComputable) {
+                            const percentComplete = Math.round((e.loaded / e.total) * 100);
+                            if (progress) {
+                                const progressBar = progress.querySelector('.progress-bar');
+                                if (progressBar) progressBar.style.width = percentComplete + '%';
+                            }
+                        }
+                    };
+
+                    // Load/Error Handler
+                    xhr.onload = function() {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                             // Success
+                             if (submitBtn) {
+                                submitBtn.innerHTML = '<i class="ri-check-line"></i> Done!';
+                                submitBtn.classList.remove('btn-primary');
+                                submitBtn.classList.add('btn-success');
+                             }
+                             // Reload page to show flash messages and new photos
+                             window.location.reload();
+                        } else {
+                            // Error
+                            alert('Upload failed. Server responded with status: ' + xhr.status);
+                            if (submitBtn) {
+                                submitBtn.disabled = false;
+                                submitBtn.innerHTML = originalBtnText;
+                            }
+                        }
+                    };
+
+                    xhr.onerror = function() {
+                        alert('Upload failed due to network error.');
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = originalBtnText;
+                        }
+                    };
+
+                    xhr.send(formData);
+
+                } catch (error) {
+                    console.error('Upload process error:', error);
+                    alert('An unexpected error occurred: ' + error.message);
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalBtnText;
+                    }
+                }
+            });
         }
 
         // Setup all photo upload forms
