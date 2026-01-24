@@ -1217,27 +1217,37 @@ class OrderController extends Controller
                     'dispatcher' => 'required|string',
                     'delivery_datetime' => 'required|string',
                     'delivery_type' => 'required|in:delivery,self_collect',
+                    'temp_before_delivery' => 'required|string|max:50',
+                    'temp_after_delivery' => 'required|string|max:50',
+                    'delivery_photo' => 'required|image|mimes:jpeg,jpg,png,gif,webp,heic,heif|max:10240',
                 ]);
 
                 // Parse the datetime with flexible format handling
                 try {
                     $dateTimeString = trim($request->delivery_datetime);
+                    
+                    // Clean duplicate time patterns (e.g., "02.01.2026 12:10 PM 12:10" -> "02.01.2026 12:10 PM")
+                    // Remove any duplicate time pattern at the end (handles both with and without AM/PM)
+                    $dateTimeString = preg_replace('/\s+(\d{1,2}:\d{2}(\s*(AM|PM))?)\s+\d{1,2}:\d{2}$/i', ' $1', $dateTimeString);
+                    $dateTimeString = trim($dateTimeString);
 
                     // Log the incoming datetime string for debugging
                     Log::info('Datetime parsing attempt', [
-                        'original_string' => $dateTimeString,
+                        'original_string' => $request->delivery_datetime,
+                        'cleaned_string' => $dateTimeString,
                         'order_id' => $id,
                         'user' => Auth::user()->name
                     ]);
 
                     // Try multiple formats to handle different flatpickr outputs
+                    // Note: flatpickr format "d.m.Y h:i K" outputs "d.m.Y h:i A" (K becomes A in PHP)
                     $formats = [
-                        'd.m.Y H:i',      // 31.12.2023 15:30 (expected flatpickr format)
+                        'd.m.Y h:i A',    // 02.01.2026 12:10 PM (flatpickr format with AM/PM - PRIMARY)
+                        'd.m.Y H:i',      // 31.12.2023 15:30 (24-hour format)
                         'Y-m-d H:i',      // 2023-12-31 15:30 (ISO format)
                         'd/m/Y H:i',      // 31/12/2023 15:30
                         'm/d/Y H:i',      // 12/31/2023 15:30
                         'd-m-Y H:i',      // 31-12-2023 15:30
-                        'd.m.Y h:i A',    // 31.12.2023 3:30 PM
                         'd/m/Y h:i A',    // 31/12/2023 3:30 PM
                         'Y-m-d h:i A',    // 2023-12-31 3:30 PM
                         'd.m.Y H:i:s',    // 31.12.2023 15:30:00
@@ -1301,6 +1311,37 @@ class OrderController extends Controller
                 $order->pickup_delivery_date = $dateTime->toDateString();
                 $order->pickup_delivery_time = $dateTime->toTimeString();
                 $order->delivered_by = $request->dispatcher;
+                $order->temp_before_delivery = $request->temp_before_delivery;
+                $order->temp_after_delivery = $request->temp_after_delivery;
+
+                // Handle delivery photo upload
+                if ($request->hasFile('delivery_photo')) {
+                    $file = $request->file('delivery_photo');
+
+                    // Generate a unique filename
+                    $filename = 'delivery_' . $order->id . '_' . time() . '.' . $file->getClientOriginalExtension();
+
+                    // Store the file in the order_photos directory
+                    $path = $file->storeAs('public/order_photos', $filename);
+
+                    // Copy to public/storage/order_photos for cPanel compatibility
+                    $publicPath = public_path('storage/order_photos/' . $filename);
+                    $publicDir = public_path('storage/order_photos');
+                    if (!file_exists($publicDir)) {
+                        mkdir($publicDir, 0755, true);
+                    }
+                    copy(storage_path('app/public/order_photos/' . $filename), $publicPath);
+
+                    // Add to delivery_photos array
+                    $order->addDeliveryPhoto($filename);
+
+                    Log::info('Delivery photo uploaded', [
+                        'order_id' => $order->id,
+                        'filename' => $filename,
+                        'path' => $path,
+                        'public_path' => $publicPath
+                    ]);
+                }
             }
 
             $order->status = $request->status;
@@ -1308,16 +1349,20 @@ class OrderController extends Controller
 
             DB::commit();
 
-            // Send order cancellation notification emails if status changed to cancel
+            // Dispatch email notifications after response is sent (non-blocking)
             if ($request->status === 'cancel' && $oldStatus !== 'cancel') {
-                $emailController = new EmailController();
-                $emailController->sendOrderCanceledNotification($order);
+                dispatch(function () use ($order) {
+                    $emailController = new EmailController();
+                    $emailController->sendOrderCanceledNotification($order);
+                })->afterResponse();
             }
 
             // Send order ready notification emails if status changed to ready
             if ($request->status === 'ready' && $oldStatus !== 'ready') {
-                $emailController = new EmailController();
-                $emailController->sendOrderReadyNotification($order);
+                dispatch(function () use ($order) {
+                    $emailController = new EmailController();
+                    $emailController->sendOrderReadyNotification($order);
+                })->afterResponse();
             }
 
             $statusMessage = ucfirst($request->status);
@@ -1361,9 +1406,11 @@ class OrderController extends Controller
 
             DB::commit();
 
-            // Send order ready notification emails
-            $emailController = new EmailController();
-            $emailController->sendOrderReadyNotification($order);
+            // Dispatch email sending after response is sent (non-blocking)
+            dispatch(function () use ($order) {
+                $emailController = new EmailController();
+                $emailController->sendOrderReadyNotification($order);
+            })->afterResponse();
 
             return redirect()->back()->with('success', 'Order marked as Ready successfully!');
         } catch (\Exception $e) {
@@ -1952,5 +1999,130 @@ class OrderController extends Controller
                 'message' => 'Error saving signature: ' . $e->getMessage()
             ], 500);
         }
+    }
+    /**
+     * Handle uploading a delivery photo by a dispatcher.
+     */
+    public function uploadDeliveryPhoto(Request $request, $orderId)
+    {
+        set_time_limit(300);
+        ini_set('memory_limit', '512M');
+
+        try {
+            $order = Order::findOrFail($orderId);
+            $user = Auth::user();
+
+            // Check if user is dispatcher or admin/superadmin
+            $isDispatcher = $user->department === 'Dispatcher';
+            $isAdmin = $user->role === 'admin' || $user->role === 'superadmin';
+
+            if (!$isDispatcher && !$isAdmin) {
+                return redirect()->back()->with('error', 'Only dispatchers and admins can upload delivery photos.');
+            }
+
+            $validator = Validator::make($request->all(), [
+                'delivery_photos.*' => 'required|image|mimes:jpeg,png,jpg,gif,webp,heic,heif|max:51200',
+            ], [
+                'delivery_photos.*.required' => 'Please select valid images to upload.',
+                'delivery_photos.*.image' => 'All uploaded files must be images.',
+                'delivery_photos.*.mimes' => 'Images must be JPEG, PNG, GIF, WebP, or HEIC files.',
+                'delivery_photos.*.max' => 'Each image size must not exceed 50MB.'
+            ]);
+
+            if ($validator->fails()) {
+                return redirect()->back()->withErrors($validator)->withInput()->with('error', 'Upload failed: ' . $validator->errors()->first());
+            }
+
+            $uploadedFiles = [];
+            $totalSize = 0;
+            $maxFileSize = 52428800;
+
+            if ($request->hasFile('delivery_photos')) {
+                $files = $request->file('delivery_photos');
+                if (!is_array($files)) {
+                    $files = [$files];
+                }
+
+                foreach ($files as $index => $file) {
+                    if (!$file || !$file->isValid()) {
+                        continue;
+                    }
+
+                    if ($file->getSize() > $maxFileSize) {
+                        return redirect()->back()->with('error', 'File size exceeds 50MB limit for file: ' . $file->getClientOriginalName());
+                    }
+
+                    $totalSize += $file->getSize();
+                    $extension = $file->getClientOriginalExtension();
+                    $filename = 'delivery_' . $order->id . '_' . time() . '_' . uniqid() . '.' . $extension;
+
+                    try {
+                        $path = $file->storeAs('public/order_photos', $filename);
+                        if (!$path) {
+                            throw new \Exception('Failed to store uploaded file.');
+                        }
+
+                        // Copy to public/storage/order_photos for cPanel compatibility
+                        $publicPath = public_path('storage/order_photos/' . $filename);
+                        $publicDir = public_path('storage/order_photos');
+                        if (!file_exists($publicDir)) {
+                            mkdir($publicDir, 0755, true);
+                        }
+                        copy(storage_path('app/public/order_photos/' . $filename), $publicPath);
+
+                        $uploadedFiles[] = $filename;
+                    } catch (\Exception $e) {
+                        Log::error('Delivery photo storage error: ' . $e->getMessage());
+                    }
+                }
+            }
+
+            foreach ($uploadedFiles as $filename) {
+                $order->addDeliveryPhoto($filename);
+            }
+            $order->save();
+
+            $fileCount = count($uploadedFiles);
+            $successMessage = $fileCount === 1 ? 'Delivery photo uploaded successfully!' : $fileCount . ' delivery photos uploaded successfully!';
+
+            return redirect()->back()->with('success', $successMessage);
+
+        } catch (\Exception $e) {
+            Log::error('Delivery photo upload error for Order #' . $orderId . ': ' . $e->getMessage());
+            return redirect()->back()->with('error', 'An error occurred while uploading. Please try again.');
+        }
+    }
+
+    /**
+     * Delete a specific delivery photo.
+     */
+    public function deleteDeliveryPhoto($orderId, $filename)
+    {
+        $order = Order::findOrFail($orderId);
+        $user = Auth::user();
+
+        $isDispatcher = $user->department === 'Dispatcher';
+        $isAdmin = $user->role === 'admin' || $user->role === 'superadmin';
+
+        if (!$isDispatcher && !$isAdmin) {
+            return redirect()->back()->with('error', 'You do not have permission to delete delivery photos.');
+        }
+
+        if (!$order->delivery_photos || !in_array($filename, $order->delivery_photos)) {
+            return redirect()->back()->with('error', 'Photo not found.');
+        }
+
+        // Delete from storage
+        \Storage::delete('public/order_photos/' . $filename);
+        $publicFile = public_path('storage/order_photos/' . $filename);
+        if (file_exists($publicFile)) {
+            unlink($publicFile);
+        }
+
+        // Remove from database
+        $order->removeDeliveryPhoto($filename);
+        $order->save();
+
+        return redirect()->back()->with('success', 'Delivery photo deleted successfully!');
     }
 }

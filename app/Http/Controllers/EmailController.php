@@ -219,17 +219,17 @@ class EmailController extends Controller
                 return;
             }
 
-            // Send email to each user
+            // Queue email to each user (non-blocking)
             foreach ($users as $user) {
                 try {
-                    Mail::to($user->email)->send(new \App\Mail\OrderReadyNotification($order));
-                    Log::info("Order ready notification sent to {$user->email} for order #{$order->id}");
+                    Mail::to($user->email)->queue(new \App\Mail\OrderReadyNotification($order));
+                    Log::info("Order ready notification queued for {$user->email} for order #{$order->id}");
                 } catch (\Exception $e) {
-                    Log::error("Failed to send order ready notification to {$user->email}: " . $e->getMessage());
+                    Log::error("Failed to queue order ready notification to {$user->email}: " . $e->getMessage());
                 }
             }
 
-            Log::info("Order ready notification process completed for order #{$order->id}");
+            Log::info("Order ready notification process queued for order #{$order->id} (recipients: {$users->count()})");
             
         } catch (\Exception $e) {
             Log::error("Error in sendOrderReadyNotification: " . $e->getMessage());

@@ -37,6 +37,9 @@ class Order extends Model
         'delivery_address',
         'order_photo',
         'order_photos',
+        'delivery_photos',
+        'temp_before_delivery',
+        'temp_after_delivery',
     ];
 
     /**
@@ -54,6 +57,7 @@ class Order extends Model
         'item_ready_at' => 'datetime',
         'signature_date' => 'datetime',
         'order_photos' => 'array',
+        'delivery_photos' => 'array',
         'time_sensitive' => 'boolean',
     ];
 
@@ -91,17 +95,17 @@ class Order extends Model
     public function getAllPhotos()
     {
         $photos = [];
-        
+
         // Include photos from order_photos JSON array
         if ($this->order_photos && is_array($this->order_photos)) {
             $photos = array_merge($photos, $this->order_photos);
         }
-        
+
         // Include single photo for backward compatibility if not already in order_photos
         if ($this->order_photo && !in_array($this->order_photo, $photos)) {
             $photos[] = $this->order_photo;
         }
-        
+
         return array_unique($photos);
     }
 
@@ -116,7 +120,7 @@ class Order extends Model
         $photos = $this->order_photos ?? [];
         $photos[] = $filename;
         $this->order_photos = $photos;
-        
+
         // Keep backward compatibility by setting first photo as order_photo
         if (!$this->order_photo) {
             $this->order_photo = $filename;
@@ -132,11 +136,11 @@ class Order extends Model
     public function removePhoto($filename)
     {
         $photos = $this->order_photos ?? [];
-        $photos = array_filter($photos, function($photo) use ($filename) {
+        $photos = array_filter($photos, function ($photo) use ($filename) {
             return $photo !== $filename;
         });
         $this->order_photos = array_values($photos);
-        
+
         // Update order_photo if it was the removed photo
         if ($this->order_photo === $filename) {
             $this->order_photo = !empty($this->order_photos) ? $this->order_photos[0] : null;
@@ -162,4 +166,42 @@ class Order extends Model
     {
         return count($this->getAllPhotos());
     }
-} 
+
+    /**
+     * Add a delivery photo to the order
+     *
+     * @param string $filename
+     * @return void
+     */
+    public function addDeliveryPhoto($filename)
+    {
+        $photos = $this->delivery_photos ?? [];
+        $photos[] = $filename;
+        $this->delivery_photos = $photos;
+    }
+
+    /**
+     * Remove a delivery photo from the order
+     *
+     * @param string $filename
+     * @return void
+     */
+    public function removeDeliveryPhoto($filename)
+    {
+        $photos = $this->delivery_photos ?? [];
+        $photos = array_filter($photos, function ($photo) use ($filename) {
+            return $photo !== $filename;
+        });
+        $this->delivery_photos = array_values($photos);
+    }
+
+    /**
+     * Check if order has any delivery photos
+     *
+     * @return bool
+     */
+    public function hasDeliveryPhotos()
+    {
+        return !empty($this->delivery_photos);
+    }
+}

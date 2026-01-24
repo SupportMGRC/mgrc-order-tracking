@@ -17,11 +17,11 @@ class CheckDepartmentPermissions
     public function handle(Request $request, Closure $next, string $permission): Response
     {
         $user = Auth::user();
-        
+
         if (!$user) {
             return redirect()->route('login');
         }
-        
+
         // Check permissions based on department
         switch ($permission) {
             case 'edit-batch-number':
@@ -30,28 +30,28 @@ class CheckDepartmentPermissions
                     return redirect()->back()->with('error', 'Only Cell Lab department can edit batch document numbers.');
                 }
                 break;
-                
+
             case 'edit-qc-document':
                 // Only Quality department can insert QC document number
                 if ($user->department !== 'Quality' && $user->role !== 'superadmin') {
                     return redirect()->back()->with('error', 'Only Quality department can edit QC document numbers.');
                 }
                 break;
-                
+
             case 'mark-ready':
                 // Only Quality and Cell Lab departments can mark orders as ready
                 if ($user->department !== 'Quality' && $user->department !== 'Cell Lab' && $user->role !== 'admin' && $user->role !== 'superadmin') {
                     return redirect()->back()->with('error', 'Only Quality or Cell Lab departments can mark orders as ready.');
                 }
                 break;
-                
+
             case 'mark-delivered':
-                // Only Admin department can mark orders as delivered
-                if ($user->department !== 'Admin & Human Resource' && $user->role !== 'admin' && $user->role !== 'superadmin') {
-                    return redirect()->back()->with('error', 'Only Admin department can mark orders as delivered.');
+                // Only Admin and Dispatcher departments can mark orders as delivered
+                if ($user->department !== 'Admin & Human Resource' && $user->department !== 'Dispatcher' && $user->role !== 'admin' && $user->role !== 'superadmin') {
+                    return redirect()->back()->with('error', 'Only Admin or Dispatcher departments can mark orders as delivered.');
                 }
                 break;
-                
+
             case 'view-new-order':
                 // Only Medical Affairs and Business Development departments can view the new order page
                 if ($user->department !== 'Medical Affairs' && $user->department !== 'Business Development' && $user->role !== 'superadmin' && $user->role !== 'admin') {
@@ -59,7 +59,7 @@ class CheckDepartmentPermissions
                 }
                 break;
         }
-        
+
         return $next($request);
     }
-} 
+}
