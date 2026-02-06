@@ -1726,7 +1726,7 @@
     </div>
 
     <script>
-    d    ocument.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('DOMContentLoaded', function () {
                 // Initialize date and time pickers
                 if (typeof flatpickr !== 'undefined') {
                     flatpickr("#pickup_delivery_date", {
