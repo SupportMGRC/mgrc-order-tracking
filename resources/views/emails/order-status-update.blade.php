@@ -220,6 +220,18 @@
             </div>
             @endif
 
+            @if($status === 'delivered' && $order->hasDeliveryPhotos())
+            <h3>Dispatcher Evidence</h3>
+            <div class="order-photos">
+                @foreach($order->delivery_photos as $index => $photo)
+                    @php $deliveryPhotoPath = storage_path('app/public/order_photos/' . $photo); @endphp
+                    @if(file_exists($deliveryPhotoPath))
+                    <img src="{{ $message->embed($deliveryPhotoPath) }}" alt="Dispatcher Evidence {{ $index + 1 }}">
+                    @endif
+                @endforeach
+            </div>
+            @endif
+
             <div class="button-wrap">
                 <a href="{{ route('orderdetails', $order->id) }}"
                    style="display:inline-block; background-color:#f0ad4e; color:#ffffff; text-decoration:none; padding:12px 26px; border-radius:5px; font-weight:bold; font-family:Arial, sans-serif;">
