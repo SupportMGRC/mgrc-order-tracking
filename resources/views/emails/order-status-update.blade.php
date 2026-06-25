@@ -80,6 +80,15 @@
         }
         td { padding: 9px; }
         .button-wrap { text-align: center; margin: 22px 0; }
+        .order-photos { margin: 8px 0 4px; }
+        .order-photos img {
+            max-width: 100%;
+            width: 260px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            margin: 6px 6px 6px 0;
+            vertical-align: top;
+        }
         .footer {
             padding: 16px 20px;
             font-size: 12px;
@@ -196,6 +205,19 @@
             @if($order->remarks)
             <h3>General Remarks</h3>
             <p>{{ $order->remarks }}</p>
+            @endif
+
+            @php $emailOrderPhotos = $order->getAllPhotos(); @endphp
+            @if(!empty($emailOrderPhotos))
+            <h3>Order Photo</h3>
+            <div class="order-photos">
+                @foreach($emailOrderPhotos as $index => $photo)
+                    @php $photoPath = storage_path('app/public/order_photos/' . $photo); @endphp
+                    @if(file_exists($photoPath))
+                    <img src="{{ $message->embed($photoPath) }}" alt="Order Photo {{ $index + 1 }}">
+                    @endif
+                @endforeach
+            </div>
             @endif
 
             <div class="button-wrap">
