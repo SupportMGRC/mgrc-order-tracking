@@ -151,7 +151,6 @@ class EmailController extends Controller
             Log::error("Error in sendOrderCanceledNotification: " . $e->getMessage());
         }
     }
-
     /**
      * Send photo upload notification email to the person who placed the order
      *
@@ -163,14 +162,14 @@ class EmailController extends Controller
         try {
             // Find the user who placed the order
             $orderPlacer = null;
-            
+
             // Try to find user by order_placed_by field (username)
             if ($order->order_placed_by) {
                 $orderPlacer = User::where('username', $order->order_placed_by)
                                   ->whereNotNull('email')
                                   ->first();
             }
-            
+
             // If not found by username, try to find by the user_id (who created the order)
             if (!$orderPlacer && $order->user_id) {
                 $orderPlacer = User::where('id', $order->user_id)
@@ -194,9 +193,53 @@ class EmailController extends Controller
             }
 
             Log::info("Photo upload notification process completed for order #{$order->id}");
-            
+
         } catch (\Exception $e) {
             Log::error("Error in sendPhotoUploadNotification: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Send a status-update notification to the person who CREATED the order.
+     *
+     * @param Order  $order
+     * @param string $status       Raw status value, e.g. "ready"
+     * @param string $statusLabel  Friendly label, e.g. "Ready for Delivery"
+     * @return void
+     */
+    public function sendOrderStatusUpdateNotification(Order $order, string $status, string $statusLabel, array $scheduleChanges = [])
+    {
+        try {
+            // Find the user who placed the order (same approach as photo-upload notification)
+            $orderPlacer = null;
+
+            if ($order->order_placed_by) {
+                $orderPlacer = User::where('username', $order->order_placed_by)
+                                  ->whereNotNull('email')
+                                  ->first();
+            }
+
+            if (!$orderPlacer && $order->user_id) {
+                $orderPlacer = User::where('id', $order->user_id)
+                                  ->whereNotNull('email')
+                                  ->first();
+            }
+
+            if (!$orderPlacer) {
+                Log::info("No valid email found for order creator for order #{$order->id} (status update: {$status}).");
+                return;
+            }
+
+            try {
+                Mail::to($orderPlacer->email)
+                    ->send(new \App\Mail\OrderStatusUpdateNotification($order, $status, $statusLabel, $scheduleChanges));
+                Log::info("Status-update ({$status}) notification sent to {$orderPlacer->email} for order #{$order->id}");
+            } catch (\Exception $e) {
+                Log::error("Failed to send status-update notification to {$orderPlacer->email}: " . $e->getMessage());
+            }
+
+        } catch (\Exception $e) {
+            Log::error("Error in sendOrderStatusUpdateNotification: " . $e->getMessage());
         }
     }
 

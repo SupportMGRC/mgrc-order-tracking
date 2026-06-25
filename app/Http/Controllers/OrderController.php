@@ -641,9 +641,9 @@ class OrderController extends Controller
 
             DB::commit();
 
-            // Send new order notification emails
-            $emailController = new EmailController();
-            $emailController->sendNewOrderNotification($order);
+            // [DISABLED] Old multi-recipient new-order notification — replaced by creator-only [ORDER UPDATE] emails
+            // $emailController = new EmailController();
+            // $emailController->sendNewOrderNotification($order);
 
             // Redirect to the order details page
             return redirect()->route('orderdetails', $order->id)
@@ -1350,21 +1350,44 @@ class OrderController extends Controller
             DB::commit();
 
             // Dispatch email notifications after response is sent (non-blocking)
-            if ($request->status === 'cancel' && $oldStatus !== 'cancel') {
-                dispatch(function () use ($order) {
+            // [DISABLED] Old multi-recipient cancellation notification — replaced by creator-only [ORDER UPDATE] emails
+            // if ($request->status === 'cancel' && $oldStatus !== 'cancel') {
+            //     dispatch(function () use ($order) {
+            //         $emailController = new EmailController();
+            //         $emailController->sendOrderCanceledNotification($order);
+            //     })->afterResponse();
+            // }
+
+            // [DISABLED] Old multi-recipient order-ready notification — replaced by creator-only [ORDER UPDATE] emails
+            // if ($request->status === 'ready' && $oldStatus !== 'ready') {
+            //     dispatch(function () use ($order) {
+            //         $emailController = new EmailController();
+            //         $emailController->sendOrderReadyNotification($order);
+            //     })->afterResponse();
+            // }
+            
+            // === Notify the ORDER CREATOR when status changes (QC update notification) ===
+            // Maps internal status values to the labels staff expect to see.
+            $creatorNotifyLabels = [
+                'ready'     => 'Ready for Delivery',
+                'delivered' => 'Order Delivered',
+                'preparing' => 'In Progress',
+                'cancel'    => 'Order Cancelled',
+            ];
+
+            if (
+                array_key_exists($request->status, $creatorNotifyLabels)
+                && $oldStatus !== $request->status
+            ) {
+                $notifyStatus = $request->status;
+                $notifyLabel  = $creatorNotifyLabels[$request->status];
+
+                dispatch(function () use ($order, $notifyStatus, $notifyLabel) {
                     $emailController = new EmailController();
-                    $emailController->sendOrderCanceledNotification($order);
+                    $emailController->sendOrderStatusUpdateNotification($order, $notifyStatus, $notifyLabel);
                 })->afterResponse();
             }
-
-            // Send order ready notification emails if status changed to ready
-            if ($request->status === 'ready' && $oldStatus !== 'ready') {
-                dispatch(function () use ($order) {
-                    $emailController = new EmailController();
-                    $emailController->sendOrderReadyNotification($order);
-                })->afterResponse();
-            }
-
+            // === end creator notification ===
             $statusMessage = ucfirst($request->status);
             return redirect()->back()->with('success', "Order marked as {$statusMessage} successfully!");
         } catch (\Exception $e) {
@@ -1406,10 +1429,16 @@ class OrderController extends Controller
 
             DB::commit();
 
-            // Dispatch email sending after response is sent (non-blocking)
+            // [DISABLED] Old multi-recipient order-ready notification — replaced by creator-only [ORDER UPDATE] emails
+            // dispatch(function () use ($order) {
+            //     $emailController = new EmailController();
+            //     $emailController->sendOrderReadyNotification($order);
+            // })->afterResponse();
+
+            // Notify the ORDER CREATOR that their order is ready (creator notification)
             dispatch(function () use ($order) {
                 $emailController = new EmailController();
-                $emailController->sendOrderReadyNotification($order);
+                $emailController->sendOrderStatusUpdateNotification($order, 'ready', 'Ready for Delivery');
             })->afterResponse();
 
             return redirect()->back()->with('success', 'Order marked as Ready successfully!');
@@ -1874,9 +1903,9 @@ class OrderController extends Controller
             }
             $order->save();
 
-            // Send order ready notification emails
-            $emailController = new EmailController();
-            $emailController->sendOrderReadyNotification($order);
+            // [DISABLED] Old multi-recipient order-ready notification — replaced by creator-only [ORDER UPDATE] emails
+            // $emailController = new EmailController();
+            // $emailController->sendOrderReadyNotification($order);
         }
         return redirect()->route('orderdetails', $order->id)
             ->with('success', 'Order has been marked as Ready!');
@@ -1924,9 +1953,32 @@ class OrderController extends Controller
 
             DB::commit();
 
-            // Send delivery update notification emails
-            $emailController = new EmailController();
-            $emailController->sendDeliveryUpdateNotification($order, $originalDateTime, $newDateTime, $originalReadyTime, $newReadyTime);
+            // [CHANGED] Send delivery-schedule-change notification to the ORDER CREATOR only
+            // (was previously a multi-recipient email). Uses the detailed [ORDER UPDATE] template
+            // with a Schedule Change section showing old -> new values.
+            $scheduleChanges = [];
+            if ($originalDateTime && $newDateTime) {
+                $scheduleChanges['Delivery/Pickup Date & Time'] = [
+                    'from' => $originalDateTime->format('F j, Y g:i A'),
+                    'to'   => $newDateTime->format('F j, Y g:i A'),
+                ];
+            }
+            if ($originalReadyTime && $newReadyTime) {
+                $scheduleChanges['Ready Time'] = [
+                    'from' => $originalReadyTime,
+                    'to'   => $newReadyTime,
+                ];
+            }
+
+            dispatch(function () use ($order, $scheduleChanges) {
+                $emailController = new EmailController();
+                $emailController->sendOrderStatusUpdateNotification(
+                    $order,
+                    'schedule_update',
+                    'Delivery Schedule Updated',
+                    $scheduleChanges
+                );
+            })->afterResponse();
 
             return redirect()->route('orderdetails', $order->id)
                 ->with('success', 'Delivery schedule and ready time updated successfully!');
