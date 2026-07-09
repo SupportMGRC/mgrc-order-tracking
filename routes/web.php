@@ -144,4 +144,5 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/settings/logs', [\App\Http\Controllers\ActivityLogController::class, 'index'])->name('logs.index');
     Route::get('/settings/logs/{activityLog}', [\App\Http\Controllers\ActivityLogController::class, 'show'])->name('logs.show');
 
+    });
 });
