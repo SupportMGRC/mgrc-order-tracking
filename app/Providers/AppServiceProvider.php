@@ -2,6 +2,13 @@
 
 namespace App\Providers;
 
+use App\Models\BlockedDate;
+use App\Models\Customer;
+use App\Models\Order;
+use App\Models\Product;
+use App\Models\User;
+use App\Models\Visit;
+use App\Observers\AuditObserver;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +26,18 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Audit logging: record create/update/delete for key models.
+        $audited = [
+            Order::class,
+            Product::class,
+            Customer::class,
+            User::class,
+            Visit::class,
+            BlockedDate::class,
+        ];
+
+        foreach ($audited as $model) {
+            $model::observe(AuditObserver::class);
+        }
     }
 }

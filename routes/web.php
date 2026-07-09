@@ -139,6 +139,9 @@ Route::middleware(['auth'])->group(function () {
     // API route for getting blocked dates (accessible to all authenticated users)
     Route::get('/api/blocked-dates', [BlockedDateController::class, 'api'])->name('blocked-dates.api');
 
+    // Activity Logs - Superadmin only
+    Route::middleware('role:superadmin')->group(function () {
+    Route::get('/settings/logs', [\App\Http\Controllers\ActivityLogController::class, 'index'])->name('logs.index');
+    Route::get('/settings/logs/{activityLog}', [\App\Http\Controllers\ActivityLogController::class, 'show'])->name('logs.show');
+
 });
-
-

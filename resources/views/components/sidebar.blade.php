@@ -3,7 +3,7 @@
     <!-- LOGO -->
     <div class="navbar-brand-box d-flex justify-content-center align-items-center">
         <!-- Dark Logo-->
-        <a href="index.html" class="logo logo-dark">
+        <a href="{{ route('dashboard') }}" class="logo logo-dark">
             <span class="logo-sm">
                 <img src="{{ asset('assets/images/mgrc/MGRC-logo-only.png') }}" alt="" height="40">
             </span>
@@ -12,7 +12,7 @@
             </span>
         </a>
         <!-- Light Logo-->
-        <a href="index.html" class="logo logo-light">
+        <a href="{{ route('dashboard') }}" class="logo logo-light">
             <span class="logo-sm">
                 <img src="{{ asset('assets/images/mgrc/MGRC-logo-only.png') }}" alt="" height="40">
             </span>
@@ -91,6 +91,13 @@
                         <i class="las la-calendar-times"></i> <span data-key="t-blocked-dates">Blocked Dates</span>
                     </a>
                 </li>
+                @if(Auth::user()->role == 'superadmin')
+                <li class="nav-item">
+                    <a class="nav-link menu-link" href="{{ route('logs.index') }}">
+                        <i class="las la-clipboard-list"></i> <span data-key="t-logs">Activity Logs</span>
+                    </a>
+                </li>
+                @endif
                 @endif
 
                 {{-- Hide all other menu sections from Medical Affairs and Business Development users --}}
@@ -109,7 +116,7 @@
                                 <a href="dashboard-crm.html" class="nav-link" data-key="t-crm"> CRM </a>
                             </li>
                             <li class="nav-item">
-                                <a href="index.html" class="nav-link" data-key="t-ecommerce"> Ecommerce </a>
+                                <a href="{{ route('dashboard') }}" class="nav-link" data-key="t-ecommerce"> Ecommerce </a>
                             </li>
                             <li class="nav-item">
                                 <a href="dashboard-crypto.html" class="nav-link" data-key="t-crypto"> Crypto </a>
