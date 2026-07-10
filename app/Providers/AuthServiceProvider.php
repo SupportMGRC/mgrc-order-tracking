@@ -2,43 +2,25 @@
 
 namespace App\Providers;
 
-use App\Models\BlockedDate;
-use App\Models\Customer;
-use App\Models\Order;
-use App\Models\Product;
-use App\Models\User;
-use App\Models\Visit;
-use App\Observers\AuditObserver;
-use Illuminate\Pagination\Paginator;
-use Illuminate\Support\ServiceProvider;
+// use Illuminate\Support\Facades\Gate;
+use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 
-class AppServiceProvider extends ServiceProvider
+class AuthServiceProvider extends ServiceProvider
 {
     /**
-     * Register any application services.
+     * The model to policy mappings for the application.
+     *
+     * @var array<class-string, class-string>
      */
-    public function register(): void
-    {
+    protected $policies = [
         //
-    }
+    ];
 
     /**
-     * Bootstrap any application services.
+     * Register any authentication / authorization services.
      */
     public function boot(): void
     {
-        Paginator::useBootstrapFive();
-        $audited = [
-            Order::class,
-            Product::class,
-            Customer::class,
-            User::class,
-            Visit::class,
-            BlockedDate::class,
-        ];
-
-        foreach ($audited as $model) {
-            $model::observe(AuditObserver::class);
-        }
+        //
     }
 }
