@@ -40,23 +40,37 @@
             </div>
 
             @if($activityLog->changes)
+                @php
+                    // Normalise date-like values to a clean YYYY-MM-DD HH:MM:SS for display.
+                    $fmtVal = function ($v) {
+                        if (is_array($v)) { return json_encode($v); }
+                        if ($v === null || $v === '') { return '—'; }
+                        $str = (string) $v;
+                        // Detect ISO / datetime-ish strings and reformat.
+                        if (preg_match('/\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}/', $str)) {
+                            try { return \Carbon\Carbon::parse($str)->format('Y-m-d H:i:s'); }
+                            catch (\Throwable $e) { return $str; }
+                        }
+                        return $str;
+                    };
+                @endphp
                 <hr>
-                <h5 class="mb-3">Changes</h5>
+                <h5 class="mb-3">{{ $activityLog->action === 'deleted' ? 'Deleted Record Snapshot' : 'Changes' }}</h5>
                 <div class="table-responsive">
                     <table class="table table-bordered align-middle mb-0">
                         <thead class="table-light">
                             <tr>
                                 <th>Field</th>
-                                <th>Old Value</th>
-                                <th>New Value</th>
+                                <th>{{ $activityLog->action === 'deleted' ? 'Value (before deletion)' : 'Old Value' }}</th>
+                                <th>{{ $activityLog->action === 'deleted' ? 'Status' : 'New Value' }}</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach($activityLog->changes as $field => $change)
                                 <tr>
                                     <td><code>{{ $field }}</code></td>
-                                    <td class="text-muted">{{ is_array($change['old'] ?? null) ? json_encode($change['old']) : ($change['old'] ?? '—') }}</td>
-                                    <td>{{ is_array($change['new'] ?? null) ? json_encode($change['new']) : ($change['new'] ?? '—') }}</td>
+                                    <td class="text-muted">{{ $fmtVal($change['old'] ?? null) }}</td>
+                                    <td>{{ $fmtVal($change['new'] ?? null) }}</td>
                                 </tr>
                             @endforeach
                         </tbody>

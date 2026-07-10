@@ -806,6 +806,21 @@ class OrderController extends Controller
                     ->where('id', $productData['pivot_id'])
                     ->update($updateData);
 
+                // Audit log: record batch/QC/pivot changes
+                $productName = null;
+                foreach ($order->products as $op) {
+                    if (($op->pivot->id ?? null) == $productData['pivot_id']) {
+                        $productName = $op->name;
+                        break;
+                    }
+                }
+                \App\Services\ActivityLogger::recordPivotChange(
+                    $order,
+                    (array) $pivotRecord,
+                    $updateData,
+                    $productName
+                );
+
                 // Check if any batch information exists
                 if (
                     !empty($updateData['batch_number']) ||

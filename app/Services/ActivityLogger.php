@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Auth;
 class ActivityLogger
 {
     /**
-     * Fields that should never be stored in the audit log
+     * Fields that should never be stored in the audit log (noise or sensitive).
      */
     protected static array $ignored = [
         'password',
@@ -79,6 +79,29 @@ class ActivityLogger
         return $verb . ' ' . static::label($model);
     }
 
+    /**
+     * Capture a full snapshot of a model's attributes as key => [old => value, new => null].
+     * Used on DELETE so the log preserves what the record contained, even after
+     * the row is permanently removed from the database.
+     */
+    public static function snapshot(Model $model): array
+    {
+        $data = [];
+
+        foreach ($model->getAttributes() as $field => $value) {
+            if (in_array($field, static::$ignored, true)) {
+                continue;
+            }
+
+            $data[$field] = [
+                'old' => is_array($value) ? json_encode($value) : $value,
+                'new' => '(deleted)',
+            ];
+        }
+
+        return $data;
+    }
+
     public static function diff(Model $model): array
     {
         $changes = [];
@@ -95,5 +118,52 @@ class ActivityLogger
         }
 
         return $changes;
+    }
+
+    /**
+     * Record a change made to an order_product pivot row (batch number, QC doc,
+     * patient name, remarks, prepared_by).
+     *
+     * @param  \App\Models\Order  $order       the parent order (for the label)
+     * @param  array               $before      pivot values before the update
+     * @param  array               $after        pivot values after the update
+     * @param  string|null         $productName  product name for context
+     */
+    public static function recordPivotChange($order, array $before, array $after, ?string $productName = null): void
+    {
+        $track = ['batch_number', 'qc_document_number', 'patient_name', 'remarks', 'prepared_by'];
+
+        $changes = [];
+        foreach ($track as $field) {
+            $old = $before[$field] ?? null;
+            $new = $after[$field] ?? null;
+            if ((string) $old !== (string) $new) {
+                $changes[$field] = ['old' => $old, 'new' => $new];
+            }
+        }
+
+        if (empty($changes)) {
+            return;
+        }
+
+        try {
+            $user = Auth::user();
+
+            ActivityLog::create([
+                'user_id'       => $user?->id,
+                'user_name'     => $user?->username ?? 'System',
+                'user_role'     => $user?->role,
+                'action'        => 'updated',
+                'subject_type'  => \App\Models\Order::class,
+                'subject_id'    => $order->getKey(),
+                'subject_label' => 'Order #' . $order->getKey()
+                                    . ($productName ? ' (' . $productName . ' batch info)' : ' (batch info)'),
+                'description'   => 'Updated batch/QC info on Order #' . $order->getKey(),
+                'changes'       => $changes,
+                'ip_address'    => request()->ip(),
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 }

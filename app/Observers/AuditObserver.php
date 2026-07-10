@@ -26,6 +26,9 @@ class AuditObserver
 
     public function deleted(Model $model): void
     {
-        ActivityLogger::record('deleted', $model);
+        // Capture a full field details before delete
+        $snapshot = ActivityLogger::snapshot($model);
+
+        ActivityLogger::record('deleted', $model, $snapshot);
     }
 }
