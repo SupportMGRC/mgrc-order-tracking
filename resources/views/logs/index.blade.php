@@ -1,6 +1,12 @@
 @extends('layouts.master')
 
 @section('content')
+
+    {{-- Safety net: keep any pagination icons a sane size --}}
+    <style>
+        .activity-log-pagination svg { width: 1rem; height: 1rem; }
+        .activity-log-pagination .pagination { flex-wrap: wrap; }
+    </style>
     <div class="row">
         <div class="col-12">
             <div class="page-title-box d-sm-flex align-items-center justify-content-between">
@@ -105,7 +111,7 @@
                 </table>
             </div>
 
-            <div class="mt-3">
+            <div class="mt-3 activity-log-pagination">
                 {{ $logs->links() }}
             </div>
         </div>
