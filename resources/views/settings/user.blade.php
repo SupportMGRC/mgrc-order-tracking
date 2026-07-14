@@ -80,7 +80,7 @@
                         {{-- <a href="{{ route('users.index', ['view' => 'list'] + request()->except('view')) }}"
                             class="btn btn-soft-info nav-link btn-icon fs-14 {{ request('view') == 'list' ? 'active' : '' }} filter-button"><i
                                 class="ri-list-unordered"></i></a> --}}
-                        <a href="{{ route('users.index', ['modal' => 'add']) }}" class="btn btn-success"><i
+                        <a href="{{ route('users.index', ['modal' => 'add', 'page' => request('page')]) }}" class="btn btn-success"><i
                                 class="ri-add-fill me-1 align-bottom"></i> Add User</a>
                     </div>
                 </div>
@@ -114,11 +114,11 @@
                                             <p class="badge bg-light text-primary fs-12 mb-3">{{ $user->department }}</p>
                                         </div>
                                         <div class="hstack gap-2 justify-content-center">
-                                            <a href="{{ route('users.index', ['modal' => 'edit', 'id' => $user->id]) }}"
+                                            <a href="{{ route('users.index', ['modal' => 'edit', 'id' => $user->id, 'page' => request('page')]) }}"
                                                 class="btn btn-soft-info">
                                                 <i class="ri-pencil-fill align-bottom"></i>
                                             </a>
-                                            <a href="{{ route('users.index', ['modal' => 'delete', 'id' => $user->id]) }}"
+                                            <a href="{{ route('users.index', ['modal' => 'delete', 'id' => $user->id, 'page' => request('page')]) }}"
                                                 class="btn btn-soft-danger">
                                                 <i class="ri-delete-bin-2-line align-bottom"></i>
                                             </a>
@@ -209,7 +209,7 @@
                                                             </div>
                                                             <div class="flex-shrink-0">
                                                                 <div class="d-flex gap-3 align-items-center">
-                                                                    <a href="{{ route('users.index') }}"
+                                                                    <a href="{{ route('users.index', ['page' => request('page')]) }}"
                                                                         class="btn-close btn-close-white"></a>
                                                                 </div>
                                                             </div>
@@ -312,7 +312,7 @@
                                                 </div>
 
                                                 <div class="hstack gap-2 justify-content-end">
-                                                    <a href="{{ route('users.index') }}" class="btn btn-light">Close</a>
+                                                    <a href="{{ route('users.index', ['page' => request('page')]) }}" class="btn btn-light">Close</a>
                                                     <button type="submit" class="btn btn-success">Add User</button>
                                                 </div>
                                             </div>
@@ -349,7 +349,7 @@
                                                             </div>
                                                             <div class="flex-shrink-0">
                                                                 <div class="d-flex gap-3 align-items-center">
-                                                                    <a href="{{ route('users.index') }}"
+                                                                    <a href="{{ route('users.index', ['page' => request('page')]) }}"
                                                                         class="btn-close btn-close-white"></a>
                                                                 </div>
                                                             </div>
@@ -463,7 +463,7 @@
                                                 </div>
 
                                                 <div class="hstack gap-2 justify-content-end">
-                                                    <a href="{{ route('users.index') }}" class="btn btn-light">Close</a>
+                                                    <a href="{{ route('users.index', ['page' => request('page')]) }}" class="btn btn-light">Close</a>
                                                     <button type="submit" class="btn btn-success">Update User</button>
                                                 </div>
                                             </div>
@@ -484,7 +484,7 @@
                             <div class="modal-content">
                                 <div class="modal-header">
                                     <h5 class="modal-title">Delete User</h5>
-                                    <a href="{{ route('users.index') }}" class="btn-close"></a>
+                                    <a href="{{ route('users.index', ['page' => request('page')]) }}" class="btn-close"></a>
                                 </div>
                                 <div class="modal-body">
                                     <div class="mt-2 text-center">
@@ -501,7 +501,7 @@
                                         @csrf
                                         <input type="hidden" name="user_id" value="{{ $deleteUser->id }}">
                                         <div class="d-flex gap-2 justify-content-center mt-4 mb-2">
-                                            <a href="{{ route('users.index') }}" class="btn w-sm btn-light">Close</a>
+                                            <a href="{{ route('users.index', ['page' => request('page')]) }}" class="btn w-sm btn-light">Close</a>
                                             <button type="submit" class="btn w-sm btn-danger">Yes, Delete It!</button>
                                         </div>
                                     </form>
