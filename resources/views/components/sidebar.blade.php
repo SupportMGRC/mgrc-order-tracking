@@ -33,14 +33,12 @@
             <ul class="navbar-nav" id="navbar-nav">
                 <li class="menu-title"><span data-key="t-menu">Menu</span></li>
                 
-                {{-- Dashboard - Only for admin, superadmin, and other departments --}}
-                @if(Auth::user()->role == 'admin' || Auth::user()->role == 'superadmin' || (Auth::user()->department != 'Medical Affairs' && Auth::user()->department != 'Business Development'))
+                {{-- Dashboard - Available for all authenticated users --}}
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="{{ route('dashboard') }}">
                         <i class="las la-tachometer-alt"></i> <span data-key="t-calendar">Dashboard</span>
                     </a>
                 </li>
-                @endif
 
                 <li class="menu-title"><span data-key="t-order">Order</span></li>
                 

@@ -35,14 +35,7 @@ class LoginController extends Controller
      */
     public function redirectTo()
     {
-        $user = auth()->user();
-        
-        // Medical Affairs and Business Development users go to new order page
-        if ($user->department === 'Medical Affairs' || $user->department === 'Business Development') {
-            return '/neworder';
-        }
-        
-        // All other users go to calendar/dashboard
+        // All users (admin, superadmin, and every department) land on the calendar/dashboard.
         return '/calendar';
     }
 
