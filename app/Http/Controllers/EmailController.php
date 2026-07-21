@@ -51,13 +51,13 @@ class EmailController extends Controller
      * Send delivery date/time update notification emails to users who have opted in
      *
      * @param Order $order
-     * @param string $originalDateTime
-     * @param string $newDateTime
-     * @param string $originalReadyTime
-     * @param string $newReadyTime
+     * @param \Carbon\Carbon|null $originalDateTime
+     * @param \Carbon\Carbon|null $newDateTime
+     * @param string|null $originalReadyTime
+     * @param string|null $newReadyTime
      * @return void
      */
-    public function sendDeliveryUpdateNotification(Order $order, $originalDateTime = null, $newDateTime = null, $originalReadyTime = null, $newReadyTime = null)
+    public function sendDeliveryUpdateNotification(Order $order, ?\Carbon\Carbon $originalDateTime = null, ?\Carbon\Carbon $newDateTime = null, $originalReadyTime = null, $newReadyTime = null)
     {
         try {
             // Get all users who want to receive new order emails (same users for updates)
@@ -278,4 +278,4 @@ class EmailController extends Controller
             Log::error("Error in sendOrderReadyNotification: " . $e->getMessage());
         }
     }
-} 
+}
