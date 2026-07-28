@@ -205,6 +205,23 @@
                                                     <label for="edit-stock-{{ $product->id }}" class="form-label">Stock</label>
                                                     <input type="number" class="form-control" id="edit-stock-{{ $product->id }}" name="stock" value="{{ $product->stock }}">
                                                 </div>
+                                                <div class="mb-3">
+                                                    <label for="edit-coa-template-{{ $product->id }}" class="form-label">COA Template</label>
+                                                    <select class="form-select" id="edit-coa-template-{{ $product->id }}" name="coa_template">
+                                                        <option value="">— Not set (ask when generating) —</option>
+                                                        @php
+                                                            // Variant groups collapse to one entry: a product is "MSC P2",
+                                                            // and QC picks with/without the patient name per order.
+                                                            $coaSvc = app(\App\Services\CoaTemplateService::class);
+                                                            $coaSelected = $coaSvc->canonicalProductValue($product->coa_template ?? '');
+                                                        @endphp
+                                                        @foreach ($coaSvc->productChoices() as $coaKey => $coaLabel)
+                                                            <option value="{{ $coaKey }}" @selected($coaSelected === $coaKey)>{{ $coaLabel }}</option>
+                                                        @endforeach
+                                                        <option value="none" @selected(($product->coa_template ?? '') === 'none')>No COA for this product</option>
+                                                    </select>
+                                                    <div class="form-text">Products set to <em>No COA</em> show no COA button. Leaving this unset still works — the user is asked which template to use.</div>
+                                                </div>
                                                 @endif
                                             </div>
                                             <div class="modal-footer">
@@ -304,6 +321,17 @@
                     <div class="mb-3">
                         <label for="stock" class="form-label">Stock</label>
                         <input type="number" class="form-control" id="stock" name="stock" value="{{ old('stock') }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="coa_template" class="form-label">COA Template</label>
+                        <select class="form-select" id="coa_template" name="coa_template">
+                            <option value="">— Not set (ask when generating) —</option>
+                            @foreach (app(\App\Services\CoaTemplateService::class)->productChoices() as $coaKey => $coaLabel)
+                                <option value="{{ $coaKey }}" @selected(old('coa_template') === $coaKey)>{{ $coaLabel }}</option>
+                            @endforeach
+                            <option value="none" @selected(old('coa_template') === 'none')>No COA for this product</option>
+                        </select>
+                        <div class="form-text">Products set to <em>No COA</em> show no COA button. Leaving this unset still works — the user is asked which template to use.</div>
                     </div>
                     @endif
                 </div>

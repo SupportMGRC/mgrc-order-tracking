@@ -1174,12 +1174,25 @@
                                             @endif
                                         </td>
                                         <td class="d-none d-md-table-cell">
-                                            @if($product->pivot->coa_required)
+                                            @php
+                                                // Quality staff of any role, plus superadmin.
+                                                $mayUseCoa = Auth::user()->role === 'superadmin'
+                                                    || strcasecmp((string) Auth::user()->department, 'Quality') === 0;
+
+                                                // 'none' means this product never gets a COA.
+                                                // null means not configured yet: the editor asks which template to use.
+                                                $productHasCoa = ($product->coa_template ?? null) !== 'none';
+                                            @endphp
+
+                                            @if($product->pivot->coa_required && $productHasCoa && $mayUseCoa)
                                                 <a href="{{ route('orders.coa', ['order' => $order->id, 'product' => $product->id]) }}"
                                                     class="btn btn-sm btn-info" title="View COA">
                                                     <i class="ri-file-text-line align-middle"></i>
                                                     <span class="d-none d-lg-inline ms-1">COA</span>
                                                 </a>
+                                            @elseif($product->pivot->coa_required && $productHasCoa)
+                                                {{-- Required, but this user is not in Quality --}}
+                                                <span class="text-muted">-</span>
                                             @else
                                                 <span class="badge bg-secondary">Not Required</span>
                                             @endif

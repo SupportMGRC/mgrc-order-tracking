@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Carbon;
 use App\Models\BlockedDate;
+use App\Services\CoaTemplateService;
 
 class OrderController extends Controller
 {
@@ -906,9 +907,18 @@ class OrderController extends Controller
 
     /**
      * Display the Certificate of Analysis (COA) page for a specific product in an order.
+     *
+     * The template is chosen automatically from the product. If the product
+     * has no template configured yet the user is asked to pick one rather than
+     * being shown a broken page. Only Quality staff and superadmins may open a COA.
      */
-    public function showCOA(Order $order, Product $product)
+    public function showCOA(Order $order, Product $product, CoaTemplateService $coa)
     {
+        if (!$coa->userMayAccess(auth()->user())) {
+            return redirect()->route('orderdetails', $order->id)
+                ->with('error', 'Only the Quality department can generate COAs.');
+        }
+
         // Load necessary relationships
         $order->load(['customer', 'user', 'products']);
 
@@ -927,41 +937,108 @@ class OrderController extends Controller
                 ->with('error', 'COA is not required for this product.');
         }
 
-        return view('orders.coa-editor', compact('order', 'product', 'orderProduct'));
+        // Product explicitly marked as having no COA
+        if (!$coa->productHasCoa($product)) {
+            return redirect()->route('orderdetails', $order->id)
+                ->with('error', 'This product does not have a COA.');
+        }
+
+        $templateKey = $coa->resolveForOrderLine($order, $product);
+
+        // Not configured yet: let the user choose, then come back here.
+        if ($templateKey === null) {
+            return view('orders.coa-choose-template', [
+                'order'     => $order,
+                'product'   => $product,
+                'templates' => $coa->options(),
+            ]);
+        }
+
+        return view('orders.coa-editor', [
+            'order'        => $order,
+            'product'      => $product,
+            'orderProduct' => $orderProduct,
+            'templateKey'  => $templateKey,
+            'template'     => $coa->get($templateKey),
+            'pdfUrl'       => $coa->pdfUrl($templateKey),
+            'editable'     => $coa->editableFields($templateKey),
+            'fieldLabels'  => $coa->fieldLabels($templateKey),
+            'acceptsImage' => $coa->acceptsMorphologyImage($templateKey),
+            'coaValues'    => $this->coaValues($orderProduct),
+            // Alternate wordings of the same certificate, which Quality may
+            // switch between without superadmin help.
+            'variants'     => $coa->variantsFor($templateKey),
+        ]);
     }
 
     /**
-     * Display the editable COA page with PDF overlay.
+     * Display the editable COA page. Same view as showCOA; kept so the
+     * existing /edit route still resolves.
      */
-    public function editCOA(Order $order, Product $product)
+    public function editCOA(Order $order, Product $product, CoaTemplateService $coa)
     {
-        // Load necessary relationships
-        $order->load(['customer', 'user', 'products']);
+        return $this->showCOA($order, $product, $coa);
+    }
 
-        // Get the pivot data for this specific product
-        $orderProduct = $order->products()->where('product_id', $product->id)->first();
-
-        // Check if the product exists in this order
-        if (!$orderProduct) {
+    /**
+     * Record which template to use for this order line.
+     *
+     * Serves three callers:
+     *   - the fallback picker, when the product has no template set
+     *   - the Quality variant toggle, which may only move an order between
+     *     alternate wordings of the same certificate (MSC P2 with/without
+     *     the patient's name)
+     *   - the superadmin panel, which may move it to any template at all
+     */
+    public function chooseCoaTemplate(Request $request, Order $order, Product $product, CoaTemplateService $coa)
+    {
+        if (!$coa->userMayAccess(auth()->user())) {
             return redirect()->route('orderdetails', $order->id)
-                ->with('error', 'Product not found in this order.');
+                ->with('error', 'Only the Quality department can generate COAs.');
         }
 
-        // Check if COA is required for this product
-        if (!$orderProduct->pivot->coa_required) {
-            return redirect()->route('orderdetails', $order->id)
-                ->with('error', 'COA is not required for this product.');
+        $key = $request->input('coa_template');
+
+        if (!$coa->exists($key)) {
+            return back()->with('error', 'Please choose a valid COA template.');
         }
 
-        return view('orders.coa-editor', compact('order', 'product', 'orderProduct'));
+        // Anyone below superadmin is held to the current certificate's variant
+        // group. Without this the route would accept any template key from any
+        // Quality user, even though the UI only ever offers the alternates.
+        if (auth()->user()->role !== 'superadmin') {
+            $current = $coa->resolveForOrderLine($order, $product);
+
+            // Choosing for the first time is allowed; switching afterwards is
+            // only allowed between alternates of what is already set.
+            if ($current !== null && $current !== $key && !$coa->sameVariantGroup($current, $key)) {
+                return back()->with('error', 'You can only switch between versions of this certificate.');
+            }
+        }
+
+        $order->products()->updateExistingPivot($product->id, [
+            'coa_template' => $key,
+        ]);
+
+        return redirect()->route('orders.coa', [$order->id, $product->id]);
     }
 
     /**
      * Save the COA field data.
+     *
+     * Only the fields the chosen template actually exposes are written, so a
+     * stale form cannot introduce values that do not belong on the certificate.
      */
-    public function saveCOA(Request $request, Order $order, Product $product)
+    public function saveCOA(Request $request, Order $order, Product $product, CoaTemplateService $coa)
     {
         try {
+            if (!$coa->userMayAccess(auth()->user())) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only the Quality department can generate COAs.'
+                ], 403);
+            }
+
             // Get the pivot data for this specific product
             $orderProduct = $order->products()->where('product_id', $product->id)->first();
 
@@ -972,12 +1049,48 @@ class OrderController extends Controller
                 ], 404);
             }
 
-            // Update the pivot table with the COA field data
-            $order->products()->updateExistingPivot($product->id, [
-                'batch_number' => $request->input('batch_number', $orderProduct->pivot->batch_number),
-                'prepared_by' => $request->input('prepared_by', $orderProduct->pivot->prepared_by),
-                'qc_document_number' => $request->input('qc_document_number', $orderProduct->pivot->qc_document_number),
-            ]);
+            $templateKey = $coa->resolveForOrderLine($order, $product);
+
+            if ($templateKey === null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No COA template selected for this product.'
+                ], 422);
+            }
+
+            // Map each editable form field to its pivot column.
+            $columns = [
+                'coa_number'        => 'coa_number',
+                'patient_name'      => 'patient_name',
+                'batch_number'      => 'batch_number',
+                'product_date'      => 'coa_product_date',
+                'mfg_date'          => 'coa_mfg_date',
+                'expiry_date'       => 'coa_expiry_date',
+                'viable_cell_count' => 'coa_viable_cell_count',
+                'signature_date'    => 'coa_signature_date',
+            ];
+
+            $update = [
+                'coa_template'   => $templateKey,
+                'coa_updated_by' => auth()->id(),
+                'coa_updated_at' => now(),
+            ];
+
+            foreach ($coa->editableFields($templateKey) as $field) {
+                if (isset($columns[$field]) && $request->has($field)) {
+                    $update[$columns[$field]] = $request->input($field);
+                }
+            }
+
+            // prepared_by / qc_document_number predate this feature and are
+            // still written by the existing form, so keep accepting them.
+            foreach (['prepared_by', 'qc_document_number'] as $legacy) {
+                if ($request->has($legacy)) {
+                    $update[$legacy] = $request->input($legacy);
+                }
+            }
+
+            $order->products()->updateExistingPivot($product->id, $update);
 
             return response()->json([
                 'success' => true,
@@ -995,6 +1108,213 @@ class OrderController extends Controller
                 'message' => 'Error saving COA data: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Store the morphology-of-cells micrograph shown on page 2.
+     *
+     * The image is resized to fit the slot on the certificate, so QC can
+     * supply whatever the microscope produced without preparing an exact size.
+     */
+    public function uploadCoaMorphology(Request $request, Order $order, Product $product, CoaTemplateService $coa)
+    {
+        try {
+            if (!$coa->userMayAccess(auth()->user())) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only the Quality department can generate COAs.'
+                ], 403);
+            }
+
+            $request->validate([
+                'morphology_image' => 'required|image|mimes:jpeg,jpg,png|max:8192',
+            ]);
+
+            $orderProduct = $order->products()->where('product_id', $product->id)->first();
+
+            if (!$orderProduct) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Product not found in this order.'
+                ], 404);
+            }
+
+            $templateKey = $coa->resolveForOrderLine($order, $product);
+
+            if (!$coa->acceptsMorphologyImage($templateKey)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This COA template has no morphology image.'
+                ], 422);
+            }
+
+            $file = $request->file('morphology_image');
+            $filename = 'coa_' . $order->id . '_' . $product->id . '_' . time()
+                . '.' . $file->getClientOriginalExtension();
+
+            $file->storeAs('public/coa_morphology', $filename);
+
+            $publicDir = public_path('storage/coa_morphology');
+            if (!file_exists($publicDir)) {
+                mkdir($publicDir, 0755, true);
+            }
+            $publicPath = $publicDir . '/' . $filename;
+            copy(storage_path('app/public/coa_morphology/' . $filename), $publicPath);
+
+            // Resize the copy that is actually served.
+            $this->resizeMorphologyImage(
+                $publicPath,
+                $coa->get($templateKey)['coordinates']['page2']['morphology_slot']
+            );
+
+            // Remove the previous file if there was one.
+            $existing = $orderProduct->pivot->coa_morphology_image;
+            if ($existing) {
+                $oldPublic = public_path('storage/coa_morphology/' . $existing);
+                if (file_exists($oldPublic)) {
+                    @unlink($oldPublic);
+                }
+                $oldStorage = storage_path('app/public/coa_morphology/' . $existing);
+                if (file_exists($oldStorage)) {
+                    @unlink($oldStorage);
+                }
+            }
+
+            // Store just the filename; the view builds the /storage/... URL.
+            $order->products()->updateExistingPivot($product->id, [
+                'coa_morphology_image' => $filename,
+                'coa_updated_by'       => auth()->id(),
+                'coa_updated_at'       => now(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Morphology image uploaded.',
+                'url'     => asset('storage/coa_morphology/' . $filename),
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->validator->errors()->first(),
+            ], 422);
+        } catch (\Exception $e) {
+            \Log::error('Error uploading COA morphology image', [
+                'order_id' => $order->id,
+                'product_id' => $product->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error uploading image: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Scale an uploaded micrograph to the slot on the certificate.
+     *
+     * Uses GD directly so this works on the current shared hosting without
+     * adding a dependency. Aspect ratio is preserved and the result is
+     * centre-cropped, so a portrait photo is not stretched across the slot.
+     */
+    private function resizeMorphologyImage(string $file, array $slot): void
+    {
+        if (!function_exists('imagecreatetruecolor')) {
+            return; // GD unavailable: keep the original upload as-is.
+        }
+
+        // The slot is a percentage of a 540x780pt page; render at 3x for print.
+        $targetW = (int) round($slot['w'] / 100 * 540 * 3);
+        $targetH = (int) round($slot['h'] / 100 * 780 * 3);
+
+        if ($targetW < 10 || $targetH < 10) {
+            return;
+        }
+
+        $info = @getimagesize($file);
+        if (!$info) {
+            return;
+        }
+
+        [$srcW, $srcH, $type] = $info;
+
+        $src = match ($type) {
+            IMAGETYPE_JPEG => @imagecreatefromjpeg($file),
+            IMAGETYPE_PNG  => @imagecreatefrompng($file),
+            default        => null,
+        };
+
+        if (!$src) {
+            return;
+        }
+
+        $srcRatio    = $srcW / $srcH;
+        $targetRatio = $targetW / $targetH;
+
+        if ($srcRatio > $targetRatio) {
+            $outW = $targetW;
+            $outH = (int) round($targetW / $srcRatio);
+        } else {
+            $outH = $targetH;
+            $outW = (int) round($targetH * $srcRatio);
+        }
+
+        if ($outW < 1 || $outH < 1) {
+            return;
+        }
+
+        $dst = imagecreatetruecolor($outW, $outH);
+
+        // Preserve PNG transparency; for JPEG this is a plain resize.
+        if ($type === IMAGETYPE_PNG) {
+            imagealphablending($dst, false);
+            imagesavealpha($dst, true);
+        }
+
+        imagecopyresampled(
+            $dst, $src,
+            0, 0,
+            0, 0,
+            $outW, $outH,
+            $srcW, $srcH
+        );
+
+        if ($type === IMAGETYPE_PNG) {
+            imagepng($dst, $file);
+        } else {
+            imagejpeg($dst, $file, 90);
+        }
+
+        imagedestroy($dst);
+        imagedestroy($src);
+    }
+
+    /**
+     * Current COA values for an order line, with sensible defaults.
+     *
+     * Patient name comes from the order line itself so QC does not retype
+     * something the system already knows.
+     */
+    private function coaValues($orderProduct): array
+    {
+        $pivot = $orderProduct->pivot;
+
+        return [
+            'coa_number'        => $pivot->coa_number ?? '',
+            'patient_name'      => $pivot->patient_name ?? '',
+            'batch_number'      => $pivot->batch_number ?? '',
+            'product_date'      => $pivot->coa_product_date ?? '',
+            'mfg_date'          => $pivot->coa_mfg_date ?? '',
+            'expiry_date'       => $pivot->coa_expiry_date ?? '',
+            'viable_cell_count' => $pivot->coa_viable_cell_count ?? '',
+            'signature_date'    => $pivot->coa_signature_date ?? '',
+            'prepared_by'       => $pivot->prepared_by ?? '',
+            'qc_document_number'=> $pivot->qc_document_number ?? '',
+            'morphology_image'  => $pivot->coa_morphology_image
+                ? asset('storage/coa_morphology/' . $pivot->coa_morphology_image)
+                : null,
+        ];
     }
 
     /**

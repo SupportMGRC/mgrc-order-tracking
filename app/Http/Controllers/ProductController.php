@@ -67,6 +67,7 @@ class ProductController extends Controller
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
+            'coa_template' => 'nullable|string|max:32',
         ]);
 
         if ($validator->fails()) {
@@ -114,6 +115,7 @@ class ProductController extends Controller
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
+            'coa_template' => 'nullable|string|max:32',
         ]);
 
         if ($validator->fails()) {

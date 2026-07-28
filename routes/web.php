@@ -100,6 +100,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/orders/{order}/coa/{product}/edit', [OrderController::class, 'editCOA'])->name('orders.coa.edit');
     Route::post('/orders/{order}/coa/{product}/save', [OrderController::class, 'saveCOA'])->name('orders.coa.save');
 
+    // COA enhancement: template selection + morphology image upload
+    Route::post('/orders/{order}/coa/{product}/template', [OrderController::class, 'chooseCoaTemplate'])->name('orders.coa.template');
+    Route::post('/orders/{order}/coa/{product}/morphology', [OrderController::class, 'uploadCoaMorphology'])->name('orders.coa.morphology');
+
     Route::get('/calendar', [HomeController::class, 'index'])->name('dashboard');
     Route::post('/dashboard/verify-password', [HomeController::class, 'verifyPassword'])->name('dashboard.verify.password');
 
