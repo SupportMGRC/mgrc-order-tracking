@@ -60,9 +60,6 @@
             <span class="badge bg-success fs-6">{{ $badgeLabel }}</span>
 
             @if(!empty($variants))
-                {{-- Alternate wordings of the same certificate. Open to Quality,
-                     not just superadmins: whether the patient's name appears is a
-                     QC decision taken per order, not a product setting. --}}
                 <form method="POST"
                       action="{{ route('orders.coa.template', [$order->id, $product->id]) }}"
                       onsubmit="return confirmVariantSwitch()"
@@ -93,7 +90,6 @@
     </div>
 
     @if(Auth::user()->role === 'superadmin')
-        {{-- Superadmin-only: re-point this order line to a different template --}}
         <div id="change-template-panel" class="mt-3 p-3 border rounded bg-light" style="display: none;">
             <form method="POST" action="{{ route('orders.coa.template', [$order->id, $product->id]) }}" class="d-flex gap-2 align-items-end">
                 @csrf
@@ -169,9 +165,6 @@
 
                     @foreach($editable as $field)
                         @php
-                            // COA No. is stored in qc_document_number (same value the
-                            // Order Details "QC Doc" column shows), so its input name
-                            // is qc_document_number even though the label is "COA No."
                             $inputName = $field === 'coa_number' ? 'qc_document_number' : $field;
                             $val = $field === 'coa_number'
                                 ? ($coaValues['qc_document_number'] ?? '')
@@ -191,8 +184,6 @@
                         </div>
                     @endforeach
 
-                    {{-- Prepared By is not drawn on the certificate but is kept for
-                         the Order Details page, so preserve the existing field. --}}
                     <div class="mb-3">
                         <label for="prepared_by" class="form-label fw-semibold">Prepared By</label>
                         <input type="text" class="form-control" id="prepared_by" name="prepared_by"
@@ -205,8 +196,8 @@
                         <div class="mb-3">
                             <label class="form-label fw-semibold">Morphology of Cells Image</label>
                             <input type="file" class="form-control" id="morphology_image"
-                                   accept="image/jpeg,image/png">
-                            <small class="text-muted">Shown on page 2. JPEG or PNG, up to 8 MB — auto-resized to fit the frame.</small>
+                                   accept="image/jpeg,image/png,.jpg,.jpeg,.png">
+                            <small class="text-muted">Shown on page 2. JPG, JPEG or PNG, up to {{ $morphologyMaxMb }} MB — auto-resized to fit the frame.</small>
                             <div id="morphology-preview" class="mt-2" style="{{ $coaValues['morphology_image'] ? '' : 'display:none;' }}">
                                 <img src="{{ $coaValues['morphology_image'] ?? '' }}"
                                      alt="Morphology" class="img-fluid border rounded" style="max-height: 120px;">
@@ -293,7 +284,7 @@ let pageNum = 1;
 let pageRendering = false;
 let pageNumPending = null;
 let scale = 1.5;
-let morphologyImg = null;   // loaded HTMLImageElement, if any
+let morphologyImg = null;   
 
 const canvas = document.getElementById('pdf-canvas');
 const ctx = canvas ? canvas.getContext('2d') : null;
@@ -367,10 +358,6 @@ function changeZoom(factor) {
 }
 
 // ─── Draw the field values onto the current page ─────────────────────────────
-//
-// The on-screen preview and the print/download output must be pixel-identical,
-// so both go through drawOverlayOn() below. Keeping one implementation is what
-// stops the preview and the printed sheet drifting apart.
 function drawOverlay(page) {
     drawOverlayOn(ctx, canvas, page, scale);
 }
@@ -379,11 +366,6 @@ function drawOverlay(page) {
 function refreshOverlay() { if (pdfDoc) renderPage(pageNum); }
 
 // ─── Unsaved-change guard ────────────────────────────────────────────────────
-//
-// Switching wording reloads the page, so anything typed but not saved would be
-// lost silently. Snapshot the form on load and warn only when it has actually
-// changed. File inputs are excluded: the image is uploaded separately and is
-// already persisted by the time it matters.
 const coaInitial = {};
 
 function coaTrackedInputs() {
@@ -439,8 +421,6 @@ function saveCOA() {
         if (btn) { btn.disabled = false; btn.innerHTML = original; }
         if (res.success) {
             refreshOverlay();
-            // The form now matches what is stored, so a variant switch should
-            // no longer warn about losing work.
             coaTrackedInputs().forEach(function (i) { coaInitial[i.id] = i.value; });
             const alert = document.createElement('div');
             alert.className = 'alert alert-success alert-dismissible fade show';
@@ -461,10 +441,7 @@ function saveCOA() {
 }
 
 // ─── Morphology image upload ─────────────────────────────────────────────────
-// QC uploads straight off the microscope — typically a 4:3 frame of a few MB.
-// Anything past this is refused here with a plain message, rather than being
-// posted and bouncing off PHP's upload limit as an opaque server error.
-const MORPHOLOGY_MAX_MB = 8;
+const MORPHOLOGY_MAX_MB = {{ $morphologyMaxMb }};
 
 function uploadMorphology() {
     const input = document.getElementById('morphology_image');
@@ -473,7 +450,7 @@ function uploadMorphology() {
     const file = input.files[0];
     const sizeMb = file.size / (1024 * 1024);
     if (sizeMb > MORPHOLOGY_MAX_MB) {
-        alert('That image is ' + sizeMb.toFixed(1) + ' MB. Please upload a JPEG or PNG under '
+        alert('That image is ' + sizeMb.toFixed(1) + ' MB. Please upload a JPG, JPEG or PNG under '
               + MORPHOLOGY_MAX_MB + ' MB.');
         return;
     }
@@ -513,21 +490,9 @@ function uploadMorphology() {
 }
 
 // ─── Print / download ────────────────────────────────────────────────────────
-//
-// Render every page to a high-res canvas, overlay the data, and hand the
-// resulting images to a clean standalone window that prints them. Building the
-// images in THIS window (which already has a working PDF.js) and passing only
-// finished JPEGs to the print window means the print window loads no scripts at
-// all — so the theme's bundled PDF.js and other plugins can't interfere, which
-// was the source of the blank/extra pages.
 const PRINT_SCALE = 3.0;
 
 // Build the CSS font string for a coordinate entry.
-//
-// The config carries a `font` name per field (e.g. 'Calibri-Bold'). This used
-// to be ignored, so a value whose template label is bold — the signature date
-// next to a bold "Date:" — was drawn in regular weight and read as misaligned
-// even when its position was right. Honour the name instead.
 function cssFontFor(c, field, renderScale) {
     const size = Math.round((c.font_size || 10) * renderScale);
     const name = String(c.font || '').toLowerCase();
@@ -538,8 +503,6 @@ function cssFontFor(c, field, renderScale) {
 
     const weight = name.indexOf('bold') !== -1 ? 'bold ' : '';
     const style  = name.indexOf('italic') !== -1 ? 'italic ' : '';
-    // Carlito is the metric-compatible Calibri substitute present on most Linux
-    // boxes, so the server-rendered and Windows-rendered output stay in step.
     return style + weight + size + "px Calibri, Carlito, Arial, sans-serif";
 }
 
@@ -564,10 +527,6 @@ function drawOverlayOn(context, cnv, page, renderScale) {
         let dw = w, dh = h;
         if (ir > sr) { dh = w / ir; }        // wider than the slot: width-bound
         else         { dw = h * ir; }        // taller than the slot: height-bound
-
-        // Anchor within the slot. A 4:3 micrograph is height-bound in these
-        // slots, so centring left a wide white gutter on the left of the frame;
-        // the certificate wants the image flush with the left margin.
         const halign = s.align || 'left';
         const valign = s.valign || 'middle';
 
@@ -613,8 +572,6 @@ function drawOverlayOn(context, cnv, page, renderScale) {
 // Build one JPEG data-URL per PDF page, with the data overlaid.
 async function buildPageImages() {
     const images = [];
-    // Cap at the template's known page count. A conflicting PDF.js elsewhere on
-    // the page can misreport pdfDoc.numPages; the config is the source of truth.
     const configured = (window.COA && window.COA.pages) ? window.COA.pages : 2;
     const total = Math.min(pdfDoc.numPages, configured);
     for (let i = 1; i <= total; i++) {
@@ -631,12 +588,6 @@ async function buildPageImages() {
     return images;
 }
 
-// Write a minimal, script-free HTML doc containing exactly the page images.
-// Each image is forced to fit within a single printed page. The blank-page
-// artefact came from a full-width image being TALLER than the page (the PDF
-// page ratio 540:780 is taller than A4), spilling a sliver onto a second
-// physical page. Constraining by height (100vh) and letting width scale keeps
-// every image on exactly one page.
 function printWindowHtml(images) {
     let body = '';
     images.forEach(function (src) {
@@ -649,7 +600,7 @@ function printWindowHtml(images) {
         'html,body { margin:0; padding:0; }' +
         '.coa-page {' +
             ' width:100%;' +
-            ' height:100vh;' +               /* exactly one viewport/page tall */
+            ' height:100vh;' +               
             ' display:flex;' +
             ' align-items:center;' +
             ' justify-content:center;' +
@@ -658,7 +609,7 @@ function printWindowHtml(images) {
             ' break-after:page;' +
         '}' +
         '.coa-page:last-child {' +
-            ' page-break-after:auto;' +       /* no break after the final page */
+            ' page-break-after:auto;' +       
             ' break-after:auto;' +
         '}' +
         '.coa-page img {' +
@@ -677,8 +628,6 @@ async function printCOA() {
     const printBtn = document.querySelector('button[onclick="printCOA()"]');
     const restore = setButtonBusy(printBtn, 'Preparing...');
 
-    // buildPageImages already caps at the template's page count, so the extra
-    // pages a conflicting PDF.js might report never reach here.
     let finalImages;
     try {
         finalImages = await buildPageImages();
@@ -713,19 +662,11 @@ async function printCOA() {
 }
 
 // ─── Download ────────────────────────────────────────────────────────────────
-//
-// Download used to call printCOA(), so both buttons did the same thing and the
-// user had to walk through the printer dialog and pick "Save as PDF". Here we
-// assemble the same page images into a real PDF with jsPDF and hand it to the
-// browser as a file, so the download starts on its own.
 
 function sanitiseForFilename(s) {
     return String(s || '').replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '');
 }
 
-// COA_<product>_<coa number>.pdf, falling back to the order id when the COA
-// number has not been filled in yet. Read live from the form so the file is
-// named correctly even before Save.
 function downloadFilename() {
     const product = sanitiseForFilename(@json($product->name));
     const coaNo   = sanitiseForFilename(fieldValue('coa_number'));
@@ -744,8 +685,6 @@ function setButtonBusy(btn, busyLabel) {
 async function downloadCOA() {
     if (!pdfDoc) { alert('PDF not loaded yet.'); return; }
 
-    // If the jsPDF CDN did not load, fall back to the old behaviour rather than
-    // leaving the button dead.
     if (!window.jspdf || !window.jspdf.jsPDF) {
         console.warn('jsPDF unavailable — falling back to the print dialog.');
         return printCOA();
@@ -762,9 +701,6 @@ async function downloadCOA() {
         const pageW = doc.internal.pageSize.getWidth();
         const pageH = doc.internal.pageSize.getHeight();
 
-        // The template is 540x780pt, which is a taller ratio than A4. Fit by
-        // whichever axis binds first and centre the result, so the proportions
-        // match what the preview and the printed sheet show.
         const ratio = COA.pageWidth / COA.pageHeight;
         let w = pageW, h = pageW / ratio;
         if (h > pageH) { h = pageH; w = pageH * ratio; }

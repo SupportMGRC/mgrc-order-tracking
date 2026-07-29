@@ -121,6 +121,67 @@ class ActivityLogger
     }
 
     /**
+     * Record a change made to a COA on an order line.
+     *
+     * @param  \App\Models\Order  $order        parent order (for the label)
+     * @param  array              $before       pivot values before the write
+     * @param  array              $after        pivot values after the write
+     * @param  string|null        $productName  product name for context
+     * @param  string             $summary      leading phrase for the description
+     */
+    public static function recordCoaChange($order, array $before, array $after, ?string $productName = null, string $summary = 'Updated COA'): void
+    {
+        $track = [
+            'coa_template',
+            'coa_number',
+            'qc_document_number',
+            'patient_name',
+            'batch_number',
+            'coa_product_date',
+            'coa_mfg_date',
+            'coa_expiry_date',
+            'coa_viable_cell_count',
+            'coa_signature_date',
+            'prepared_by',
+            'coa_morphology_image',
+        ];
+
+        $changes = [];
+        foreach ($track as $field) {
+            $old = $before[$field] ?? null;
+            $new = $after[$field] ?? null;
+            if ((string) $old !== (string) $new) {
+                $changes[$field] = ['old' => $old, 'new' => $new];
+            }
+        }
+
+        if (empty($changes)) {
+            return;
+        }
+
+        try {
+            $user = Auth::user();
+
+            ActivityLog::create([
+                'user_id'       => $user?->id,
+                'user_name'     => $user?->username ?? 'System',
+                'user_role'     => $user?->role,
+                'action'        => 'updated',
+                'subject_type'  => \App\Models\Order::class,
+                'subject_id'    => $order->getKey(),
+                'subject_label' => 'Order #' . $order->getKey()
+                                    . ($productName ? ' (' . $productName . ' COA)' : ' (COA)'),
+                'description'   => $summary . ' on Order #' . $order->getKey()
+                                    . ($productName ? ' — ' . $productName : ''),
+                'changes'       => $changes,
+                'ip_address'    => request()->ip(),
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    /**
      * Record a change made to an order_product pivot row (batch number, QC doc,
      * patient name, remarks, prepared_by).
      *

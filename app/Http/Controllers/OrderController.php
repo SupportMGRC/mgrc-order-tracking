@@ -13,10 +13,16 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Carbon;
 use App\Models\BlockedDate;
+use App\Services\ActivityLogger;
 use App\Services\CoaTemplateService;
 
 class OrderController extends Controller
 {
+    /**
+     * Image size limit for morphology uploads
+     */
+    public const MORPHOLOGY_MAX_KB = 8192;
+
     /**
      * Display a listing of the resource.
      */
@@ -907,10 +913,6 @@ class OrderController extends Controller
 
     /**
      * Display the Certificate of Analysis (COA) page for a specific product in an order.
-     *
-     * The template is chosen automatically from the product. If the product
-     * has no template configured yet the user is asked to pick one rather than
-     * being shown a broken page. Only Quality staff and superadmins may open a COA.
      */
     public function showCOA(Order $order, Product $product, CoaTemplateService $coa)
     {
@@ -965,9 +967,8 @@ class OrderController extends Controller
             'fieldLabels'  => $coa->fieldLabels($templateKey),
             'acceptsImage' => $coa->acceptsMorphologyImage($templateKey),
             'coaValues'    => $this->coaValues($orderProduct),
-            // Alternate wordings of the same certificate, which Quality may
-            // switch between without superadmin help.
             'variants'     => $coa->variantsFor($templateKey),
+            'morphologyMaxMb' => intdiv(self::MORPHOLOGY_MAX_KB, 1024),
         ]);
     }
 
@@ -1016,9 +1017,23 @@ class OrderController extends Controller
             }
         }
 
+        $orderProduct = $order->products()->where('product_id', $product->id)->first();
+        $before = $orderProduct ? $orderProduct->pivot->getAttributes() : [];
+
         $order->products()->updateExistingPivot($product->id, [
             'coa_template' => $key,
         ]);
+
+        // Which certificate an order was issued against is the single most
+        // useful thing to have in the audit trail, so record it even though
+        // nothing else on the line changed.
+        ActivityLogger::recordCoaChange(
+            $order,
+            $before,
+            array_merge($before, ['coa_template' => $key]),
+            $product->name,
+            'Changed COA template'
+        );
 
         return redirect()->route('orders.coa', [$order->id, $product->id]);
     }
@@ -1090,7 +1105,18 @@ class OrderController extends Controller
                 }
             }
 
+            // Snapshot before the write so the audit entry can show old -> new.
+            $before = $orderProduct->pivot->getAttributes();
+
             $order->products()->updateExistingPivot($product->id, $update);
+
+            ActivityLogger::recordCoaChange(
+                $order,
+                $before,
+                array_merge($before, $update),
+                $product->name,
+                'Updated COA'
+            );
 
             return response()->json([
                 'success' => true,
@@ -1127,7 +1153,7 @@ class OrderController extends Controller
             }
 
             $request->validate([
-                'morphology_image' => 'required|image|mimes:jpeg,jpg,png|max:8192',
+                'morphology_image' => 'required|image|mimes:jpeg,jpg,png|max:' . self::MORPHOLOGY_MAX_KB,
             ]);
 
             $orderProduct = $order->products()->where('product_id', $product->id)->first();
@@ -1186,6 +1212,17 @@ class OrderController extends Controller
                 'coa_updated_by'       => auth()->id(),
                 'coa_updated_at'       => now(),
             ]);
+
+            // The previous file has already been deleted from disk by this
+            // point, so the log is the only remaining record of what the
+            // certificate showed before.
+            ActivityLogger::recordCoaChange(
+                $order,
+                ['coa_morphology_image' => $existing],
+                ['coa_morphology_image' => $filename],
+                $product->name,
+                $existing ? 'Replaced COA morphology image' : 'Uploaded COA morphology image'
+            );
 
             return response()->json([
                 'success' => true,
