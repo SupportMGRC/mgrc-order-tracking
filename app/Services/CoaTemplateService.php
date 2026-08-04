@@ -216,6 +216,20 @@ class CoaTemplateService
     {
         $tpl = $this->get($key);
 
-        return $tpl ? asset('assets/pdf/' . $tpl['pdf']) : null;
+        if (!$tpl) {
+            return null;
+        }
+
+        $relative = 'assets/pdf/' . $tpl['pdf'];
+        $url      = asset($relative);
+        $path     = public_path($relative);
+
+        // is_file() guards against a template that has not been uploaded yet;
+        // in that case the plain URL still renders the usual 404 in the editor.
+        if (is_file($path) && ($mtime = @filemtime($path))) {
+            $url .= '?v=' . $mtime;
+        }
+
+        return $url;
     }
 }
