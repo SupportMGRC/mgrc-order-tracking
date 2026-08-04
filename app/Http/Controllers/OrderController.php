@@ -1083,6 +1083,10 @@ class OrderController extends Controller
                 'expiry_date'       => 'coa_expiry_date',
                 'viable_cell_count' => 'coa_viable_cell_count',
                 'signature_date'    => 'coa_signature_date',
+                'immuno_cd73'       => 'coa_immuno_cd73',
+                'immuno_cd90'       => 'coa_immuno_cd90',
+                'immuno_cd105'      => 'coa_immuno_cd105',
+                'immuno_negative'   => 'coa_immuno_negative',
             ];
 
             $update = [
@@ -1097,12 +1101,13 @@ class OrderController extends Controller
                 }
             }
 
-            // prepared_by / qc_document_number predate this feature and are
-            // still written by the existing form, so keep accepting them.
-            foreach (['prepared_by', 'qc_document_number'] as $legacy) {
-                if ($request->has($legacy)) {
-                    $update[$legacy] = $request->input($legacy);
-                }
+            // qc_document_number predates this feature and is the column the
+            // COA number is stored in, so keep accepting it.
+            // prepared_by is deliberately NOT accepted here: no COA template
+            // prints it, so the COA editor must not touch it. It stays editable
+            // on the Batch Information form.
+            if ($request->has('qc_document_number')) {
+                $update['qc_document_number'] = $request->input('qc_document_number');
             }
 
             // Snapshot before the write so the audit entry can show old -> new.
@@ -1346,7 +1351,10 @@ class OrderController extends Controller
             'expiry_date'       => $pivot->coa_expiry_date ?? '',
             'viable_cell_count' => $pivot->coa_viable_cell_count ?? '',
             'signature_date'    => $pivot->coa_signature_date ?? '',
-            'prepared_by'       => $pivot->prepared_by ?? '',
+            'immuno_cd73'       => $pivot->coa_immuno_cd73 ?? '',
+            'immuno_cd90'       => $pivot->coa_immuno_cd90 ?? '',
+            'immuno_cd105'      => $pivot->coa_immuno_cd105 ?? '',
+            'immuno_negative'   => $pivot->coa_immuno_negative ?? '',
             'qc_document_number'=> $pivot->qc_document_number ?? '',
             'morphology_image'  => $pivot->coa_morphology_image
                 ? asset('storage/coa_morphology/' . $pivot->coa_morphology_image)

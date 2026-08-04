@@ -18,13 +18,26 @@
 
     The values are drawn onto the PDF with PDF.js at the coordinates measured
     from the template, so what QC sees on screen is what prints.
+
+    Coordinate schema v2: every y is a text BASELINE, not a bounding-box top.
+    See the header of config/coa_templates.php for why that matters.
 --}}
 
 @php
     // Flatten the coordinate config into something the JS can read directly.
     $coords = $template['coordinates'] ?? [];
-    // The signature and product/expiry dates on cell products are printed with
-    // specific fonts; the config carries the font + size per field.
+
+    // Immunophenotyping results live in a table on page 2, so they get their
+    // own block in the form rather than being mixed in with the page 1 fields.
+    $mainFields   = [];
+    $immunoFields = [];
+    foreach ($editable as $f) {
+        if (strpos($f, 'immuno_') === 0) {
+            $immunoFields[] = $f;
+        } else {
+            $mainFields[] = $f;
+        }
+    }
 @endphp
 
 <div class="container-fluid">
@@ -163,7 +176,7 @@
                         <input type="text" class="form-control" value="{{ $product->name }}" disabled>
                     </div>
 
-                    @foreach($editable as $field)
+                    @foreach($mainFields as $field)
                         @php
                             $inputName = $field === 'coa_number' ? 'qc_document_number' : $field;
                             $val = $field === 'coa_number'
@@ -184,12 +197,37 @@
                         </div>
                     @endforeach
 
-                    <div class="mb-3">
-                        <label for="prepared_by" class="form-label fw-semibold">Prepared By</label>
-                        <input type="text" class="form-control" id="prepared_by" name="prepared_by"
-                               value="{{ $coaValues['prepared_by'] ?: 'Quality Control Manager' }}"
-                               placeholder="Enter name">
-                    </div>
+                    {{-- "Prepared By" removed: no COA template prints it, and it is
+                         still editable on the Batch Information form. --}}
+
+                    @if(!empty($immunoFields))
+                        <hr class="my-3">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold mb-1">Immunophenotyping</label>
+                            <small class="text-muted d-block mb-2">
+                                Flow cytometry results for Table 1 on page 2. Numbers only &mdash; the
+                                template already prints the &ldquo;%&rdquo; column heading.
+                            </small>
+                            <div class="row g-2">
+                                @foreach($immunoFields as $field)
+                                    @php
+                                        $label = $fieldLabels[$field] ?? ucfirst(str_replace('_', ' ', $field));
+                                    @endphp
+                                    <div class="col-6">
+                                        <label for="f_{{ $field }}" class="form-label small mb-1">{{ $label }}</label>
+                                        <input type="text"
+                                               class="form-control form-control-sm coa-field"
+                                               id="f_{{ $field }}"
+                                               data-field="{{ $field }}"
+                                               name="{{ $field }}"
+                                               value="{{ $coaValues[$field] ?? '' }}"
+                                               placeholder="—"
+                                               autocomplete="off">
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
 
                     @if($acceptsImage)
                         <hr class="my-3">
@@ -197,7 +235,7 @@
                             <label class="form-label fw-semibold">Morphology of Cells Image</label>
                             <input type="file" class="form-control" id="morphology_image"
                                    accept="image/jpeg,image/png,.jpg,.jpeg,.png">
-                            <small class="text-muted">Shown on page 2. JPG, JPEG or PNG, up to {{ $morphologyMaxMb }} MB — auto-resized to fit the frame.</small>
+                            <small class="text-muted">Shown on page 2. JPG, JPEG or PNG, up to {{ $morphologyMaxMb }} MB — scaled to fill the frame, so the edges may be cropped.</small>
                             <div id="morphology-preview" class="mt-2" style="{{ $coaValues['morphology_image'] ? '' : 'display:none;' }}">
                                 <img src="{{ $coaValues['morphology_image'] ?? '' }}"
                                      alt="Morphology" class="img-fluid border rounded" style="max-height: 120px;">
@@ -219,6 +257,16 @@
                             <strong>Live Preview:</strong> changes appear on the PDF as you type.<br>
                             <strong>Signature:</strong> auto-generated from your login.<br>
                             <strong>COA No.:</strong> also shows in the Order's QC Doc column.
+                        </small>
+                    </div>
+
+                    <div class="alert alert-warning alert-sm mb-3">
+                        <i class="ri-printer-line me-1"></i>
+                        <small>
+                            <strong>Printing on certificate paper:</strong> in the print dialog set
+                            <strong>Margins&nbsp;=&nbsp;None</strong> and <strong>Scale&nbsp;=&nbsp;100%</strong>,
+                            and turn off &ldquo;Fit to page&rdquo;. The certificate is already sized to
+                            sit inside the gold border.
                         </small>
                     </div>
 
@@ -262,13 +310,8 @@ window.COA = {
 const COA = window.COA;
 console.log('COA config loaded. pages =', COA.pages, '| template pdf =', COA.pdfUrl);
 
-// Map each editable form field to the coordinate key it draws at.
-// coa_number draws wherever the config calls it coa_number.
+// Map each editable field to the coordinate key it draws at.
 function fieldValue(field) {
-    if (field === 'coa_number') {
-        const el = document.querySelector('[data-field="coa_number"]');
-        return el ? el.value : '';
-    }
     const el = document.querySelector('[data-field="' + field + '"]');
     return el ? el.value : '';
 }
@@ -284,7 +327,7 @@ let pageNum = 1;
 let pageRendering = false;
 let pageNumPending = null;
 let scale = 1.5;
-let morphologyImg = null;   
+let morphologyImg = null;
 
 const canvas = document.getElementById('pdf-canvas');
 const ctx = canvas ? canvas.getContext('2d') : null;
@@ -359,7 +402,7 @@ function changeZoom(factor) {
 
 // ─── Draw the field values onto the current page ─────────────────────────────
 function drawOverlay(page) {
-    drawOverlayOn(ctx, canvas, page, scale);
+    drawOverlayOn(ctx, canvas, page);
 }
 
 // Re-draw as the user types.
@@ -369,7 +412,7 @@ function refreshOverlay() { if (pdfDoc) renderPage(pageNum); }
 const coaInitial = {};
 
 function coaTrackedInputs() {
-    return document.querySelectorAll('#coa-form input.coa-field, #coa-form #prepared_by');
+    return document.querySelectorAll('#coa-form input.coa-field');
 }
 
 function coaFormDirty() {
@@ -400,7 +443,7 @@ function toggleChangeTemplate() {
 
 // ─── Save ────────────────────────────────────────────────────────────────────
 function saveCOA() {
-    const data = { prepared_by: document.getElementById('prepared_by').value };
+    const data = {};
 
     // Every editable field, sent under its real input name.
     document.querySelectorAll('#coa-form input.coa-field').forEach(function (input) {
@@ -445,128 +488,228 @@ const MORPHOLOGY_MAX_MB = {{ $morphologyMaxMb }};
 
 function uploadMorphology() {
     const input = document.getElementById('morphology_image');
-    if (!input || !input.files.length) { alert('Choose an image first.'); return; }
+    if (!input || !input.files || !input.files[0]) {
+        alert('Please choose an image first.');
+        return;
+    }
 
     const file = input.files[0];
-    const sizeMb = file.size / (1024 * 1024);
-    if (sizeMb > MORPHOLOGY_MAX_MB) {
-        alert('That image is ' + sizeMb.toFixed(1) + ' MB. Please upload a JPG, JPEG or PNG under '
-              + MORPHOLOGY_MAX_MB + ' MB.');
+    if (file.size > MORPHOLOGY_MAX_MB * 1024 * 1024) {
+        alert('That image is larger than ' + MORPHOLOGY_MAX_MB + ' MB. Please choose a smaller file.');
         return;
     }
 
     const btn = document.getElementById('morphology-upload-btn');
-    const original = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<i class="ri-loader-4-line spinner-border spinner-border-sm me-1"></i> Uploading...';
+    const restore = setButtonBusy(btn, 'Uploading...');
 
     const fd = new FormData();
     fd.append('morphology_image', input.files[0]);
     fd.append('_token', COA.csrf);
 
-    fetch(COA.uploadUrl, { method: 'POST', headers: { 'X-CSRF-TOKEN': COA.csrf }, body: fd })
+    fetch(COA.uploadUrl, { method: 'POST', body: fd })
         .then(r => r.json())
         .then(res => {
-            btn.disabled = false;
-            btn.innerHTML = original;
+            restore();
             if (res.success && res.url) {
                 const img = new Image();
                 img.crossOrigin = 'anonymous';
                 img.onload = () => { morphologyImg = img; refreshOverlay(); };
-                img.src = res.url + '?t=' + Date.now();   // bust cache
+                img.src = res.url + '?t=' + Date.now();
 
                 const prev = document.getElementById('morphology-preview');
-                if (prev) { prev.style.display = ''; prev.querySelector('img').src = res.url + '?t=' + Date.now(); }
+                if (prev) {
+                    prev.style.display = '';
+                    const pimg = prev.querySelector('img');
+                    if (pimg) pimg.src = res.url + '?t=' + Date.now();
+                }
             } else {
                 alert('Upload failed: ' + (res.message || 'Unknown error'));
             }
         })
         .catch(err => {
-            btn.disabled = false;
-            btn.innerHTML = original;
-            alert('Upload failed. Check the console.');
+            restore();
             console.error(err);
+            alert('Upload failed. Check the console for details.');
         });
 }
 
-// ─── Print / download ────────────────────────────────────────────────────────
+// ─── Overlay drawing ─────────────────────────────────────────────────────────
+// Resolution at which the printable/downloadable page images are rasterised.
 const PRINT_SCALE = 3.0;
 
+/* ── Paper fit ────────────────────────────────────────────────────────────────
+   The certificate artwork is 540 x 780 pt (7.50 x 10.83 in — the PowerPoint
+   slide size). A4 is 595.28 x 841.89 pt. MGRC certificate paper carries a
+   printed gold border; nothing may cross it.
+
+   The inner edge of that border, measured from a 200 dpi scan of a blank
+   sheet and then squared up on A4:
+
+       x 40.42 -> 554.86      (514.44 wide)
+       y 35.39 -> 806.51      (771.12 tall)
+
+   The artwork is WIDER than the frame (540 > 514.44), so printing it at its
+   designed size — never mind stretching it to the full sheet — always ran the
+   page 2 contact strip and the REMARKS stamps over the gold rule. Scaling to
+   fit the frame and centring inside it is the only placement that clears the
+   border on all four sides.
+
+   Placement is expressed in absolute millimetres in the print stylesheet. The
+   previous version sized the image as a percentage of 100vh, and vh units are
+   not dependable inside a print context — that is why the printed sheets came
+   out at roughly 107% and pushed the footer onto the border.
+
+   TUNING — change these numbers only, then reprint:
+     PAPER.mode        'certificate' fits inside the gold border
+                       'plain'       artwork at designed size, centred on A4
+     PAPER.clearance   gap left between the artwork and the gold rule, in pt
+     PAPER.shiftX/Y    + moves right / down, - moves left / up (1 mm = 2.835 pt)
+
+   Print with Margins = None and Scale = 100%, or the browser resizes the sheet
+   again on top of this.
+──────────────────────────────────────────────────────────────────────────────*/
+const PAPER = {
+    w: 595.28,                                          // A4 portrait, points
+    h: 841.89,
+    frame: { x: 40.42, y: 35.39, w: 514.44, h: 771.12 },// inner edge of the gold rule
+    clearance: 4.0,
+    mode: 'certificate',
+    shiftX: 0,
+    shiftY: 0,
+};
+
+// Where the artwork sits on the sheet, in PDF points.
+function paperPlacement() {
+    const aw = COA.pageWidth, ah = COA.pageHeight;
+    let s, x, y;
+
+    if (PAPER.mode === 'certificate') {
+        const f = PAPER.frame, c = PAPER.clearance;
+        s = Math.min((f.w - 2 * c) / aw, (f.h - 2 * c) / ah);
+        x = f.x + (f.w - aw * s) / 2;
+        y = f.y + (f.h - ah * s) / 2;
+    } else {
+        s = 1;
+        x = (PAPER.w - aw) / 2;
+        y = (PAPER.h - ah) / 2;
+    }
+
+    return { scale: s, x: x + PAPER.shiftX, y: y + PAPER.shiftY, w: aw * s, h: ah * s };
+}
+
 // Build the CSS font string for a coordinate entry.
-function cssFontFor(c, field, renderScale) {
-    const size = Math.round((c.font_size || 10) * renderScale);
+//   px = the coordinate's font_size (in template points) x canvas pixels-per-point
+function cssFontFor(c, pxPerPt) {
+    const size = (c.font_size || 10) * pxPerPt;
     const name = String(c.font || '').toLowerCase();
 
-    if (field === 'signature' || name.indexOf('mistral') !== -1) {
-        return size + "px 'Mistral', 'Brush Script MT', cursive";
+    if (name.indexOf('mistral') !== -1) {
+        return size.toFixed(2) + "px 'Mistral', 'Brush Script MT', cursive";
     }
 
     const weight = name.indexOf('bold') !== -1 ? 'bold ' : '';
     const style  = name.indexOf('italic') !== -1 ? 'italic ' : '';
-    return style + weight + size + "px Calibri, Carlito, Arial, sans-serif";
+    return style + weight + size.toFixed(2) + "px Calibri, Carlito, Arial, sans-serif";
 }
 
-// Optional per-field nudges, expressed in PDF points so they read in the same
-// units as font_size and stay correct at any zoom or print scale.
-//   dx  positive = right      dy  positive = down
-function nudgeX(c, cnv) { return (c.dx || 0) * (cnv.width  / COA.pageWidth); }
-function nudgeY(c, cnv) { return (c.dy || 0) * (cnv.height / COA.pageHeight); }
+// Draw one value at its coordinate.
+//
+// y is a BASELINE, so we draw with textBaseline='alphabetic'. That is the one
+// vertical reference every font agrees on, which is what makes the value land
+// on the same line as the label printed beside it whether the browser resolved
+// Calibri, Carlito or Arial.
+function drawValue(context, cnv, c, text) {
+    if (!c || text === null || text === undefined || text === '') return;
 
-function drawOverlayOn(context, cnv, page, renderScale) {
+    const W = cnv.width, H = cnv.height;
+    const sx = W / COA.pageWidth;       // canvas pixels per template point
+    const sy = H / COA.pageHeight;
+
+    context.font = cssFontFor(c, sy);
+    context.textBaseline = 'alphabetic';
+
+    // A value with a width budget (currently the COA number, whose length
+    // varies per batch) is stepped down until it fits rather than being allowed
+    // to run over the right-hand rule and off the certificate border.
+    if (c.max_w) {
+        const budget = W * c.max_w / 100;
+        let size = c.font_size || 10;
+        while (size > 3 && context.measureText(text).width > budget) {
+            size -= 0.25;
+            context.font = cssFontFor({ font: c.font, font_size: size }, sy);
+        }
+    }
+
+    const centred = (c.align === 'center');
+    context.textAlign = centred ? 'center' : 'left';
+
+    const xPct = centred ? (c.cx !== undefined ? c.cx : c.x) : c.x;
+    const x = W * xPct / 100 + (c.dx || 0) * sx;
+    const y = H * c.y  / 100 + (c.dy || 0) * sy;
+
+    context.fillText(text, x, y);
+}
+
+// Draw the micrograph into its slot.
+//
+// 'cover' scales the image so the frame is completely filled and crops whatever
+// overhangs — QC asked for no white gutter. 'contain' is the old behaviour and
+// is kept so a template can opt out in config without a code change.
+function drawMorphology(context, cnv, slot) {
+    if (!morphologyImg || !slot) return;
+
+    const W = cnv.width, H = cnv.height;
+    const x = W * slot.x / 100, y = H * slot.y / 100;
+    const w = W * slot.w / 100, h = H * slot.h / 100;
+
+    const iw = morphologyImg.width, ih = morphologyImg.height;
+    if (!iw || !ih) return;
+
+    const ir = iw / ih, sr = w / h;
+    const ha = { left: 0, center: 0.5, right: 1 }[slot.align  || 'center'];
+    const va = { top: 0, middle: 0.5, bottom: 1 }[slot.valign || 'middle'];
+
+    if ((slot.fit || 'cover') === 'cover') {
+        // Crop the source rectangle, then stretch it over the whole slot.
+        let sw = iw, sh = ih, sx0 = 0, sy0 = 0;
+        if (ir > sr) {                       // image wider than the slot: trim the sides
+            sw = ih * sr;
+            sx0 = (iw - sw) * ha;
+        } else {                             // image taller: trim top and bottom
+            sh = iw / sr;
+            sy0 = (ih - sh) * va;
+        }
+        context.drawImage(morphologyImg, sx0, sy0, sw, sh, x, y, w, h);
+        return;
+    }
+
+    // contain: whole image inside the slot, white space around it
+    let dw = w, dh = h;
+    if (ir > sr) dh = w / ir;
+    else         dw = h * ir;
+    context.drawImage(morphologyImg, x + (w - dw) * ha, y + (h - dh) * va, dw, dh);
+}
+
+function drawOverlayOn(context, cnv, page) {
     const coords = COA.coordinates['page' + page];
     if (!coords) return;
-    const W = cnv.width, H = cnv.height;
 
-    // Morphology micrograph (page 2), drawn first so text sits on top.
-    if (morphologyImg && coords.morphology_slot) {
-        const s = coords.morphology_slot;
-        const x = W * s.x / 100, y = H * s.y / 100, w = W * s.w / 100, h = H * s.h / 100;
-        const ir = morphologyImg.width / morphologyImg.height, sr = w / h;
-
-        // Fit inside the slot, preserving aspect ratio.
-        let dw = w, dh = h;
-        if (ir > sr) { dh = w / ir; }        // wider than the slot: width-bound
-        else         { dw = h * ir; }        // taller than the slot: height-bound
-        const halign = s.align || 'left';
-        const valign = s.valign || 'middle';
-
-        let dx = x;
-        if (halign === 'center') dx = x + (w - dw) / 2;
-        else if (halign === 'right') dx = x + (w - dw);
-
-        let dy = y;
-        if (valign === 'middle') dy = y + (h - dh) / 2;
-        else if (valign === 'bottom') dy = y + (h - dh);
-
-        context.drawImage(morphologyImg, dx, dy, dw, dh);
-    }
+    // Micrograph first so text sits on top of it.
+    drawMorphology(context, cnv, coords.morphology_slot);
 
     context.fillStyle = '#000000';
-    context.textAlign = 'left';
-    context.textBaseline = 'top';
 
     for (const field of COA.editable) {
-        const c = coords[field];
-        if (!c) continue;
-        const value = fieldValue(field);
-        if (!value) continue;
-        context.font = cssFontFor(c, field, renderScale);
-        context.fillText(
-            value,
-            W * c.x / 100 + nudgeX(c, cnv),
-            H * c.y / 100 + nudgeY(c, cnv)
-        );
+        drawValue(context, cnv, coords[field], fieldValue(field));
     }
 
-    if (coords.signature && COA.signatureName) {
-        const c = coords.signature;
-        context.font = cssFontFor(c, 'signature', renderScale);
-        context.fillText(
-            COA.signatureName,
-            W * c.x / 100 + nudgeX(c, cnv),
-            H * c.y / 100 + nudgeY(c, cnv)
-        );
-    }
+    // The signature is centred over its printed rule, the way Word centres a
+    // paragraph, so a long name and a short one both sit square on the line.
+    drawValue(context, cnv, coords.signature, COA.signatureName);
+
+    // Leave the context in a predictable state for the next caller.
+    context.textAlign = 'left';
+    context.textBaseline = 'alphabetic';
 }
 
 // Build one JPEG data-URL per PDF page, with the data overlaid.
@@ -582,41 +725,48 @@ async function buildPageImages() {
         c.height = viewport.height;
         const cctx = c.getContext('2d');
         await page.render({ canvasContext: cctx, viewport: viewport }).promise;
-        drawOverlayOn(cctx, c, i, PRINT_SCALE);
+        drawOverlayOn(cctx, c, i);
         images.push(c.toDataURL('image/jpeg', 0.95));
     }
     return images;
 }
 
+const PT_TO_MM = 25.4 / 72;
+function mm(pt) { return (pt * PT_TO_MM).toFixed(3) + 'mm'; }
+
 function printWindowHtml(images) {
+    const p = paperPlacement();
     let body = '';
     images.forEach(function (src) {
         body += '<div class="coa-page"><img src="' + src + '"></div>';
     });
+
+    // Absolute millimetres throughout: a print stylesheet must not depend on
+    // viewport units, which the browser is free to reinterpret when it lays the
+    // sheet out.
     return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>COA</title>' +
         '<style>' +
         '@page { size: A4 portrait; margin: 0; }' +
         '* { margin:0; padding:0; box-sizing:border-box; }' +
-        'html,body { margin:0; padding:0; }' +
+        'html,body { margin:0; padding:0; background:#fff; }' +
         '.coa-page {' +
-            ' width:100%;' +
-            ' height:100vh;' +               
-            ' display:flex;' +
-            ' align-items:center;' +
-            ' justify-content:center;' +
+            ' position:relative;' +
+            ' width:210mm;' +
+            ' height:297mm;' +
             ' overflow:hidden;' +
             ' page-break-after:always;' +
             ' break-after:page;' +
         '}' +
         '.coa-page:last-child {' +
-            ' page-break-after:auto;' +       
+            ' page-break-after:auto;' +
             ' break-after:auto;' +
         '}' +
         '.coa-page img {' +
-            ' max-width:100%;' +
-            ' max-height:100%;' +
-            ' width:auto;' +
-            ' height:auto;' +
+            ' position:absolute;' +
+            ' left:'   + mm(p.x) + ';' +
+            ' top:'    + mm(p.y) + ';' +
+            ' width:'  + mm(p.w) + ';' +
+            ' height:' + mm(p.h) + ';' +
             ' display:block;' +
         '}' +
         '</style></head><body>' + body + '</body></html>';
@@ -698,18 +848,13 @@ async function downloadCOA() {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
 
-        const pageW = doc.internal.pageSize.getWidth();
-        const pageH = doc.internal.pageSize.getHeight();
-
-        const ratio = COA.pageWidth / COA.pageHeight;
-        let w = pageW, h = pageW / ratio;
-        if (h > pageH) { h = pageH; w = pageH * ratio; }
-        const offsetX = (pageW - w) / 2;
-        const offsetY = (pageH - h) / 2;
+        // Same placement as the print path, so a downloaded file dropped onto
+        // certificate paper lands exactly where the browser print would.
+        const p = paperPlacement();
 
         images.forEach(function (src, i) {
             if (i > 0) doc.addPage();
-            doc.addImage(src, 'JPEG', offsetX, offsetY, w, h);
+            doc.addImage(src, 'JPEG', p.x, p.y, p.w, p.h);
         });
 
         doc.save(downloadFilename());

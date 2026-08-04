@@ -142,7 +142,10 @@ class ActivityLogger
             'coa_expiry_date',
             'coa_viable_cell_count',
             'coa_signature_date',
-            'prepared_by',
+            'coa_immuno_cd73',
+            'coa_immuno_cd90',
+            'coa_immuno_cd105',
+            'coa_immuno_negative',
             'coa_morphology_image',
         ];
 

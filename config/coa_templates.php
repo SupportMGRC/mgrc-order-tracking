@@ -2,163 +2,174 @@
 
 /*
 |--------------------------------------------------------------------------
-| COA Template Configuration
+| COA Template Configuration  —  schema v2 (baseline coordinates)
 |--------------------------------------------------------------------------
 |
-| One entry per Certificate of Analysis template. Each entry records:
+| One entry per Certificate of Analysis template:
 |
-|   pdf          the blank template in public/assets/pdf/
-|   editable     which fields QC may fill in, in display order
-|   coordinates  where each value is drawn, as a percentage of page
-|                width/height so the overlay is resolution-independent
-|   products     product names this template applies to (used by the
-|                one-off backfill; the live mapping lives in the
-|                products.coa_template column)
+|   pdf          blank template in public/assets/pdf/
+|   editable     fields QC may fill in, in display order
+|   coordinates  where each value is drawn
+|   products     product names this template applies to (the live mapping
+|                lives in the products.coa_template column; this list only
+|                drives the one-off backfill)
 |
-| Coordinates were measured directly from the approved blank PDFs, where
-| every editable value is present as invisible text in exactly the spot the
-| live value must occupy. Do not hand-edit: if a template is revised,
-| re-run the measurement script and regenerate this file.
+| ---------------------------------------------------------------------------
+| COORDINATE KEYS
+| ---------------------------------------------------------------------------
 |
-| Note on viable_cell_count: on NK/NKT only the multiplier is editable
-| (the "x 10^9" suffix is printed on the template). On MSC the whole
-| value is printed and is therefore not listed as editable.
+|   x          left edge, % of page width      (align 'left')
+|   cx         centre,    % of page width      (align 'center')
+|   y          BASELINE,  % of page height     (always)
+|   font_size  points, at the template's own 540 x 780 scale
+|   font       'Calibri', 'Calibri-Bold', 'Mistral'
+|   align      'left' (default) or 'center'
+|   dx, dy     fine nudge in POINTS. dx + is right, dy + is down. Use these to
+|              settle a value rather than re-measuring a whole template.
+|   max_w      optional width budget, % of page. If the value is wider the font
+|              is stepped down until it fits. Set on coa_number, whose length
+|              varies per batch and which would otherwise run over the right
+|              rule and off the certificate border.
 |
-| Optional keys on a text coordinate:
+| morphology_slot keys:
 |
-|   font    'Calibri', 'Calibri-Bold', 'Mistral'. The weight is honoured, so
-|           a value sitting beside a bold printed label matches it.
-|   dx, dy  fine alignment nudge in PDF POINTS (same unit as font_size).
-|           dx positive moves right, dy positive moves down. Use these to
-|           settle a value onto the baseline of the label printed next to it
-|           rather than re-measuring the whole template. They are applied in
-|           the preview, the printout and the download identically.
+|   x, y, w, h  the frame the micrograph fills, % of page
+|   fit         'cover'   fill the frame completely, cropping the overhang
+|                         (what QC asked for: no white gutter)
+|               'contain' fit the whole image inside, leaving white space
+|   align       horizontal anchor of the crop: 'left' | 'center' | 'right'
+|   valign      vertical anchor of the crop:   'top'  | 'middle' | 'bottom'
 |
-| Optional keys on morphology_slot:
-|
-|   align   'left' (default), 'center', 'right' — horizontal anchor inside
-|           the frame. The micrograph is 4:3 and the frame is wider than
-|           that, so centring left a white gutter down the left-hand side;
-|           left keeps the image flush with the column's text margin.
-|   valign  'top', 'middle' (default), 'bottom'.
-|
-| Variant groups
+| ---------------------------------------------------------------------------
+| VARIANT GROUPS
+| ---------------------------------------------------------------------------
 |
 | Two templates that differ only in wording — MSC P2 with and without the
-| patient's name — are two certificates, but one product. Tagging both with
-| the same variant_group collapses them into a single choice on the product
-| form, and lets QC pick the wording per order from the COA editor:
+| patient's name — are two certificates but one product. A shared
+| variant_group collapses them into a single choice on the product form and
+| lets QC pick the wording per order from the COA editor. Quality staff may
+| switch within a group; moving an order to another group stays superadmin.
 |
-|   variant_group        shared id, e.g. 'msc_p2'
-|   variant_group_label  what the product form shows, e.g. 'MSC P2'
-|   variant_label        what the COA editor's toggle shows
-|   variant_default      true on the member a product defaults to
-|
-| Quality staff may switch between members of the same group. Moving an order
-| to a template in a DIFFERENT group stays superadmin-only.
-|
+| Measured from the blank PDFs by work/measure.py. Do not hand-edit: if a
+| template is revised, re-run the measurement and regenerate this file.
 */
 
 return [
+
     'msc_p3' => [
         'label' => 'MSC P3',
         'pdf' => 'COA_MSC_P3.pdf',
         'pages' => 2,
         'page_width' => 540.0,
         'page_height' => 780.0,
-        'editable' => ['coa_number', 'patient_name', 'batch_number', 'product_date', 'signature_date'],
+        'coord_schema' => 2,
+        'editable' => ['coa_number', 'patient_name', 'batch_number', 'product_date', 'signature_date', 'immuno_cd73', 'immuno_cd90', 'immuno_cd105', 'immuno_negative'],
         'field_labels' => [
             'coa_number' => 'COA No.',
             'patient_name' => 'Patient Name',
             'batch_number' => 'Batch Number',
             'product_date' => 'Date',
             'signature_date' => 'Signature Date',
+            'immuno_cd73' => 'CD73+ (%)',
+            'immuno_cd90' => 'CD90+ (%)',
+            'immuno_cd105' => 'CD105+ (%)',
+            'immuno_negative' => 'Negative markers (%)',
         ],
         'products' => ['MSC 50M (P3)', 'MSC 100M (P3)', 'MSC 150M (P3)'],
         'coordinates' => [
             'page1' => [
-                'patient_name' => [
-                    'x' => 42.492,
-                    'y' => 22.529,
-                    'font_size' => 10.0,
+                'coa_number' => [
+                    'x' => 71.68,
+                    'y' => 18.073,
+                    'max_w' => 22.667,
+                    'font_size' => 6.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
+                ],
+                'patient_name' => [
+                    'x' => 42.493,
+                    'y' => 23.84,
+                    'font_size' => 9.96,
+                    'font' => 'Calibri',
+                    'align' => 'left',
                 ],
                 'batch_number' => [
-                    'x' => 42.492,
-                    'y' => 25.014,
-                    'font_size' => 10.0,
+                    'x' => 42.493,
+                    'y' => 26.324,
+                    'font_size' => 9.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
                 ],
                 'product_date' => [
-                    'x' => 42.492,
-                    'y' => 27.499,
-                    'font_size' => 10.0,
+                    'x' => 42.493,
+                    'y' => 28.809,
+                    'font_size' => 9.96,
                     'font' => 'Calibri',
-                ],
-                'coa_number' => [
-                    'x' => 71.679,
-                    'y' => 17.157,
-                    'font_size' => 7.0,
-                    'font' => 'Calibri',
-                ],
-                'signature' => [
-                    'x' => 40.833,
-                    'y' => 77.339,
-                    'font_size' => 20.0,
-                    'font' => 'Mistral',
+                    'align' => 'left',
                 ],
                 'signature_date' => [
-                    'x' => 46.819,
-                    'y' => 84.194,
-                    'font_size' => 11.0,
+                    'x' => 46.82,
+                    'y' => 85.664,
+                    'font_size' => 11.04,
                     'font' => 'Calibri-Bold',
-                    'dx' => 2.0,
-                    'dy' => 1.5,
+                    'align' => 'left',
+                    'dx' => 1.5,
+                ],
+                'signature' => [
+                    'cx' => 50.369,
+                    'y' => 79.703,
+                    'font_size' => 20.04,
+                    'font' => 'Mistral',
+                    'align' => 'center',
                 ],
             ],
             'page2' => [
                 'coa_number' => [
                     'x' => 74.063,
-                    'y' => 7.165,
-                    'font_size' => 7.0,
+                    'y' => 8.081,
+                    'max_w' => 20.722,
+                    'font_size' => 6.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
                 ],
-                'immuno_results' => [
-                    [
-                        'x' => 62.754,
-                        'y' => 31.194,
-                        'font_size' => 8.0,
-                    ],
-                    [
-                        'x' => 70.058,
-                        'y' => 31.194,
-                        'font_size' => 8.0,
-                    ],
-                    [
-                        'x' => 76.611,
-                        'y' => 31.194,
-                        'font_size' => 8.0,
-                    ],
-                    [
-                        'x' => 87.596,
-                        'y' => 31.194,
-                        'font_size' => 8.0,
-                    ],
+                'immuno_cd73' => [
+                    'cx' => 64.459,
+                    'y' => 32.251,
+                    'font_size' => 8.04,
+                    'font' => 'Calibri',
+                    'align' => 'center',
+                ],
+                'immuno_cd90' => [
+                    'cx' => 71.207,
+                    'y' => 32.251,
+                    'font_size' => 8.04,
+                    'font' => 'Calibri',
+                    'align' => 'center',
+                ],
+                'immuno_cd105' => [
+                    'cx' => 78.32,
+                    'y' => 32.251,
+                    'font_size' => 8.04,
+                    'font' => 'Calibri',
+                    'align' => 'center',
+                ],
+                'immuno_negative' => [
+                    'cx' => 88.92,
+                    'y' => 32.251,
+                    'font_size' => 8.04,
+                    'font' => 'Calibri',
+                    'align' => 'center',
                 ],
                 'morphology_slot' => [
-                    'x' => 6.850,
-                    'y' => 16.845,
-                    'w' => 39.600,
-                    'h' => 15.054,
-                    'align' => 'left',
+                    'x' => 6.722,
+                    'y' => 16.667,
+                    'w' => 40.185,
+                    'h' => 15.769,
+                    'align' => 'center',
                     'valign' => 'middle',
+                    'fit' => 'cover',
                 ],
             ],
-        ],
-        'signature_rule' => [
-            'x' => 37.243,
-            'y' => 80.289,
-            'w' => 26.25,
         ],
     ],
 
@@ -172,99 +183,124 @@ return [
         'pages' => 2,
         'page_width' => 540.0,
         'page_height' => 780.0,
-        'editable' => ['coa_number', 'patient_name', 'batch_number', 'product_date', 'signature_date'],
+        'coord_schema' => 2,
+        'editable' => ['coa_number', 'patient_name', 'batch_number', 'product_date', 'viable_cell_count', 'signature_date', 'immuno_cd73', 'immuno_cd90', 'immuno_cd105', 'immuno_negative'],
         'field_labels' => [
             'coa_number' => 'COA No.',
             'patient_name' => 'Patient Name',
             'batch_number' => 'Batch Number',
             'product_date' => 'Date',
+            'viable_cell_count' => 'Viable Cell Count',
             'signature_date' => 'Signature Date',
+            'immuno_cd73' => 'CD73+ (%)',
+            'immuno_cd90' => 'CD90+ (%)',
+            'immuno_cd105' => 'CD105+ (%)',
+            'immuno_negative' => 'Negative markers (%)',
         ],
         'products' => ['MSC 5M', 'MSC 10M', 'MSC 15M', 'MSC 20M', 'MSC 25M', 'MSC 50M', 'MSC 100M', 'MSC 120M', 'MSC 125M', 'MSC 150M', 'MSC 200M'],
         'coordinates' => [
             'page1' => [
-                'patient_name' => [
-                    'x' => 42.492,
-                    'y' => 22.908,
-                    'font_size' => 10.0,
+                'coa_number' => [
+                    'x' => 66.53,
+                    'y' => 18.11,
+                    'max_w' => 27.817,
+                    'font_size' => 6.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
+                    'dx' => 2.0,
+                ],
+                'patient_name' => [
+                    'x' => 42.959,
+                    'y' => 24.41,
+                    'font_size' => 9.96,
+                    'font' => 'Calibri',
+                    'align' => 'left',
                 ],
                 'batch_number' => [
-                    'x' => 42.492,
-                    'y' => 25.393,
-                    'font_size' => 10.0,
+                    'x' => 42.959,
+                    'y' => 26.896,
+                    'font_size' => 9.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
                 ],
                 'product_date' => [
-                    'x' => 42.492,
-                    'y' => 27.878,
-                    'font_size' => 10.0,
+                    'x' => 42.959,
+                    'y' => 29.379,
+                    'font_size' => 9.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
                 ],
-                'coa_number' => [
-                    'x' => 71.773,
-                    'y' => 17.157,
-                    'font_size' => 7.0,
+                'viable_cell_count' => [
+                    'x' => 42.959,
+                    'y' => 37.336,
+                    'font_size' => 9.96,
                     'font' => 'Calibri',
-                ],
-                'signature' => [
-                    'x' => 40.637,
-                    'y' => 84.658,
-                    'font_size' => 20.0,
-                    'font' => 'Mistral',
+                    'align' => 'left',
                 ],
                 'signature_date' => [
-                    'x' => 45.578,
-                    'y' => 91.604,
-                    'font_size' => 11.0,
+                    'x' => 52.031,
+                    'y' => 93.09,
+                    'font_size' => 11.04,
                     'font' => 'Calibri-Bold',
-                    'dx' => 2.0,
-                    'dy' => 1.5,
+                    'align' => 'left',
+                    'dx' => 1.5,
+                ],
+                'signature' => [
+                    'cx' => 49.725,
+                    'y' => 87.036,
+                    'font_size' => 20.04,
+                    'font' => 'Mistral',
+                    'align' => 'center',
                 ],
             ],
             'page2' => [
                 'coa_number' => [
-                    'x' => 73.975,
-                    'y' => 7.165,
-                    'font_size' => 7.0,
+                    'x' => 66.326,
+                    'y' => 8.037,
+                    'max_w' => 28.459,
+                    'font_size' => 6.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
+                    'dx' => 2.0,
                 ],
-                'immuno_results' => [
-                    [
-                        'x' => 16.972,
-                        'y' => 74.992,
-                        'font_size' => 8.0,
-                    ],
-                    [
-                        'x' => 23.721,
-                        'y' => 74.992,
-                        'font_size' => 8.0,
-                    ],
-                    [
-                        'x' => 30.829,
-                        'y' => 74.992,
-                        'font_size' => 8.0,
-                    ],
-                    [
-                        'x' => 41.814,
-                        'y' => 74.992,
-                        'font_size' => 8.0,
-                    ],
+                'immuno_cd73' => [
+                    'cx' => 18.685,
+                    'y' => 76.062,
+                    'font_size' => 8.04,
+                    'font' => 'Calibri',
+                    'align' => 'center',
+                ],
+                'immuno_cd90' => [
+                    'cx' => 25.581,
+                    'y' => 76.062,
+                    'font_size' => 8.04,
+                    'font' => 'Calibri',
+                    'align' => 'center',
+                ],
+                'immuno_cd105' => [
+                    'cx' => 32.761,
+                    'y' => 76.062,
+                    'font_size' => 8.04,
+                    'font' => 'Calibri',
+                    'align' => 'center',
+                ],
+                'immuno_negative' => [
+                    'cx' => 43.36,
+                    'y' => 76.062,
+                    'font_size' => 8.04,
+                    'font' => 'Calibri',
+                    'align' => 'center',
                 ],
                 'morphology_slot' => [
-                    'x' => 6.850,
-                    'y' => 16.845,
-                    'w' => 39.600,
-                    'h' => 15.054,
-                    'align' => 'left',
+                    'x' => 6.724,
+                    'y' => 16.667,
+                    'w' => 40.235,
+                    'h' => 15.769,
+                    'align' => 'center',
                     'valign' => 'middle',
+                    'fit' => 'cover',
                 ],
             ],
-        ],
-        'signature_rule' => [
-            'x' => 36.601,
-            'y' => 87.699,
-            'w' => 26.25,
         ],
     ],
 
@@ -277,92 +313,116 @@ return [
         'pages' => 2,
         'page_width' => 540.0,
         'page_height' => 780.0,
-        'editable' => ['coa_number', 'batch_number', 'product_date', 'signature_date'],
+        'coord_schema' => 2,
+        'editable' => ['coa_number', 'batch_number', 'product_date', 'viable_cell_count', 'signature_date', 'immuno_cd73', 'immuno_cd90', 'immuno_cd105', 'immuno_negative'],
         'field_labels' => [
             'coa_number' => 'COA No.',
             'batch_number' => 'Batch Number',
             'product_date' => 'Date',
+            'viable_cell_count' => 'Viable Cell Count',
             'signature_date' => 'Signature Date',
+            'immuno_cd73' => 'CD73+ (%)',
+            'immuno_cd90' => 'CD90+ (%)',
+            'immuno_cd105' => 'CD105+ (%)',
+            'immuno_negative' => 'Negative markers (%)',
         ],
         'products' => [],
         'coordinates' => [
             'page1' => [
-                'batch_number' => [
-                    'x' => 42.492,
-                    'y' => 22.908,
-                    'font_size' => 10.0,
+                'coa_number' => [
+                    'x' => 66.53,
+                    'y' => 18.11,
+                    'max_w' => 27.817,
+                    'font_size' => 6.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
+                    'dx' => 2.0,
+                ],
+                'batch_number' => [
+                    'x' => 42.959,
+                    'y' => 24.41,
+                    'font_size' => 9.96,
+                    'font' => 'Calibri',
+                    'align' => 'left',
                 ],
                 'product_date' => [
-                    'x' => 42.492,
-                    'y' => 25.393,
-                    'font_size' => 10.0,
+                    'x' => 42.959,
+                    'y' => 26.895,
+                    'font_size' => 9.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
                 ],
-                'coa_number' => [
-                    'x' => 71.773,
-                    'y' => 17.157,
-                    'font_size' => 7.0,
+                'viable_cell_count' => [
+                    'x' => 42.959,
+                    'y' => 35.109,
+                    'font_size' => 9.96,
                     'font' => 'Calibri',
-                ],
-                'signature' => [
-                    'x' => 40.637,
-                    'y' => 84.658,
-                    'font_size' => 20.0,
-                    'font' => 'Mistral',
+                    'align' => 'left',
                 ],
                 'signature_date' => [
-                    'x' => 45.578,
-                    'y' => 91.604,
-                    'font_size' => 11.0,
+                    'x' => 52.031,
+                    'y' => 93.09,
+                    'font_size' => 11.04,
                     'font' => 'Calibri-Bold',
-                    'dx' => 2.0,
-                    'dy' => 1.5,
+                    'align' => 'left',
+                    'dx' => 1.5,
+                ],
+                'signature' => [
+                    'cx' => 49.725,
+                    'y' => 87.036,
+                    'font_size' => 20.04,
+                    'font' => 'Mistral',
+                    'align' => 'center',
                 ],
             ],
             'page2' => [
                 'coa_number' => [
-                    'x' => 73.975,
-                    'y' => 7.165,
-                    'font_size' => 7.0,
+                    'x' => 66.326,
+                    'y' => 8.037,
+                    'max_w' => 28.459,
+                    'font_size' => 6.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
+                    'dx' => 2.0,
                 ],
-                'immuno_results' => [
-                    [
-                        'x' => 16.972,
-                        'y' => 74.992,
-                        'font_size' => 8.0,
-                    ],
-                    [
-                        'x' => 23.721,
-                        'y' => 74.992,
-                        'font_size' => 8.0,
-                    ],
-                    [
-                        'x' => 30.829,
-                        'y' => 74.992,
-                        'font_size' => 8.0,
-                    ],
-                    [
-                        'x' => 41.814,
-                        'y' => 74.992,
-                        'font_size' => 8.0,
-                    ],
+                'immuno_cd73' => [
+                    'cx' => 18.685,
+                    'y' => 76.062,
+                    'font_size' => 8.04,
+                    'font' => 'Calibri',
+                    'align' => 'center',
+                ],
+                'immuno_cd90' => [
+                    'cx' => 25.581,
+                    'y' => 76.062,
+                    'font_size' => 8.04,
+                    'font' => 'Calibri',
+                    'align' => 'center',
+                ],
+                'immuno_cd105' => [
+                    'cx' => 32.761,
+                    'y' => 76.062,
+                    'font_size' => 8.04,
+                    'font' => 'Calibri',
+                    'align' => 'center',
+                ],
+                'immuno_negative' => [
+                    'cx' => 43.36,
+                    'y' => 76.062,
+                    'font_size' => 8.04,
+                    'font' => 'Calibri',
+                    'align' => 'center',
                 ],
                 'morphology_slot' => [
-                    'x' => 6.850,
-                    'y' => 16.845,
-                    'w' => 39.600,
-                    'h' => 15.054,
-                    'align' => 'left',
+                    'x' => 6.724,
+                    'y' => 16.667,
+                    'w' => 40.235,
+                    'h' => 15.769,
+                    'align' => 'center',
                     'valign' => 'middle',
+                    'fit' => 'cover',
                 ],
             ],
-        ],
-        'signature_rule' => [
-            'x' => 36.601,
-            'y' => 87.699,
-            'w' => 26.25,
         ],
     ],
 
@@ -372,6 +432,7 @@ return [
         'pages' => 2,
         'page_width' => 540.0,
         'page_height' => 780.0,
+        'coord_schema' => 2,
         'editable' => ['coa_number', 'patient_name', 'product_date', 'viable_cell_count', 'signature_date'],
         'field_labels' => [
             'coa_number' => 'COA No.',
@@ -383,67 +444,69 @@ return [
         'products' => ['NK Cells 2B', 'NK Cells 5B (Ready Product For Infusion)'],
         'coordinates' => [
             'page1' => [
+                'coa_number' => [
+                    'x' => 80.75,
+                    'y' => 18.073,
+                    'max_w' => 13.596,
+                    'font_size' => 6.96,
+                    'font' => 'Calibri',
+                    'align' => 'left',
+                ],
                 'patient_name' => [
                     'x' => 41.854,
-                    'y' => 22.908,
-                    'font_size' => 10.0,
+                    'y' => 24.218,
+                    'font_size' => 9.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
                 ],
                 'product_date' => [
                     'x' => 41.854,
-                    'y' => 25.393,
-                    'font_size' => 10.0,
+                    'y' => 26.704,
+                    'font_size' => 9.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
                 ],
                 'viable_cell_count' => [
                     'x' => 41.854,
-                    'y' => 33.348,
-                    'font_size' => 10.0,
+                    'y' => 34.659,
+                    'font_size' => 9.96,
                     'font' => 'Calibri',
-                    'dy' => 3.0,
-                ],
-                'coa_number' => [
-                    'x' => 80.751,
-                    'y' => 17.157,
-                    'font_size' => 7.0,
-                    'font' => 'Calibri',
-                ],
-                'signature' => [
-                    'x' => 41.851,
-                    'y' => 85.191,
-                    'font_size' => 20.0,
-                    'font' => 'Mistral',
+                    'align' => 'left',
                 ],
                 'signature_date' => [
-                    'x' => 48.071,
-                    'y' => 92.106,
-                    'font_size' => 11.0,
+                    'x' => 48.067,
+                    'y' => 93.577,
+                    'font_size' => 11.04,
                     'font' => 'Calibri-Bold',
-                    'dx' => 2.0,
-                    'dy' => 1.5,
+                    'align' => 'left',
+                ],
+                'signature' => [
+                    'cx' => 50.939,
+                    'y' => 87.554,
+                    'font_size' => 20.04,
+                    'font' => 'Mistral',
+                    'align' => 'center',
                 ],
             ],
             'page2' => [
                 'coa_number' => [
                     'x' => 82.952,
-                    'y' => 7.165,
-                    'font_size' => 7.0,
+                    'y' => 8.081,
+                    'max_w' => 11.833,
+                    'font_size' => 6.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
                 ],
                 'morphology_slot' => [
-                    'x' => 6.850,
-                    'y' => 16.299,
-                    'w' => 39.600,
-                    'h' => 15.022,
-                    'align' => 'left',
+                    'x' => 6.183,
+                    'y' => 16.154,
+                    'w' => 40.961,
+                    'h' => 15.641,
+                    'align' => 'center',
                     'valign' => 'middle',
+                    'fit' => 'cover',
                 ],
             ],
-        ],
-        'signature_rule' => [
-            'x' => 37.815,
-            'y' => 88.201,
-            'w' => 26.25,
         ],
     ],
 
@@ -453,6 +516,7 @@ return [
         'pages' => 2,
         'page_width' => 540.0,
         'page_height' => 780.0,
+        'coord_schema' => 2,
         'editable' => ['coa_number', 'patient_name', 'product_date', 'viable_cell_count', 'signature_date'],
         'field_labels' => [
             'coa_number' => 'COA No.',
@@ -464,67 +528,70 @@ return [
         'products' => ['NKT Cells 10B (Ready Product For Infusion)'],
         'coordinates' => [
             'page1' => [
-                'patient_name' => [
-                    'x' => 42.492,
-                    'y' => 22.908,
-                    'font_size' => 10.0,
-                    'font' => 'Calibri',
-                ],
-                'product_date' => [
-                    'x' => 42.492,
-                    'y' => 25.393,
-                    'font_size' => 10.0,
-                    'font' => 'Calibri',
-                ],
-                'viable_cell_count' => [
-                    'x' => 42.492,
-                    'y' => 33.348,
-                    'font_size' => 10.0,
-                    'font' => 'Calibri',
-                    'dy' => 3.0,
-                ],
                 'coa_number' => [
                     'x' => 80.928,
-                    'y' => 17.157,
-                    'font_size' => 7.0,
+                    'y' => 18.073,
+                    'max_w' => 13.419,
+                    'font_size' => 6.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
                 ],
-                'signature' => [
-                    'x' => 40.637,
-                    'y' => 84.658,
-                    'font_size' => 20.0,
-                    'font' => 'Mistral',
+                'patient_name' => [
+                    'x' => 42.493,
+                    'y' => 24.218,
+                    'font_size' => 9.96,
+                    'font' => 'Calibri',
+                    'align' => 'left',
+                ],
+                'product_date' => [
+                    'x' => 42.493,
+                    'y' => 26.704,
+                    'font_size' => 9.96,
+                    'font' => 'Calibri',
+                    'align' => 'left',
+                ],
+                'viable_cell_count' => [
+                    'x' => 42.493,
+                    'y' => 34.659,
+                    'font_size' => 9.96,
+                    'font' => 'Calibri',
+                    'align' => 'left',
                 ],
                 'signature_date' => [
                     'x' => 45.578,
-                    'y' => 91.604,
-                    'font_size' => 11.0,
+                    'y' => 93.074,
+                    'font_size' => 11.04,
                     'font' => 'Calibri-Bold',
-                    'dx' => 2.0,
-                    'dy' => 1.5,
+                    'align' => 'left',
+                    'dx' => 1.5,
+                ],
+                'signature' => [
+                    'cx' => 49.724,
+                    'y' => 87.022,
+                    'font_size' => 20.04,
+                    'font' => 'Mistral',
+                    'align' => 'center',
                 ],
             ],
             'page2' => [
                 'coa_number' => [
                     'x' => 83.13,
-                    'y' => 7.165,
-                    'font_size' => 7.0,
+                    'y' => 8.081,
+                    'max_w' => 11.656,
+                    'font_size' => 6.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
                 ],
                 'morphology_slot' => [
-                    'x' => 6.850,
-                    'y' => 16.299,
-                    'w' => 39.600,
-                    'h' => 15.022,
-                    'align' => 'left',
+                    'x' => 6.183,
+                    'y' => 16.154,
+                    'w' => 40.961,
+                    'h' => 15.641,
+                    'align' => 'center',
                     'valign' => 'middle',
+                    'fit' => 'cover',
                 ],
             ],
-        ],
-        'signature_rule' => [
-            'x' => 36.601,
-            'y' => 87.699,
-            'w' => 26.25,
         ],
     ],
 
@@ -534,6 +601,7 @@ return [
         'pages' => 2,
         'page_width' => 540.0,
         'page_height' => 780.0,
+        'coord_schema' => 2,
         'editable' => ['coa_number', 'batch_number', 'mfg_date', 'expiry_date', 'signature_date'],
         'field_labels' => [
             'coa_number' => 'COA No.',
@@ -545,58 +613,61 @@ return [
         'products' => ['General Exosome'],
         'coordinates' => [
             'page1' => [
-                'batch_number' => [
-                    'x' => 42.492,
-                    'y' => 25.393,
-                    'font_size' => 10.0,
+                'coa_number' => [
+                    'x' => 78.35,
+                    'y' => 18.073,
+                    'max_w' => 15.996,
+                    'font_size' => 6.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
+                ],
+                'batch_number' => [
+                    'x' => 42.493,
+                    'y' => 26.704,
+                    'font_size' => 9.96,
+                    'font' => 'Calibri',
+                    'align' => 'left',
                 ],
                 'mfg_date' => [
-                    'x' => 42.492,
-                    'y' => 27.605,
-                    'font_size' => 10.0,
+                    'x' => 42.493,
+                    'y' => 28.915,
+                    'font_size' => 9.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
                 ],
                 'expiry_date' => [
-                    'x' => 42.492,
-                    'y' => 30.09,
-                    'font_size' => 10.0,
+                    'x' => 42.493,
+                    'y' => 31.4,
+                    'font_size' => 9.96,
                     'font' => 'Calibri',
-                ],
-                'coa_number' => [
-                    'x' => 78.351,
-                    'y' => 17.157,
-                    'font_size' => 7.0,
-                    'font' => 'Calibri',
-                ],
-                'signature' => [
-                    'x' => 40.637,
-                    'y' => 84.658,
-                    'font_size' => 20.0,
-                    'font' => 'Mistral',
+                    'align' => 'left',
                 ],
                 'signature_date' => [
-                    'x' => 45.666,
-                    'y' => 91.604,
-                    'font_size' => 11.0,
+                    'x' => 45.667,
+                    'y' => 93.074,
+                    'font_size' => 11.04,
                     'font' => 'Calibri-Bold',
-                    'dx' => 2.0,
-                    'dy' => 1.5,
+                    'align' => 'left',
+                    'dx' => 1.5,
+                ],
+                'signature' => [
+                    'cx' => 49.724,
+                    'y' => 87.022,
+                    'font_size' => 20.04,
+                    'font' => 'Mistral',
+                    'align' => 'center',
                 ],
             ],
             'page2' => [
                 'coa_number' => [
                     'x' => 79.241,
-                    'y' => 7.165,
-                    'font_size' => 7.0,
+                    'y' => 8.081,
+                    'max_w' => 15.544,
+                    'font_size' => 6.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
                 ],
             ],
-        ],
-        'signature_rule' => [
-            'x' => 36.601,
-            'y' => 87.699,
-            'w' => 26.25,
         ],
     ],
 
@@ -606,6 +677,7 @@ return [
         'pages' => 2,
         'page_width' => 540.0,
         'page_height' => 780.0,
+        'coord_schema' => 2,
         'editable' => ['coa_number', 'batch_number', 'mfg_date', 'expiry_date', 'signature_date'],
         'field_labels' => [
             'coa_number' => 'COA No.',
@@ -617,58 +689,61 @@ return [
         'products' => ['Exosomes Wellness'],
         'coordinates' => [
             'page1' => [
+                'coa_number' => [
+                    'x' => 78.128,
+                    'y' => 18.073,
+                    'max_w' => 16.219,
+                    'font_size' => 6.96,
+                    'font' => 'Calibri',
+                    'align' => 'left',
+                ],
                 'batch_number' => [
                     'x' => 42.493,
-                    'y' => 25.393,
-                    'font_size' => 10.0,
+                    'y' => 26.704,
+                    'font_size' => 9.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
                 ],
                 'mfg_date' => [
                     'x' => 42.493,
-                    'y' => 27.604,
-                    'font_size' => 10.0,
+                    'y' => 28.915,
+                    'font_size' => 9.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
                 ],
                 'expiry_date' => [
                     'x' => 42.493,
-                    'y' => 30.089,
-                    'font_size' => 10.0,
+                    'y' => 31.4,
+                    'font_size' => 9.96,
                     'font' => 'Calibri',
-                ],
-                'coa_number' => [
-                    'x' => 78.128,
-                    'y' => 17.157,
-                    'font_size' => 7.0,
-                    'font' => 'Calibri',
-                ],
-                'signature' => [
-                    'x' => 40.637,
-                    'y' => 84.658,
-                    'font_size' => 20.0,
-                    'font' => 'Mistral',
+                    'align' => 'left',
                 ],
                 'signature_date' => [
                     'x' => 45.733,
-                    'y' => 91.604,
-                    'font_size' => 11.0,
+                    'y' => 93.074,
+                    'font_size' => 11.04,
                     'font' => 'Calibri-Bold',
-                    'dx' => 2.0,
-                    'dy' => 1.5,
+                    'align' => 'left',
+                    'dx' => 1.5,
+                ],
+                'signature' => [
+                    'cx' => 49.724,
+                    'y' => 87.022,
+                    'font_size' => 20.04,
+                    'font' => 'Mistral',
+                    'align' => 'center',
                 ],
             ],
             'page2' => [
                 'coa_number' => [
                     'x' => 80.463,
-                    'y' => 7.165,
-                    'font_size' => 7.0,
+                    'y' => 8.081,
+                    'max_w' => 14.322,
+                    'font_size' => 6.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
                 ],
             ],
-        ],
-        'signature_rule' => [
-            'x' => 36.601,
-            'y' => 87.699,
-            'w' => 26.25,
         ],
     ],
 
@@ -678,6 +753,7 @@ return [
         'pages' => 2,
         'page_width' => 540.0,
         'page_height' => 780.0,
+        'coord_schema' => 2,
         'editable' => ['coa_number', 'batch_number', 'mfg_date', 'expiry_date', 'signature_date'],
         'field_labels' => [
             'coa_number' => 'COA No.',
@@ -689,58 +765,61 @@ return [
         'products' => ['Exosomes Cardio'],
         'coordinates' => [
             'page1' => [
+                'coa_number' => [
+                    'x' => 77.039,
+                    'y' => 18.073,
+                    'max_w' => 17.307,
+                    'font_size' => 6.96,
+                    'font' => 'Calibri',
+                    'align' => 'left',
+                ],
                 'batch_number' => [
                     'x' => 42.493,
-                    'y' => 25.393,
-                    'font_size' => 10.0,
+                    'y' => 26.704,
+                    'font_size' => 9.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
                 ],
                 'mfg_date' => [
                     'x' => 42.493,
-                    'y' => 27.604,
-                    'font_size' => 10.0,
+                    'y' => 28.915,
+                    'font_size' => 9.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
                 ],
                 'expiry_date' => [
                     'x' => 42.493,
-                    'y' => 30.089,
-                    'font_size' => 10.0,
+                    'y' => 31.4,
+                    'font_size' => 9.96,
                     'font' => 'Calibri',
-                ],
-                'coa_number' => [
-                    'x' => 77.039,
-                    'y' => 17.157,
-                    'font_size' => 7.0,
-                    'font' => 'Calibri',
-                ],
-                'signature' => [
-                    'x' => 40.637,
-                    'y' => 84.658,
-                    'font_size' => 20.0,
-                    'font' => 'Mistral',
+                    'align' => 'left',
                 ],
                 'signature_date' => [
                     'x' => 45.733,
-                    'y' => 91.604,
-                    'font_size' => 11.0,
+                    'y' => 93.074,
+                    'font_size' => 11.04,
                     'font' => 'Calibri-Bold',
-                    'dx' => 2.0,
-                    'dy' => 1.5,
+                    'align' => 'left',
+                    'dx' => 1.5,
+                ],
+                'signature' => [
+                    'cx' => 49.724,
+                    'y' => 87.022,
+                    'font_size' => 20.04,
+                    'font' => 'Mistral',
+                    'align' => 'center',
                 ],
             ],
             'page2' => [
                 'coa_number' => [
                     'x' => 79.063,
-                    'y' => 7.165,
-                    'font_size' => 7.0,
+                    'y' => 8.081,
+                    'max_w' => 15.722,
+                    'font_size' => 6.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
                 ],
             ],
-        ],
-        'signature_rule' => [
-            'x' => 36.601,
-            'y' => 87.699,
-            'w' => 26.25,
         ],
     ],
 
@@ -750,6 +829,7 @@ return [
         'pages' => 2,
         'page_width' => 540.0,
         'page_height' => 780.0,
+        'coord_schema' => 2,
         'editable' => ['coa_number', 'batch_number', 'mfg_date', 'expiry_date', 'signature_date'],
         'field_labels' => [
             'coa_number' => 'COA No.',
@@ -761,58 +841,61 @@ return [
         'products' => ['Secretome'],
         'coordinates' => [
             'page1' => [
-                'batch_number' => [
-                    'x' => 42.492,
-                    'y' => 25.393,
-                    'font_size' => 10.0,
+                'coa_number' => [
+                    'x' => 80.172,
+                    'y' => 18.073,
+                    'max_w' => 14.174,
+                    'font_size' => 6.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
+                ],
+                'batch_number' => [
+                    'x' => 42.493,
+                    'y' => 26.704,
+                    'font_size' => 9.96,
+                    'font' => 'Calibri',
+                    'align' => 'left',
                 ],
                 'mfg_date' => [
-                    'x' => 42.492,
-                    'y' => 27.605,
-                    'font_size' => 10.0,
+                    'x' => 42.493,
+                    'y' => 28.915,
+                    'font_size' => 9.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
                 ],
                 'expiry_date' => [
-                    'x' => 42.492,
-                    'y' => 30.09,
-                    'font_size' => 10.0,
+                    'x' => 42.493,
+                    'y' => 31.4,
+                    'font_size' => 9.96,
                     'font' => 'Calibri',
-                ],
-                'coa_number' => [
-                    'x' => 80.173,
-                    'y' => 17.157,
-                    'font_size' => 7.0,
-                    'font' => 'Calibri',
-                ],
-                'signature' => [
-                    'x' => 40.637,
-                    'y' => 84.658,
-                    'font_size' => 20.0,
-                    'font' => 'Mistral',
+                    'align' => 'left',
                 ],
                 'signature_date' => [
                     'x' => 45.733,
-                    'y' => 91.604,
-                    'font_size' => 11.0,
+                    'y' => 93.074,
+                    'font_size' => 11.04,
                     'font' => 'Calibri-Bold',
-                    'dx' => 2.0,
-                    'dy' => 1.5,
+                    'align' => 'left',
+                    'dx' => 1.5,
+                ],
+                'signature' => [
+                    'cx' => 49.724,
+                    'y' => 87.022,
+                    'font_size' => 20.04,
+                    'font' => 'Mistral',
+                    'align' => 'center',
                 ],
             ],
             'page2' => [
                 'coa_number' => [
                     'x' => 82.374,
-                    'y' => 7.165,
-                    'font_size' => 7.0,
+                    'y' => 8.081,
+                    'max_w' => 12.411,
+                    'font_size' => 6.96,
                     'font' => 'Calibri',
+                    'align' => 'left',
                 ],
             ],
-        ],
-        'signature_rule' => [
-            'x' => 36.601,
-            'y' => 87.699,
-            'w' => 26.25,
         ],
     ],
 
