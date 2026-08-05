@@ -220,7 +220,7 @@
                                     <p class="text-muted mb-4">Please fill all information below</p>
                                     <div class="alert alert-info alert-border-left mb-4" role="alert">
                                         <i class="ri-information-line me-2"></i>
-                                        <strong>Note:</strong> For "Infusion Set" products, only quantity is required. Patient name and remarks fields will be disabled.
+                                        <strong>Note:</strong> Some products change which fields apply. For "Infusion Set", only quantity is required and patient name and remarks are disabled. For patient test products, Patient Name and Patient IC Number are compulsory and quantity and remarks do not apply.
                                     </div>
                                 </div>
 
@@ -240,7 +240,7 @@
                                             </div>
                                         </div>
                                         <div class="row">
-                                            <div class="col-lg-6 col-12">
+                                            <div class="col-lg-6 col-12 field-order-type">
                                                 <div class="mb-3">
                                                     <label for="products[0][type]" class="form-label fw-semibold">Order Type <span class="text-danger">*</span></label>
                                                     <select class="form-select order-type shadow-sm @error('products.0.type') is-invalid @enderror" 
@@ -258,9 +258,9 @@
                                                     <div class="invalid-feedback">Please select an order type</div>
                                                 </div>
                                             </div>
-                                            <div class="col-lg-4 col-sm-8 col-12">
+                                            <div class="col-lg-4 col-sm-8 col-12 field-patient-name">
                                                 <div class="mb-3">
-                                                    <label for="products[0][patient_name]" class="form-label fw-semibold">Patient Name</label>
+                                                    <label for="products[0][patient_name]" class="form-label fw-semibold">Patient Name <span class="text-danger patient-required-star d-none">*</span></label>
                                                     <input type="text" class="form-control patient-name-field @error('products.0.patient_name') is-invalid @enderror" 
                                                         id="products[0][patient_name]" name="products[0][patient_name]" 
                                                         placeholder="Enter patient name" value="{{ old('products.0.patient_name') }}">
@@ -269,10 +269,21 @@
                                                     @enderror
                                                 </div>
                                             </div>
-                                            <div class="col-lg-2 col-sm-4 col-12">
+                                            <div class="col-lg-4 col-sm-8 col-12 field-patient-ic d-none">
+                                                <div class="mb-3">
+                                                    <label for="products[0][patient_ic]" class="form-label fw-semibold">Patient IC Number <span class="text-danger patient-required-star d-none">*</span></label>
+                                                    <input type="text" class="form-control patient-ic-field @error('products.0.patient_ic') is-invalid @enderror"
+                                                        id="products[0][patient_ic]" name="products[0][patient_ic]" maxlength="30"
+                                                        placeholder="Enter patient IC number" value="{{ old('products.0.patient_ic') }}">
+                                                    @error('products.0.patient_ic')
+                                                        <div class="invalid-feedback">{{ $message }}</div>
+                                                    @enderror
+                                                </div>
+                                            </div>
+                                            <div class="col-lg-2 col-sm-4 col-12 field-quantity">
                                                 <div class="mb-3">
                                                     <label for="products[0][quantity]" class="form-label fw-semibold">Quantity <span class="text-danger">*</span></label>
-                                                    <input type="number" class="form-control @error('products.0.quantity') is-invalid @enderror" 
+                                                    <input type="number" class="form-control quantity-field @error('products.0.quantity') is-invalid @enderror" 
                                                         id="products[0][quantity]" name="products[0][quantity]" 
                                                         value="{{ old('products.0.quantity', 1) }}" min="1" max="100"
                                                         onkeypress="return event.charCode >= 48 && event.charCode <= 57" required>
@@ -284,7 +295,7 @@
                                             </div>
                                         </div>
                                         <div class="row">
-                                            <div class="col-lg-10 col-sm-8 col-12">
+                                            <div class="col-lg-10 col-sm-8 col-12 field-remarks">
                                                 <div class="mb-0">
                                                     <label for="products[0][remarks]" class="form-label fw-semibold">Remarks</label>
                                                     <textarea class="form-control remarks-field @error('products.0.remarks') is-invalid @enderror" 
@@ -295,7 +306,7 @@
                                                     @enderror
                                                 </div>
                                             </div>
-                                            <div class="col-lg-2 col-sm-4 col-12">
+                                            <div class="col-lg-2 col-sm-4 col-12 field-coa">
                                                 <div class="mb-3">
                                                     <label class="form-label fw-semibold d-block">&nbsp;</label>
                                                     <div class="form-check">
@@ -917,7 +928,7 @@
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-lg-6 col-12">
+                        <div class="col-lg-6 col-12 field-order-type">
                             <div class="mb-3">
                                 <label for="products[${itemCount}][type]" class="form-label fw-semibold">Order Type <span class="text-danger">*</span></label>
                                 <select class="form-select order-type shadow-sm" id="products[${itemCount}][type]" name="products[${itemCount}][type]" required>
@@ -929,28 +940,34 @@
                                 <div class="invalid-feedback">Please select an order type</div>
                             </div>
                         </div>
-                                                                <div class="col-lg-4 col-sm-8 col-12">
-                                            <div class="mb-3">
-                                                <label for="products[${itemCount}][patient_name]" class="form-label fw-semibold">Patient Name</label>
-                                                <input type="text" class="form-control patient-name-field" id="products[${itemCount}][patient_name]" name="products[${itemCount}][patient_name]" placeholder="Enter patient name">
-                                            </div>
-                                        </div>
-                        <div class="col-lg-2 col-sm-4 col-12">
+                        <div class="col-lg-4 col-sm-8 col-12 field-patient-name">
+                            <div class="mb-3">
+                                <label for="products[${itemCount}][patient_name]" class="form-label fw-semibold">Patient Name <span class="text-danger patient-required-star d-none">*</span></label>
+                                <input type="text" class="form-control patient-name-field" id="products[${itemCount}][patient_name]" name="products[${itemCount}][patient_name]" placeholder="Enter patient name">
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-sm-8 col-12 field-patient-ic d-none">
+                            <div class="mb-3">
+                                <label for="products[${itemCount}][patient_ic]" class="form-label fw-semibold">Patient IC Number <span class="text-danger patient-required-star d-none">*</span></label>
+                                <input type="text" class="form-control patient-ic-field" id="products[${itemCount}][patient_ic]" name="products[${itemCount}][patient_ic]" maxlength="30" placeholder="Enter patient IC number">
+                            </div>
+                        </div>
+                        <div class="col-lg-2 col-sm-4 col-12 field-quantity">
                             <div class="mb-3">
                                 <label for="products[${itemCount}][quantity]" class="form-label fw-semibold">Quantity <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control" id="products[${itemCount}][quantity]" name="products[${itemCount}][quantity]" value="1" min="1" max="100" onkeypress="return event.charCode >= 48 && event.charCode <= 57" required>
+                                <input type="number" class="form-control quantity-field" id="products[${itemCount}][quantity]" name="products[${itemCount}][quantity]" value="1" min="1" max="100" onkeypress="return event.charCode >= 48 && event.charCode <= 57" required>
                                 <div class="invalid-feedback">Please enter a quantity</div>
                             </div>
                         </div>
                     </div>
                                                         <div class="row">
-                                        <div class="col-lg-10 col-sm-8 col-12">
+                                        <div class="col-lg-10 col-sm-8 col-12 field-remarks">
                                             <div class="mb-0">
                                                 <label for="products[${itemCount}][remarks]" class="form-label fw-semibold">Remarks</label>
                                                 <textarea class="form-control remarks-field" id="products[${itemCount}][remarks]" name="products[${itemCount}][remarks]" placeholder="Enter any remarks for this order item" rows="2"></textarea>
                                             </div>
                                         </div>
-                                        <div class="col-lg-2 col-sm-4 col-12">
+                                        <div class="col-lg-2 col-sm-4 col-12 field-coa">
                                             <div class="mb-3">
                                                 <label class="form-label fw-semibold d-block">&nbsp;</label>
                                                 <div class="form-check">
@@ -969,16 +986,20 @@
                 document.querySelector('.order-items').appendChild(newItem);
                 
                 const newSelect = newItem.querySelector('select');
-                const newQuantity = newItem.querySelector('input[type="number"]');
+                const newQuantity = newItem.querySelector('.quantity-field');
                 
                 newSelect.addEventListener('change', function() {
                     validateField(this);
-                    handleInfusionSetLogic(this);
+                    applyProductRules(this);
                 });
                 
                 newQuantity.addEventListener('change', function() {
                     validateField(this);
                 });
+
+                // A fresh row starts on the placeholder option, but run the
+                // rules anyway so its state is never assumed.
+                applyProductRules(newSelect);
             });
             
             // Delete item functionality
@@ -1055,44 +1076,122 @@
                 });
             }
             
-            // Function to handle Infusion Set logic
-            function handleInfusionSetLogic(selectElement) {
+            // Per-product order form rules, keyed by product name.
+            //
+            // The flag comes from the product record, not from a hardcoded
+            // name, so renaming a product in Settings cannot silently switch
+            // its behaviour off. Infusion Set is still matched by name because
+            // that rule predates the flag and is left exactly as it was.
+            const PRODUCT_RULES = @json($products->mapWithKeys(fn ($p) => [
+                $p->name => ['patient' => (bool) $p->requires_patient_details],
+            ]));
+
+            /**
+             * Apply one order line's field rules based on the product chosen.
+             *
+             * Three states:
+             *   patient test  - Patient Name and Patient IC compulsory,
+             *                   Quantity and Remarks hidden
+             *   Infusion Set  - Patient Name and Remarks disabled
+             *   anything else - everything back to the default
+             */
+            function applyProductRules(selectElement) {
                 const orderItem = selectElement.closest('.order-item');
+                if (!orderItem) return;
+
+                const rules = PRODUCT_RULES[selectElement.value] || {};
+                const isPatientTest = rules.patient === true;
+                const isInfusionSet = selectElement.value === 'Infusion Set';
+
+                const wrapOrderType = orderItem.querySelector('.field-order-type');
+                const wrapPatientIc = orderItem.querySelector('.field-patient-ic');
+                const wrapQuantity = orderItem.querySelector('.field-quantity');
+                const wrapRemarks = orderItem.querySelector('.field-remarks');
+
                 const patientNameField = orderItem.querySelector('.patient-name-field');
+                const patientIcField = orderItem.querySelector('.patient-ic-field');
+                const quantityField = orderItem.querySelector('.quantity-field');
                 const remarksField = orderItem.querySelector('.remarks-field');
-                
-                if (selectElement.value === 'Infusion Set') {
-                    // Disable patient name and remarks fields
-                    if (patientNameField) {
-                        patientNameField.disabled = true;
+                const requiredStars = orderItem.querySelectorAll('.patient-required-star');
+
+                // Order Type widens to half the row normally, and shares the
+                // row in thirds when the IC field is on screen.
+                if (wrapOrderType) {
+                    wrapOrderType.classList.toggle('col-lg-6', !isPatientTest);
+                    wrapOrderType.classList.toggle('col-lg-4', isPatientTest);
+                }
+
+                if (wrapPatientIc) wrapPatientIc.classList.toggle('d-none', !isPatientTest);
+                if (wrapQuantity) wrapQuantity.classList.toggle('d-none', isPatientTest);
+                if (wrapRemarks) wrapRemarks.classList.toggle('d-none', isPatientTest);
+
+                requiredStars.forEach(star => star.classList.toggle('d-none', !isPatientTest));
+
+                // Patient Name
+                if (patientNameField) {
+                    patientNameField.disabled = isInfusionSet;
+                    if (isInfusionSet) {
                         patientNameField.value = '';
                         patientNameField.style.backgroundColor = '#f8f9fa';
                         patientNameField.placeholder = 'Not required for Infusion Set';
-                    }
-                    if (remarksField) {
-                        remarksField.disabled = true;
-                        remarksField.value = '';
-                        remarksField.style.backgroundColor = '#f8f9fa';
-                        remarksField.placeholder = 'Not required for Infusion Set';
-                    }
-                } else {
-                    // Enable patient name and remarks fields
-                    if (patientNameField) {
-                        patientNameField.disabled = false;
+                    } else {
                         patientNameField.style.backgroundColor = '';
                         patientNameField.placeholder = 'Enter patient name';
                     }
-                    if (remarksField) {
-                        remarksField.disabled = false;
+                    if (isPatientTest) {
+                        patientNameField.setAttribute('required', 'required');
+                    } else {
+                        patientNameField.removeAttribute('required');
+                        patientNameField.classList.remove('is-invalid');
+                    }
+                }
+
+                // Patient IC
+                if (patientIcField) {
+                    if (isPatientTest) {
+                        patientIcField.setAttribute('required', 'required');
+                    } else {
+                        patientIcField.removeAttribute('required');
+                        patientIcField.classList.remove('is-invalid');
+                        patientIcField.value = '';
+                    }
+                }
+
+                // Quantity — hidden rather than removed, so the field still
+                // posts. A blood test is always one unit.
+                if (quantityField && isPatientTest) {
+                    quantityField.value = 1;
+                    quantityField.classList.remove('is-invalid');
+                }
+
+                // Remarks
+                if (remarksField) {
+                    remarksField.disabled = isInfusionSet;
+                    if (isInfusionSet) {
+                        remarksField.value = '';
+                        remarksField.style.backgroundColor = '#f8f9fa';
+                        remarksField.placeholder = 'Not required for Infusion Set';
+                    } else {
                         remarksField.style.backgroundColor = '';
                         remarksField.placeholder = 'Enter any remarks for this order item';
+                    }
+                    if (isPatientTest) {
+                        remarksField.value = '';
+                        remarksField.classList.remove('is-invalid');
                     }
                 }
             }
 
-            // Add change listener to existing order type select
-            document.querySelector('select[name="products[0][type]"]').addEventListener('change', function() {
-                handleInfusionSetLogic(this);
+            // Wire up every order line already on the page, and run the rules
+            // once immediately. Running on load matters: when the form comes
+            // back with validation errors the previous selection is restored
+            // by the browser, and without this the row would render with the
+            // wrong fields showing.
+            document.querySelectorAll('.order-item select.order-type').forEach(function(select) {
+                select.addEventListener('change', function() {
+                    applyProductRules(this);
+                });
+                applyProductRules(select);
             });
 
             // Phone number duplicate check
@@ -1307,34 +1406,59 @@
                 productItems.forEach(function(item, index) {
                     const productType = item.querySelector('select').value;
                     const patientName = item.querySelector('.patient-name-field').value;
-                    const quantity = item.querySelector('input[type="number"]').value;
+                    const patientIcField = item.querySelector('.patient-ic-field');
+                    const patientIc = patientIcField ? patientIcField.value : '';
+                    const quantity = item.querySelector('.quantity-field').value;
                     const remarks = item.querySelector('.remarks-field').value;
                     const coaRequired = item.querySelector('input[type="checkbox"]').checked;
-                    
+
+                    // Same rule the form uses, so the summary shows the same
+                    // fields the person actually filled in.
+                    const isPatientTest = (PRODUCT_RULES[productType] || {}).patient === true;
+
                     const itemDiv = document.createElement('div');
                     itemDiv.className = 'mb-3 pb-3';
                     if (index < productItems.length - 1) {
                         itemDiv.className += ' border-bottom';
                     }
-                    
-                    itemDiv.innerHTML = `
-                        <div class="row">
-                            <div class="col-md-5">
-                                <strong>Product:</strong> ${productType || '-'}
+
+                    if (isPatientTest) {
+                        itemDiv.innerHTML = `
+                            <div class="row">
+                                <div class="col-md-5">
+                                    <strong>Product:</strong> ${productType || '-'}
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>Patient:</strong> ${patientName || '-'}
+                                </div>
+                                <div class="col-md-2">
+                                    <strong>IC:</strong> ${patientIc || '-'}
+                                </div>
+                                <div class="col-md-2">
+                                    <strong>COA:</strong> ${coaRequired ? '<span class="badge bg-success">Required</span>' : '<span class="badge bg-secondary">Not Required</span>'}
+                                </div>
                             </div>
-                            <div class="col-md-2">
-                                <strong>Quantity:</strong> ${quantity || '-'}
+                        `;
+                    } else {
+                        itemDiv.innerHTML = `
+                            <div class="row">
+                                <div class="col-md-5">
+                                    <strong>Product:</strong> ${productType || '-'}
+                                </div>
+                                <div class="col-md-2">
+                                    <strong>Quantity:</strong> ${quantity || '-'}
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>Patient:</strong> ${patientName || 'Not specified'}
+                                </div>
+                                <div class="col-md-2">
+                                    <strong>COA:</strong> ${coaRequired ? '<span class="badge bg-success">Required</span>' : '<span class="badge bg-secondary">Not Required</span>'}
+                                </div>
                             </div>
-                            <div class="col-md-3">
-                                <strong>Patient:</strong> ${patientName || 'Not specified'}
-                            </div>
-                            <div class="col-md-2">
-                                <strong>COA:</strong> ${coaRequired ? '<span class="badge bg-success">Required</span>' : '<span class="badge bg-secondary">Not Required</span>'}
-                            </div>
-                        </div>
-                        ${remarks ? `<div class="row mt-1"><div class="col-12"><strong>Remarks:</strong> ${remarks}</div></div>` : ''}
-                    `;
-                    
+                            ${remarks ? `<div class="row mt-1"><div class="col-12"><strong>Remarks:</strong> ${remarks}</div></div>` : ''}
+                        `;
+                    }
+
                     orderItemsContainer.appendChild(itemDiv);
                 });
 

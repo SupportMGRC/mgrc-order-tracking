@@ -104,6 +104,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/orders/{order}/coa/{product}/template', [OrderController::class, 'chooseCoaTemplate'])->name('orders.coa.template');
     Route::post('/orders/{order}/coa/{product}/morphology', [OrderController::class, 'uploadCoaMorphology'])->name('orders.coa.morphology');
 
+    // COA supplied by QC for products that have no generated template.
+    Route::post('/orders/{order}/coa/{product}/document', [OrderController::class, 'uploadCoaDocument'])->name('orders.coa.document');
+
     Route::get('/calendar', [HomeController::class, 'index'])->name('dashboard');
     Route::post('/dashboard/verify-password', [HomeController::class, 'verifyPassword'])->name('dashboard.verify.password');
 

@@ -127,6 +127,7 @@
                                     <th scope="col">Quantity</th>
                                     <th scope="col">Batch Number</th>
                                     <th scope="col">Patient Name</th>
+                                    <th scope="col">Patient IC</th>
                                     <th scope="col">Remarks</th>
                                     <th scope="col">QC Document Number</th>
                                     <th scope="col">Prepared By</th>
@@ -174,6 +175,24 @@
                                             value="{{ $product->pivot->patient_name ?? '' }}"
                                             placeholder="Enter patient name"
                                             {{ $product->name === 'Infusion Set' ? 'disabled style=background-color:#f8f9fa; placeholder=Not required for Infusion Set' : '' }}>
+                                    </td>
+                                    <td>
+                                        {{-- Only patient test products collect an IC. For everything else the
+                                             field is shown read-only so the column never looks broken, and a
+                                             hidden input preserves whatever is already stored. --}}
+                                        @if($product->requires_patient_details)
+                                            <input type="text" class="form-control patient-ic" id="patient_ic_{{ $index }}"
+                                                name="products[{{ $index }}][patient_ic]"
+                                                value="{{ $product->pivot->patient_ic ?? '' }}"
+                                                maxlength="30" placeholder="Enter patient IC number">
+                                        @else
+                                            <input type="text" class="form-control" disabled
+                                                style="background-color:#f8f9fa;"
+                                                value="{{ $product->pivot->patient_ic ?? '' }}"
+                                                placeholder="Not applicable">
+                                            <input type="hidden" name="products[{{ $index }}][patient_ic]"
+                                                value="{{ $product->pivot->patient_ic ?? '' }}">
+                                        @endif
                                     </td>
                                     <td>
                                         <textarea class="form-control remarks" id="remarks_{{ $index }}" 

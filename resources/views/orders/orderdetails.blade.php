@@ -1120,6 +1120,10 @@
                             </thead>
                             <tbody>
                                 @foreach($order->products as $product)
+                                    @php
+                                        // Patient tests carry a name and IC instead of a quantity.
+                                        $isPatientTest = (bool) ($product->requires_patient_details ?? false);
+                                    @endphp
                                     <tr>
                                         <td>
                                             <div class="d-flex">
@@ -1128,16 +1132,28 @@
                                                             class="link-primary">{{ $product->name }}</a></h5>
                                                     <div class="d-md-none">
                                                         <small class="text-muted">
-                                                            Quantity: {{ $product->pivot->quantity }}
+                                                            @unless($isPatientTest)
+                                                                Quantity: {{ $product->pivot->quantity }}
+                                                            @endunless
                                                             @if($product->pivot->patient_name)
-                                                                | Patient: {{ $product->pivot->patient_name }}
+                                                                @unless($isPatientTest) | @endunless
+                                                                Patient: {{ $product->pivot->patient_name }}
+                                                            @endif
+                                                            @if($product->pivot->patient_ic)
+                                                                | IC: {{ $product->pivot->patient_ic }}
                                                             @endif
                                                         </small>
                                                     </div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td class="d-none d-md-table-cell">{{ $product->pivot->quantity }}</td>
+                                        <td class="d-none d-md-table-cell">
+                                            @if($isPatientTest)
+                                                <span class="text-muted">-</span>
+                                            @else
+                                                {{ $product->pivot->quantity }}
+                                            @endif
+                                        </td>
                                         <td>
                                             @if($product->pivot->batch_number)
                                                 <span class="badge bg-primary">{{ $product->pivot->batch_number }}</span>
@@ -1146,8 +1162,11 @@
                                             @endif
                                         </td>
                                         <td class="d-none d-lg-table-cell">
-                                            @if($product->pivot->patient_name)
-                                                <span class="fw-medium">{{ $product->pivot->patient_name }}</span>
+                                            @if($product->pivot->patient_name || $product->pivot->patient_ic)
+                                                <span class="fw-medium">{{ $product->pivot->patient_name ?: '-' }}</span>
+                                                @if($product->pivot->patient_ic)
+                                                    <br><small class="text-muted">{{ $product->pivot->patient_ic }}</small>
+                                                @endif
                                             @else
                                                 <span class="text-muted">-</span>
                                             @endif
@@ -1179,9 +1198,12 @@
                                                 $mayUseCoa = Auth::user()->role === 'superadmin'
                                                     || strcasecmp((string) Auth::user()->department, 'Quality') === 0;
 
-                                                // 'none' means this product never gets a COA.
+                                                // 'none' means this product never gets a generated COA.
                                                 // null means not configured yet: the editor asks which template to use.
                                                 $productHasCoa = ($product->coa_template ?? null) !== 'none';
+
+                                                // A certificate QC produced outside the system and uploaded.
+                                                $coaDocument = $product->pivot->coa_document ?? null;
                                             @endphp
 
                                             @if($product->pivot->coa_required && $productHasCoa && $mayUseCoa)
@@ -1193,6 +1215,34 @@
                                             @elseif($product->pivot->coa_required && $productHasCoa)
                                                 {{-- Required, but this user is not in Quality --}}
                                                 <span class="text-muted">-</span>
+                                            @elseif($product->pivot->coa_required && !$productHasCoa)
+                                                {{-- No template for this product: QC supplies the certificate. --}}
+                                                @if($coaDocument)
+                                                    <a href="{{ asset('storage/coa_documents/' . $coaDocument) }}"
+                                                        target="_blank" rel="noopener"
+                                                        class="btn btn-sm btn-success" title="Open uploaded COA">
+                                                        <i class="ri-file-pdf-line align-middle"></i>
+                                                        <span class="d-none d-lg-inline ms-1">COA</span>
+                                                    </a>
+                                                    @if($mayUseCoa)
+                                                        <button type="button" class="btn btn-sm btn-soft-secondary mt-1 mt-lg-0"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#uploadCoaDocumentModal{{ $product->pivot->id }}"
+                                                            title="Replace uploaded COA">
+                                                            <i class="ri-refresh-line align-middle"></i>
+                                                        </button>
+                                                    @endif
+                                                @elseif($mayUseCoa)
+                                                    <button type="button" class="btn btn-sm btn-warning"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#uploadCoaDocumentModal{{ $product->pivot->id }}"
+                                                        title="Upload COA">
+                                                        <i class="ri-upload-cloud-2-line align-middle"></i>
+                                                        <span class="d-none d-lg-inline ms-1">Upload</span>
+                                                    </button>
+                                                @else
+                                                    <span class="badge bg-warning">Awaiting QC</span>
+                                                @endif
                                             @else
                                                 <span class="badge bg-secondary">Not Required</span>
                                             @endif
@@ -1498,6 +1548,58 @@
                 </div>
             </div>
         </div>
+        @php
+            $mayUploadCoa = Auth::user()->role === 'superadmin'
+                || strcasecmp((string) Auth::user()->department, 'Quality') === 0;
+            $coaUploadAllowed = $product->pivot->coa_required
+                && ($product->coa_template ?? null) === 'none'
+                && $mayUploadCoa;
+        @endphp
+        @if($coaUploadAllowed)
+            <div class="modal fade" id="uploadCoaDocumentModal{{ $product->pivot->id }}" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-soft-warning">
+                            <h5 class="modal-title">
+                                {{ $product->pivot->coa_document ? 'Replace COA' : 'Upload COA' }}
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <form action="{{ route('orders.coa.document', ['order' => $order->id, 'product' => $product->id]) }}"
+                            method="POST" enctype="multipart/form-data">
+                            @csrf
+                            <div class="modal-body">
+                                <p class="text-muted">
+                                    <strong>{{ $product->name }}</strong> has no COA template in the system, so the
+                                    certificate is produced by QC and attached here.
+                                </p>
+                                <div class="mb-2">
+                                    <label for="coa_document_{{ $product->pivot->id }}" class="form-label">
+                                        COA file <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="file" class="form-control" accept="application/pdf"
+                                        id="coa_document_{{ $product->pivot->id }}" name="coa_document" required>
+                                    <div class="form-text">PDF only, up to 20 MB.</div>
+                                </div>
+                                @if($product->pivot->coa_document)
+                                    <div class="alert alert-warning mb-0">
+                                        <i class="ri-alert-line me-1"></i>
+                                        A COA is already attached. Uploading a new file replaces it permanently.
+                                    </div>
+                                @endif
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-warning">
+                                    <i class="ri-upload-cloud-2-line align-middle me-1"></i>
+                                    {{ $product->pivot->coa_document ? 'Replace COA' : 'Upload COA' }}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        @endif
     @endforeach
 
     <!-- Modal to Mark as Delivered -->

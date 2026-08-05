@@ -136,6 +136,7 @@ class ActivityLogger
             'coa_number',
             'qc_document_number',
             'patient_name',
+            'patient_ic',
             'batch_number',
             'coa_product_date',
             'coa_mfg_date',
@@ -147,6 +148,10 @@ class ActivityLogger
             'coa_immuno_cd105',
             'coa_immuno_negative',
             'coa_morphology_image',
+            // A COA uploaded by QC rather than generated. The file itself is
+            // deleted when replaced, so this log is the only record of what
+            // was attached before.
+            'coa_document',
         ];
 
         $changes = [];
@@ -195,7 +200,7 @@ class ActivityLogger
      */
     public static function recordPivotChange($order, array $before, array $after, ?string $productName = null): void
     {
-        $track = ['batch_number', 'qc_document_number', 'patient_name', 'remarks', 'prepared_by'];
+        $track = ['batch_number', 'qc_document_number', 'patient_name', 'patient_ic', 'remarks', 'prepared_by'];
 
         $changes = [];
         foreach ($track as $field) {

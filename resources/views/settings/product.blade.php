@@ -222,6 +222,22 @@
                                                     </select>
                                                     <div class="form-text">Products set to <em>No COA</em> show no COA button. Leaving this unset still works — the user is asked which template to use.</div>
                                                 </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Order Form Behaviour</label>
+                                                    {{-- The hidden 0 makes an unticked box submit a value. Without it
+                                                         an unticked box sends nothing and the flag can never be cleared. --}}
+                                                    <input type="hidden" name="requires_patient_details" value="0">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="1"
+                                                               id="edit-requires-patient-details-{{ $product->id }}"
+                                                               name="requires_patient_details"
+                                                               @checked($product->requires_patient_details)>
+                                                        <label class="form-check-label" for="edit-requires-patient-details-{{ $product->id }}">
+                                                            Patient test product
+                                                        </label>
+                                                    </div>
+                                                    <div class="form-text">Makes <em>Patient Name</em> and <em>Patient IC Number</em> compulsory on the order, and hides <em>Quantity</em> and <em>Remarks</em> for that item. Delivery address and all other fields are unaffected.</div>
+                                                </div>
                                                 @endif
                                             </div>
                                             <div class="modal-footer">
@@ -332,6 +348,21 @@
                             <option value="none" @selected(old('coa_template') === 'none')>No COA for this product</option>
                         </select>
                         <div class="form-text">Products set to <em>No COA</em> show no COA button. Leaving this unset still works — the user is asked which template to use.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Order Form Behaviour</label>
+                        {{-- The hidden 0 makes an unticked box submit a value. Without it
+                             an unticked box sends nothing and the flag can never be cleared. --}}
+                        <input type="hidden" name="requires_patient_details" value="0">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="1"
+                                   id="requires_patient_details" name="requires_patient_details"
+                                   @checked(old('requires_patient_details'))>
+                            <label class="form-check-label" for="requires_patient_details">
+                                Patient test product
+                            </label>
+                        </div>
+                        <div class="form-text">Makes <em>Patient Name</em> and <em>Patient IC Number</em> compulsory on the order, and hides <em>Quantity</em> and <em>Remarks</em> for that item. Delivery address and all other fields are unaffected.</div>
                     </div>
                     @endif
                 </div>

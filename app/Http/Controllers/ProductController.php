@@ -68,6 +68,10 @@ class ProductController extends Controller
             'price' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
             'coa_template' => 'nullable|string|max:32',
+            // Sent as a hidden 0 plus the checkbox, so an unticked box still
+            // arrives as a value. Absent entirely for non-superadmins, whose
+            // form never renders this field — leaving the stored value alone.
+            'requires_patient_details' => 'nullable|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -116,6 +120,9 @@ class ProductController extends Controller
             'price' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
             'coa_template' => 'nullable|string|max:32',
+            // See store(): the hidden input guarantees a value when the field
+            // was on screen, and its absence means the field was never shown.
+            'requires_patient_details' => 'nullable|boolean',
         ]);
 
         if ($validator->fails()) {

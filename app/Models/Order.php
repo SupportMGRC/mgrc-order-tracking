@@ -79,11 +79,43 @@ class Order extends Model
 
     /**
      * The products that belong to the order.
+     *
+     * The pivot column list must be complete. Anything missing here is
+     * silently dropped on save rather than raising an error, so this list
+     * is kept identical to the one in Product::orders().
      */
     public function products()
     {
         return $this->belongsToMany(Product::class, 'order_product')
-            ->withPivot('id', 'quantity', 'batch_number', 'patient_name', 'remarks', 'qc_document_number', 'prepared_by', 'status', 'coa_required', 'coa_template', 'coa_number', 'coa_product_date', 'coa_mfg_date', 'coa_expiry_date', 'coa_viable_cell_count', 'coa_signature_date', 'coa_immuno_cd73', 'coa_immuno_cd90', 'coa_immuno_cd105', 'coa_immuno_negative', 'coa_morphology_image', 'coa_updated_by', 'coa_updated_at')
+            ->withPivot(
+                'id',
+                'quantity',
+                'batch_number',
+                'patient_name',
+                'patient_ic',
+                'remarks',
+                'qc_document_number',
+                'prepared_by',
+                'status',
+                'coa_required',
+                'coa_template',
+                'coa_number',
+                'coa_product_date',
+                'coa_mfg_date',
+                'coa_expiry_date',
+                'coa_viable_cell_count',
+                'coa_signature_date',
+                'coa_immuno_cd73',
+                'coa_immuno_cd90',
+                'coa_immuno_cd105',
+                'coa_immuno_negative',
+                'coa_morphology_image',
+                'coa_document',
+                'coa_document_uploaded_by',
+                'coa_document_uploaded_at',
+                'coa_updated_by',
+                'coa_updated_at'
+            )
             ->withTimestamps();
     }
 

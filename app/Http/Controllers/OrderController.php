@@ -24,6 +24,11 @@ class OrderController extends Controller
     public const MORPHOLOGY_MAX_KB = 8192;
 
     /**
+     * Size limit for a COA PDF uploaded by QC.
+     */
+    public const COA_DOCUMENT_MAX_KB = 20480;
+
+    /**
      * Display a listing of the resource.
      */
     public function index()
@@ -543,8 +548,11 @@ class OrderController extends Controller
             'remarks' => 'nullable|string',
             'products' => 'required|array|min:1',
             'products.*.type' => 'required|string',
-            'products.*.quantity' => 'required|integer|min:1',
+            // Quantity is hidden for patient test products, so it is not
+            // trusted to arrive. It is normalised to 1 below.
+            'products.*.quantity' => 'nullable|integer|min:1',
             'products.*.patient_name' => 'nullable|string',
+            'products.*.patient_ic' => 'nullable|string|max:30',
             'products.*.remarks' => 'nullable|string',
             'products.*.coa_required' => 'nullable|boolean',
             'item_ready_at' => 'required|date_format:g:i A',
@@ -558,10 +566,42 @@ class OrderController extends Controller
             'products.required' => 'At least one product is required.',
             'products.min' => 'You need at least one product item.',
             'products.*.type.required' => 'The product type is required for all products.',
-            'products.*.quantity.required' => 'The product quantity is required for all products.',
             'products.*.quantity.min' => 'The product quantity must be at least 1.',
             'item_ready_at.required' => 'The item ready time is required.',
         ]);
+
+        // Patient name and IC are compulsory only for products flagged as
+        // patient tests, so the rule cannot be expressed statically — which
+        // product a line refers to is only known once the input is read.
+        // Keyed by name because that is what the form posts.
+        $validator->after(function ($v) use ($request) {
+            $patientProducts = Product::all()
+                ->filter(fn ($p) => $p->requiresPatientDetails())
+                ->pluck('name')
+                ->all();
+
+            foreach ((array) $request->input('products', []) as $i => $line) {
+                $name = $line['type'] ?? null;
+
+                if (!$name || !in_array($name, $patientProducts, true)) {
+                    continue;
+                }
+
+                if (trim((string) ($line['patient_name'] ?? '')) === '') {
+                    $v->errors()->add(
+                        "products.{$i}.patient_name",
+                        "Patient name is required for {$name}."
+                    );
+                }
+
+                if (trim((string) ($line['patient_ic'] ?? '')) === '') {
+                    $v->errors()->add(
+                        "products.{$i}.patient_ic",
+                        "Patient IC number is required for {$name}."
+                    );
+                }
+            }
+        });
 
         if ($validator->fails()) {
             return redirect()->back()
@@ -628,20 +668,34 @@ class OrderController extends Controller
                     throw new \Exception("Product not found: {$product['type']}");
                 }
 
+                $isPatientTest = $productModel->requiresPatientDetails();
+
+                // Patient tests are one per order line: the quantity field is
+                // hidden on the form, so nothing reliable arrives for it.
+                $quantity = $isPatientTest ? 1 : (int) ($product['quantity'] ?? 1);
+
+                if ($quantity < 1) {
+                    $quantity = 1;
+                }
+
                 // Check stock
-                if ($productModel->stock < $product['quantity']) {
+                if ($productModel->stock < $quantity) {
                     throw new \Exception("Not enough stock for product: {$productModel->name}. Available: {$productModel->stock}");
                 }
 
                 // Reduce stock
-                $productModel->stock -= $product['quantity'];
+                $productModel->stock -= $quantity;
                 $productModel->save();
 
                 // Create single record with actual quantity
                 $order->products()->attach($productModel->id, [
-                    'quantity' => $product['quantity'],
+                    'quantity' => $quantity,
                     'patient_name' => isset($product['patient_name']) ? $product['patient_name'] : null,
-                    'remarks' => isset($product['remarks']) ? $product['remarks'] : null,
+                    'patient_ic' => $isPatientTest ? ($product['patient_ic'] ?? null) : null,
+                    // Remarks do not apply to patient tests; the field is
+                    // hidden, so any stale value is discarded rather than
+                    // stored where nobody will look for it.
+                    'remarks' => $isPatientTest ? null : (isset($product['remarks']) ? $product['remarks'] : null),
                     'coa_required' => isset($product['coa_required']) ? (bool) $product['coa_required'] : false,
                 ]);
             }
@@ -708,6 +762,7 @@ class OrderController extends Controller
             'products' => 'required|array',
             'products.*.pivot_id' => 'required|exists:order_product,id',
             'products.*.patient_name' => 'nullable|string',
+            'products.*.patient_ic' => 'nullable|string|max:30',
             'products.*.remarks' => 'nullable|string',
             'products.*.qc_document_number' => 'nullable|string',
             'products.*.prepared_by' => 'nullable|string',
@@ -754,6 +809,7 @@ class OrderController extends Controller
 
                 $updateData = [
                     'patient_name' => $productData['patient_name'] ?? null,
+                    'patient_ic' => $productData['patient_ic'] ?? null,
                     'remarks' => $productData['remarks'] ?? null,
                     'prepared_by' => $productData['prepared_by'] ?? null,
                 ];
@@ -1138,6 +1194,99 @@ class OrderController extends Controller
                 'success' => false,
                 'message' => 'Error saving COA data: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Store a COA that QC produced outside the system.
+     *
+     * Products configured with coa_template = 'none' have no artwork for the
+     * generator to draw on — NK Immunophenotyping test is a blood test, and
+     * its analysis report comes out of the lab system already finished. This
+     * accepts that PDF and attaches it to the order line instead.
+     *
+     * Deliberately separate from the generated-COA columns, so an uploaded
+     * certificate can never overwrite a generated one or vice versa.
+     */
+    public function uploadCoaDocument(Request $request, Order $order, Product $product, CoaTemplateService $coa)
+    {
+        if (!$coa->userMayAccess(auth()->user())) {
+            return redirect()->route('orderdetails', $order->id)
+                ->with('error', 'Only the Quality department can upload a COA.');
+        }
+
+        $orderProduct = $order->products()->where('product_id', $product->id)->first();
+
+        if (!$orderProduct) {
+            return redirect()->route('orderdetails', $order->id)
+                ->with('error', 'Product not found in this order.');
+        }
+
+        $request->validate([
+            'coa_document' => 'required|file|mimes:pdf|max:' . self::COA_DOCUMENT_MAX_KB,
+        ], [
+            'coa_document.required' => 'Please choose a COA file to upload.',
+            'coa_document.mimes'    => 'The COA must be a PDF file.',
+            'coa_document.max'      => 'The COA must not be larger than '
+                                        . intdiv(self::COA_DOCUMENT_MAX_KB, 1024) . ' MB.',
+        ]);
+
+        try {
+            $file = $request->file('coa_document');
+            $filename = 'coa_doc_' . $order->id . '_' . $product->id . '_' . time() . '.pdf';
+
+            $file->storeAs('public/coa_documents', $filename);
+
+            // The storage symlink is unreliable on this host, so the file that
+            // actually gets served is a plain copy under public/.
+            $publicDir = public_path('storage/coa_documents');
+            if (!file_exists($publicDir)) {
+                mkdir($publicDir, 0755, true);
+            }
+            copy(
+                storage_path('app/public/coa_documents/' . $filename),
+                $publicDir . '/' . $filename
+            );
+
+            // Replacing an existing certificate removes the old file, so the
+            // activity log becomes the only record that it ever existed.
+            $existing = $orderProduct->pivot->coa_document;
+            if ($existing) {
+                $oldPublic = public_path('storage/coa_documents/' . $existing);
+                if (file_exists($oldPublic)) {
+                    @unlink($oldPublic);
+                }
+                $oldStorage = storage_path('app/public/coa_documents/' . $existing);
+                if (file_exists($oldStorage)) {
+                    @unlink($oldStorage);
+                }
+            }
+
+            $order->products()->updateExistingPivot($product->id, [
+                'coa_document'             => $filename,
+                'coa_document_uploaded_by' => auth()->id(),
+                'coa_document_uploaded_at' => now(),
+            ]);
+
+            ActivityLogger::recordCoaChange(
+                $order,
+                ['coa_document' => $existing],
+                ['coa_document' => $filename],
+                $product->name,
+                $existing ? 'Replaced uploaded COA' : 'Uploaded COA'
+            );
+
+            return redirect()->route('orderdetails', $order->id)
+                ->with('success', 'COA uploaded successfully.');
+        } catch (\Exception $e) {
+            Log::error('COA document upload failed', [
+                'order_id'   => $order->id,
+                'product_id' => $product->id,
+                'error'      => $e->getMessage(),
+            ]);
+
+            return redirect()->route('orderdetails', $order->id)
+                ->with('error', 'Error uploading COA: ' . $e->getMessage());
         }
     }
 
