@@ -50,6 +50,7 @@
         <div class="card-body">
             <div class="row g-2">
                 <div class="col-sm-8">
+                    @if($isSuperadmin)
                     <div class="d-flex align-items-center gap-2">
                         <form action="{{ route('users.index') }}" method="GET" class="d-flex gap-2 w-100">
                             <div class="col-5">
@@ -70,18 +71,27 @@
                             </button>
                         </form>
                     </div>
+                    @else
+                    <div class="d-flex align-items-center h-100">
+                        <p class="text-muted mb-0">Your account details. Contact a system administrator to change your department or role.</p>
+                    </div>
+                    @endif
                 </div>
                 <!--end col-->
                 <div class="col-sm-auto ms-auto">
                     <div class="list-grid-nav hstack gap-1">
+                        @if($isSuperadmin)
                         <a href="{{ route('users.index', ['view' => 'grid'] + request()->except('view')) }}"
                             class="btn btn-soft-info nav-link btn-icon fs-14 {{ request('view') != 'list' ? 'active' : '' }} filter-button"><i
                                 class="ri-grid-fill"></i></a>
                         {{-- <a href="{{ route('users.index', ['view' => 'list'] + request()->except('view')) }}"
                             class="btn btn-soft-info nav-link btn-icon fs-14 {{ request('view') == 'list' ? 'active' : '' }} filter-button"><i
                                 class="ri-list-unordered"></i></a> --}}
+                        @endif
+                        @if($canAddUser)
                         <a href="{{ route('users.index', ['modal' => 'add', 'page' => request('page')]) }}" class="btn btn-success"><i
                                 class="ri-add-fill me-1 align-bottom"></i> Add User</a>
+                        @endif
                     </div>
                 </div>
                 <!--end col-->
@@ -118,10 +128,12 @@
                                                 class="btn btn-soft-info">
                                                 <i class="ri-pencil-fill align-bottom"></i>
                                             </a>
+                                            @if($isSuperadmin && $user->id !== auth()->id())
                                             <a href="{{ route('users.index', ['modal' => 'delete', 'id' => $user->id, 'page' => request('page')]) }}"
                                                 class="btn btn-soft-danger">
                                                 <i class="ri-delete-bin-2-line align-bottom"></i>
                                             </a>
+                                            @endif
                                         </div>
                                     </div>
                                 </div>
@@ -186,7 +198,7 @@
                 </div>
 
                 <!-- Add User Modal -->
-                @if(request()->has('modal') && request('modal') === 'add')
+                @if($canAddUser && request('modal') === 'add')
                     <div class="modal fade show" id="addUserModal" style="display: block; background: rgba(0,0,0,0.5);"
                         tabindex="-1" aria-hidden="true">
                         <div class="modal-dialog modal-dialog-centered">
@@ -286,26 +298,6 @@
                                                 </div>
 
                                                 <div class="mb-3">
-                                                    <label class="form-label">Email Notifications</label>
-                                                    <div class="form-check mb-2">
-                                                        <input class="form-check-input" type="checkbox"
-                                                            id="receive_new_order_emails" name="receive_new_order_emails"
-                                                            value="1" {{ old('receive_new_order_emails') ? 'checked' : '' }}>
-                                                        <label class="form-check-label" for="receive_new_order_emails">
-                                                            Receive new order notifications
-                                                        </label>
-                                                    </div>
-                                                    <div class="form-check">
-                                                        <input class="form-check-input" type="checkbox"
-                                                            id="receive_order_ready_emails" name="receive_order_ready_emails"
-                                                            value="1" {{ old('receive_order_ready_emails') ? 'checked' : '' }}>
-                                                        <label class="form-check-label" for="receive_order_ready_emails">
-                                                            Receive order ready notifications
-                                                        </label>
-                                                    </div>
-                                                </div>
-
-                                                <div class="mb-3">
                                                     <label for="password" class="form-label">Password</label>
                                                     <input type="password" class="form-control" id="password" name="password"
                                                         placeholder="Enter password" required>
@@ -326,7 +318,7 @@
                 <!-- End Add User Modal -->
 
                 <!-- Edit User Modal -->
-                @if(request()->has('modal') && request('modal') === 'edit' && request()->has('id') && $editUser = \App\Models\User::find(request('id')))
+                @if($editUser)
                     <div class="modal fade show" id="editUserModal" style="display: block; background: rgba(0,0,0,0.5);"
                         tabindex="-1" aria-hidden="true">
                         <div class="modal-dialog modal-dialog-centered">
@@ -400,29 +392,14 @@
                                                         value="{{ old('designation', $editUser->designation) }}">
                                                 </div>
 
+                                                @if($isSuperadmin)
                                                 <div class="mb-3">
                                                     <label for="edit-department" class="form-label">Department</label>
                                                     <select class="form-select" id="edit-department" name="department">
                                                         <option value="">Select Department</option>
-                                                        <option value="Admin & Human Resource" {{ old('department', $editUser->department) == 'Admin & Human Resource' ? 'selected' : '' }}>Admin & Human Resource</option>
-                                                        <option value="Cell Lab" {{ old('department', $editUser->department) == 'Cell Lab' ? 'selected' : '' }}>Cell Lab
-                                                        </option>
-                                                        <option value="Medical Affairs" {{ old('department', $editUser->department) == 'Medical Affairs' ? 'selected' : '' }}>
-                                                            Medical Affairs</option>
-                                                        <option value="Quality" {{ old('department', $editUser->department) == 'Quality' ? 'selected' : '' }}>Quality
-                                                        </option>
-                                                        <option value="Finance" {{ old('department', $editUser->department) == 'Finance' ? 'selected' : '' }}>Finance
-                                                        </option>
-                                                        <option value="Management" {{ old('department', $editUser->department) == 'Management' ? 'selected' : '' }}>Management
-                                                        </option>
-                                                        <option value="Software" {{ old('department', $editUser->department) == 'Software' ? 'selected' : '' }}>Software
-                                                        </option>
-                                                        <option value="Bioinformatics" {{ old('department', $editUser->department) == 'Bioinformatics' ? 'selected' : '' }}>
-                                                            Bioinformatics</option>
-                                                        <option value="Dispatcher" {{ old('department', $editUser->department) == 'Dispatcher' ? 'selected' : '' }}>Dispatcher
-                                                        </option>
-                                                        <option value="Genomics" {{ old('department', $editUser->department) == 'Genomics' ? 'selected' : '' }}>Genomics
-                                                        </option>
+                                                        @foreach(['Admin & Human Resource','Cell Lab','Medical Affairs','Quality','Finance','Management','Software','Bioinformatics','Dispatcher','Genomics'] as $deptOption)
+                                                            <option value="{{ $deptOption }}" {{ old('department', $editUser->department) === $deptOption ? 'selected' : '' }}>{{ $deptOption }}</option>
+                                                        @endforeach
                                                     </select>
                                                 </div>
 
@@ -434,26 +411,21 @@
                                                         <option value="superadmin" {{ old('role', $editUser->role) == 'superadmin' ? 'selected' : '' }}>Super Admin</option>
                                                     </select>
                                                 </div>
+                                                @else
+                                                {{-- Shown for reference only. These are not inputs at all, so nothing
+                                                     is posted; the controller ignores role and department for
+                                                     non-superadmins regardless. --}}
+                                                <div class="mb-3">
+                                                    <label class="form-label">Department</label>
+                                                    <input type="text" class="form-control bg-light" value="{{ $editUser->department ?: 'Not set' }}" readonly disabled>
+                                                </div>
 
                                                 <div class="mb-3">
-                                                    <label class="form-label">Email Notifications</label>
-                                                    <div class="form-check mb-2">
-                                                        <input class="form-check-input" type="checkbox"
-                                                            id="edit_receive_new_order_emails" name="receive_new_order_emails"
-                                                            value="1" {{ old('receive_new_order_emails', $editUser->receive_new_order_emails) ? 'checked' : '' }}>
-                                                        <label class="form-check-label" for="edit_receive_new_order_emails">
-                                                            Receive new order notifications
-                                                        </label>
-                                                    </div>
-                                                    <div class="form-check">
-                                                        <input class="form-check-input" type="checkbox"
-                                                            id="edit_receive_order_ready_emails"
-                                                            name="receive_order_ready_emails" value="1" {{ old('receive_order_ready_emails', $editUser->receive_order_ready_emails) ? 'checked' : '' }}>
-                                                        <label class="form-check-label" for="edit_receive_order_ready_emails">
-                                                            Receive order ready notifications
-                                                        </label>
-                                                    </div>
+                                                    <label class="form-label">Role</label>
+                                                    <input type="text" class="form-control bg-light" value="{{ ucfirst($editUser->role ?: 'user') }}" readonly disabled>
+                                                    <div class="form-text">Department and role can only be changed by a system administrator.</div>
                                                 </div>
+                                                @endif
 
                                                 <div class="mb-3">
                                                     <label for="edit-password" class="form-label">New Password (leave blank to
@@ -477,7 +449,7 @@
                 <!--end edit modal-->
 
                 <!-- Delete User Modal -->
-                @if(request()->has('modal') && request('modal') === 'delete' && request()->has('id') && $deleteUser = \App\Models\User::find(request('id')))
+                @if($deleteUser)
                     <div class="modal fade show" id="deleteUserModal" style="display: block; background: rgba(0,0,0,0.5);"
                         tabindex="-1" aria-hidden="true">
                         <div class="modal-dialog modal-dialog-centered">

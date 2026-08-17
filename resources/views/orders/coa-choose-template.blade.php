@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.master')
 
 @section('content')
 <div class="container-fluid">
@@ -8,7 +8,7 @@
             <div class="card shadow-sm mt-4">
                 <div class="card-header bg-white">
                     <h5 class="mb-0">
-                        <i class="fas fa-file-alt me-2"></i>Choose a COA Template
+                        <i class="ri-file-text-line me-2 align-bottom"></i>Choose a COA Template
                     </h5>
                 </div>
 

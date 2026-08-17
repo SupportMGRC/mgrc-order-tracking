@@ -194,33 +194,45 @@
                                                 </div>
                                                 <div class="mb-3">
                                                     <label for="edit-description-{{ $product->id }}" class="form-label">Description</label>
-                                                    <textarea class="form-control" id="edit-description-{{ $product->id }}" name="description" rows="3">{{ $product->description }}</textarea>
+                                                    <textarea class="form-control" id="edit-description-{{ $product->id }}" name="description" rows="3" required>{{ $product->description }}</textarea>
                                                 </div>
-                                                @if(auth()->user()->role == 'superadmin')
                                                 <div class="mb-3">
                                                     <label for="edit-price-{{ $product->id }}" class="form-label">Price</label>
-                                                    <input type="number" step="0.01" class="form-control" id="edit-price-{{ $product->id }}" name="price" value="{{ $product->price }}">
+                                                    <input type="number" step="0.01" min="0" class="form-control" id="edit-price-{{ $product->id }}" name="price" value="{{ $product->price }}" required>
                                                 </div>
                                                 <div class="mb-3">
                                                     <label for="edit-stock-{{ $product->id }}" class="form-label">Stock</label>
-                                                    <input type="number" class="form-control" id="edit-stock-{{ $product->id }}" name="stock" value="{{ $product->stock }}">
+                                                    <input type="number" min="0" class="form-control" id="edit-stock-{{ $product->id }}" name="stock" value="{{ $product->stock }}" required>
                                                 </div>
                                                 <div class="mb-3">
                                                     <label for="edit-coa-template-{{ $product->id }}" class="form-label">COA Template</label>
-                                                    <select class="form-select" id="edit-coa-template-{{ $product->id }}" name="coa_template">
-                                                        <option value="">— Not set (ask when generating) —</option>
-                                                        @php
-                                                            // Variant groups collapse to one entry: a product is "MSC P2",
-                                                            // and QC picks with/without the patient name per order.
-                                                            $coaSvc = app(\App\Services\CoaTemplateService::class);
-                                                            $coaSelected = $coaSvc->canonicalProductValue($product->coa_template ?? '');
-                                                        @endphp
+                                                    @php
+                                                        // Variant groups collapse to one entry: a product is "MSC P2",
+                                                        // and QC picks with/without the patient name per order.
+                                                        $coaSvc = app(\App\Services\CoaTemplateService::class);
+                                                        $coaSelected = $coaSvc->canonicalProductValue($product->coa_template ?? '');
+                                                        $coaIsUnset = ($product->coa_template ?? '') === '';
+                                                    @endphp
+                                                    <select class="form-select" id="edit-coa-template-{{ $product->id }}" name="coa_template"
+                                                        @if(auth()->user()->role != 'superadmin') required @endif>
+                                                        @if(auth()->user()->role == 'superadmin')
+                                                            <option value="" @selected($coaIsUnset)>Not set (ask when generating)</option>
+                                                        @else
+                                                            {{-- An admin editing a product that is still unset has to resolve it
+                                                                 before saving, which is how the unset state gets cleaned up. --}}
+                                                            <option value="" disabled @selected($coaIsUnset)>Select a template</option>
+                                                        @endif
                                                         @foreach ($coaSvc->productChoices() as $coaKey => $coaLabel)
                                                             <option value="{{ $coaKey }}" @selected($coaSelected === $coaKey)>{{ $coaLabel }}</option>
                                                         @endforeach
                                                         <option value="none" @selected(($product->coa_template ?? '') === 'none')>No COA for this product</option>
                                                     </select>
-                                                    <div class="form-text">Products set to <em>No COA</em> show no COA button. Leaving this unset still works — the user is asked which template to use.</div>
+                                                    <div class="form-text">
+                                                        Products set to <em>No COA</em> show no COA button.
+                                                        @if(auth()->user()->role == 'superadmin')
+                                                            Leave unset to pick the template when generating the COA. Superadmin only.
+                                                        @endif
+                                                    </div>
                                                 </div>
                                                 <div class="mb-3">
                                                     <label class="form-label">Order Form Behaviour</label>
@@ -238,7 +250,6 @@
                                                     </div>
                                                     <div class="form-text">Makes <em>Patient Name</em> and <em>Patient IC Number</em> compulsory on the order, and hides <em>Quantity</em> and <em>Remarks</em> for that item. Delivery address and all other fields are unaffected.</div>
                                                 </div>
-                                                @endif
                                             </div>
                                             <div class="modal-footer">
                                                 <div class="hstack gap-2 justify-content-end">
@@ -327,27 +338,38 @@
                     </div>
                     <div class="mb-3">
                         <label for="description" class="form-label">Description</label>
-                        <textarea class="form-control" id="description" name="description" rows="3">{{ old('description') }}</textarea>
+                        <textarea class="form-control" id="description" name="description" rows="3" required>{{ old('description') }}</textarea>
                     </div>
-                    @if(auth()->user()->role == 'superadmin')
                     <div class="mb-3">
                         <label for="price" class="form-label">Price</label>
-                        <input type="number" step="0.01" class="form-control" id="price" name="price" value="{{ old('price') }}">
+                        <input type="number" step="0.01" min="0" class="form-control" id="price" name="price" value="{{ old('price') }}" required>
                     </div>
                     <div class="mb-3">
                         <label for="stock" class="form-label">Stock</label>
-                        <input type="number" class="form-control" id="stock" name="stock" value="{{ old('stock') }}">
+                        <input type="number" min="0" class="form-control" id="stock" name="stock" value="{{ old('stock') }}" required>
                     </div>
                     <div class="mb-3">
                         <label for="coa_template" class="form-label">COA Template</label>
-                        <select class="form-select" id="coa_template" name="coa_template">
-                            <option value="">— Not set (ask when generating) —</option>
+                        <select class="form-select" id="coa_template" name="coa_template"
+                                @if(auth()->user()->role != 'superadmin') required @endif>
+                            @if(auth()->user()->role == 'superadmin')
+                                {{-- Only a superadmin may leave a product unresolved, because
+                                     only a superadmin can pick the template later on the COA screen. --}}
+                                <option value="" @selected(old('coa_template') === '')>Not set (ask when generating)</option>
+                            @else
+                                <option value="" disabled @selected(old('coa_template') === null)>Select a template</option>
+                            @endif
                             @foreach (app(\App\Services\CoaTemplateService::class)->productChoices() as $coaKey => $coaLabel)
                                 <option value="{{ $coaKey }}" @selected(old('coa_template') === $coaKey)>{{ $coaLabel }}</option>
                             @endforeach
                             <option value="none" @selected(old('coa_template') === 'none')>No COA for this product</option>
                         </select>
-                        <div class="form-text">Products set to <em>No COA</em> show no COA button. Leaving this unset still works — the user is asked which template to use.</div>
+                        <div class="form-text">
+                            Products set to <em>No COA</em> show no COA button.
+                            @if(auth()->user()->role == 'superadmin')
+                                Leave unset to pick the template when generating the COA. Superadmin only.
+                            @endif
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Order Form Behaviour</label>
@@ -364,7 +386,6 @@
                         </div>
                         <div class="form-text">Makes <em>Patient Name</em> and <em>Patient IC Number</em> compulsory on the order, and hides <em>Quantity</em> and <em>Remarks</em> for that item. Delivery address and all other fields are unaffected.</div>
                     </div>
-                    @endif
                 </div>
                 <div class="modal-footer">
                     <div class="hstack gap-2 justify-content-end">

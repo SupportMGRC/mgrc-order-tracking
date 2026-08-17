@@ -57,22 +57,61 @@ class ProductController extends Controller
         return view('products.create');
     }
 
+
+    /**
+     * Validation rules shared by store() and update().
+     *
+     * Everything on the form is compulsory. The one role-dependent rule is the
+     * COA template: only a superadmin may leave it unset (the "ask when
+     * generating" state), because only a superadmin can resolve that state
+     * later on the COA screen. Admins must commit to a certificate up front.
+     */
+    private function productRules(): array
+    {
+        $isSuperadmin = auth()->user()->role === 'superadmin';
+
+        $coaKeys = array_keys(app(\App\Services\CoaTemplateService::class)->productChoices());
+        $coaKeys[] = 'none';
+
+        return [
+            'name'        => 'required|string|max:255',
+            'description' => 'required|string',
+            'price'       => 'required|numeric|min:0',
+            'stock'       => 'required|integer|min:0',
+            'coa_template' => $isSuperadmin
+                ? ['nullable', \Illuminate\Validation\Rule::in(array_merge($coaKeys, ['']))]
+                : ['required', \Illuminate\Validation\Rule::in($coaKeys)],
+            // Sent as a hidden 0 plus the checkbox, so an unticked box still
+            // arrives as a value.
+            'requires_patient_details' => 'nullable|boolean',
+        ];
+    }
+
+    /**
+     * Build the writable attributes from validated input.
+     *
+     * Assigning field by field rather than passing $request->all() to
+     * Product::create/update, so a hand-crafted POST cannot reach a column the
+     * form never offered.
+     */
+    private function productAttributes(array $validated): array
+    {
+        return [
+            'name'                     => $validated['name'],
+            'description'              => $validated['description'],
+            'price'                    => $validated['price'],
+            'stock'                    => $validated['stock'],
+            'coa_template'             => $validated['coa_template'] ?? '',
+            'requires_patient_details' => (bool) ($validated['requires_patient_details'] ?? false),
+        ];
+    }
+
     /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'price' => 'required|numeric|min:0',
-            'stock' => 'required|integer|min:0',
-            'coa_template' => 'nullable|string|max:32',
-            // Sent as a hidden 0 plus the checkbox, so an unticked box still
-            // arrives as a value. Absent entirely for non-superadmins, whose
-            // form never renders this field — leaving the stored value alone.
-            'requires_patient_details' => 'nullable|boolean',
-        ]);
+        $validator = Validator::make($request->all(), $this->productRules());
 
         if ($validator->fails()) {
             return redirect()->back()
@@ -80,7 +119,7 @@ class ProductController extends Controller
                 ->withInput();
         }
 
-        Product::create($request->all());
+        Product::create($this->productAttributes($validator->validated()));
 
         return redirect()->route('products.index')
             ->with('success', 'Product created successfully.');
@@ -114,16 +153,7 @@ class ProductController extends Controller
      */
     public function update(Request $request, Product $product)
     {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'price' => 'required|numeric|min:0',
-            'stock' => 'required|integer|min:0',
-            'coa_template' => 'nullable|string|max:32',
-            // See store(): the hidden input guarantees a value when the field
-            // was on screen, and its absence means the field was never shown.
-            'requires_patient_details' => 'nullable|boolean',
-        ]);
+        $validator = Validator::make($request->all(), $this->productRules());
 
         if ($validator->fails()) {
             return redirect()->back()
@@ -131,7 +161,7 @@ class ProductController extends Controller
                 ->withInput();
         }
 
-        $product->update($request->all());
+        $product->update($this->productAttributes($validator->validated()));
 
         return redirect()->route('products.index')
             ->with('success', 'Product updated successfully.');

@@ -1003,8 +1003,17 @@ class OrderController extends Controller
 
         $templateKey = $coa->resolveForOrderLine($order, $product);
 
-        // Not configured yet: let the user choose, then come back here.
+        // Not configured yet. Only a superadmin may pick a certificate on the
+        // spot; for everyone else this is a hard stop, because choosing the
+        // wrong certificate is worse than a delayed one. The lasting fix is to
+        // set the template on the product, so that is what they are told.
         if ($templateKey === null) {
+            if (auth()->user()->role !== 'superadmin') {
+                return redirect()->route('orderdetails', $order->id)
+                    ->with('error', 'No COA template set for ' . $product->name
+                        . '. Please ask a system administrator to set one in Product Management.');
+            }
+
             return view('orders.coa-choose-template', [
                 'order'     => $order,
                 'product'   => $product,
@@ -1066,9 +1075,18 @@ class OrderController extends Controller
         if (auth()->user()->role !== 'superadmin') {
             $current = $coa->resolveForOrderLine($order, $product);
 
-            // Choosing for the first time is allowed; switching afterwards is
-            // only allowed between alternates of what is already set.
-            if ($current !== null && $current !== $key && !$coa->sameVariantGroup($current, $key)) {
+            // Nothing set on the product means nobody below superadmin gets to
+            // decide. Matches the hard stop in showCOA(), and closes the route
+            // against a hand-posted template key.
+            if ($current === null) {
+                return redirect()->route('orderdetails', $order->id)
+                    ->with('error', 'No COA template set for ' . $product->name
+                        . '. Please ask a system administrator to set one in Product Management.');
+            }
+
+            // Switching is only allowed between alternates of what is already
+            // set, e.g. MSC P2 with and without the patient's name.
+            if ($current !== $key && !$coa->sameVariantGroup($current, $key)) {
                 return back()->with('error', 'You can only switch between versions of this certificate.');
             }
         }

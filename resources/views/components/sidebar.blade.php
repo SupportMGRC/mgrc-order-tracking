@@ -66,14 +66,23 @@
 
                 
 
-                {{-- Settings section - Only for admin and superadmin --}}
-                @if(Auth::user()->role == 'admin' || Auth::user()->role == 'superadmin')
+                {{-- Settings section. The User link is open to everyone, because a
+                     plain user still needs somewhere to edit their own account —
+                     they just only ever see their own record there. Everything
+                     below it stays admin and superadmin. --}}
                 <li class="menu-title"><span data-key="t-setting">Setting</span></li>
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="{{ route('users.index') }}">
-                        <i class="las la-user-cog"></i> <span data-key="t-user">User</span>
+                        <i class="las la-user-cog"></i> <span data-key="t-user">
+                            @if(Auth::user()->role == 'superadmin')
+                                User
+                            @else
+                                My Account
+                            @endif
+                        </span>
                     </a>
                 </li>
+                @if(Auth::user()->role == 'admin' || Auth::user()->role == 'superadmin')
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="{{ route('products.index') }}">
                         <i class="las la-box-open"></i> <span data-key="t-product">Product</span>

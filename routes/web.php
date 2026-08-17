@@ -60,8 +60,9 @@ Route::middleware(['auth'])->group(function () {
     // Customer routes
     Route::resource('customers', CustomerController::class);
 
-    // Product routes
-    Route::resource('products', ProductController::class);
+    // Product routes. Gated at the route so the URL itself is closed, not just
+    // the sidebar link — superadmin passes through 'role:admin' automatically.
+    Route::resource('products', ProductController::class)->middleware('role:admin');
 
     // Order routes
     Route::resource('orders', OrderController::class);

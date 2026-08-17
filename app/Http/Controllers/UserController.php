@@ -17,10 +17,19 @@ class UserController extends Controller
      */
     public function index(Request $request)
     {
+        $isSuperadmin = auth()->user()->role === 'superadmin';
+
         $query = User::query();
+
+        // Everyone can reach User Management, but only a superadmin sees anyone
+        // other than themselves. Scoping the query rather than hiding cards in
+        // the view means a hand-typed ?id= cannot surface another account.
+        if (!$isSuperadmin) {
+            $query->where('id', auth()->id());
+        }
         
         // Handle search functionality
-        if ($request->has('search') && !empty($request->search)) {
+        if ($isSuperadmin && $request->has('search') && !empty($request->search)) {
             $searchTerm = $request->search;
             $query->where(function($q) use ($searchTerm) {
                 $q->where('first_name', 'like', "%{$searchTerm}%")
@@ -33,7 +42,7 @@ class UserController extends Controller
         }
         
         // Handle department filter
-        if ($request->has('department') && !empty($request->department)) {
+        if ($isSuperadmin && $request->has('department') && !empty($request->department)) {
             $query->where('department', $request->department);
         }
         
@@ -46,8 +55,32 @@ class UserController extends Controller
         
         // Paginate results
         $users = $query->paginate(8)->withQueryString();
+
+        // Resolve the modal targets here instead of in the view. The view used
+        // to call User::find(request('id')) directly, which happily returned
+        // anybody's record regardless of who was asking.
+        $editUser = null;
+        $deleteUser = null;
+
+        if ($request->get('modal') === 'edit') {
+            $editUser = $isSuperadmin
+                ? User::find($request->get('id'))
+                : auth()->user();
+        }
+
+        // Deleting is superadmin-only, and never your own account.
+        if ($request->get('modal') === 'delete' && $isSuperadmin) {
+            $deleteUser = User::find($request->get('id'));
+            if ($deleteUser && $deleteUser->id === auth()->id()) {
+                $deleteUser = null;
+            }
+        }
+
+        $canAddUser = $isSuperadmin;
         
-        return view('settings.user', compact('users', 'departments'));
+        return view('settings.user', compact(
+            'users', 'departments', 'editUser', 'deleteUser', 'isSuperadmin', 'canAddUser'
+        ));
     }
 
     /**
@@ -58,6 +91,19 @@ class UserController extends Controller
      */
     public function store(Request $request)
     {
+        // Creating accounts is superadmin-only. Checked here rather than only
+        // hiding the button, so the POST route is closed too.
+        if (auth()->user()->role !== 'superadmin') {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Only a superadmin can add users.'
+                ], 403);
+            }
+            return redirect()->route('users.index')
+                ->with('error', 'Only a superadmin can add users.');
+        }
+
         try {
             $validated = $request->validate([
                 'first_name' => 'required|string|max:255',
@@ -68,8 +114,6 @@ class UserController extends Controller
                 'designation' => 'required|string|max:100',
                 'role' => 'nullable|string|max:50',
                 'department' => 'nullable|string|max:100',
-                'receive_new_order_emails' => 'nullable|boolean',
-                'receive_order_ready_emails' => 'nullable|boolean',
             ]);
 
             $user = User::create([
@@ -81,8 +125,6 @@ class UserController extends Controller
                 'designation' => $request->designation,
                 'role' => $request->role ?? 'user',
                 'department' => $request->department,
-                'receive_new_order_emails' => $request->has('receive_new_order_emails'),
-                'receive_order_ready_emails' => $request->has('receive_order_ready_emails'),
             ]);
 
             // If this is an AJAX request, return JSON response
@@ -125,6 +167,14 @@ class UserController extends Controller
     public function show(User $user)
     {
         try {
+            // Same rule as the page itself: no peeking at other accounts.
+            if (auth()->user()->role !== 'superadmin' && $user->id !== auth()->id()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'You can only view your own account.'
+                ], 403);
+            }
+
             return response()->json([
                 'status' => 'success',
                 'user' => $user
@@ -151,6 +201,21 @@ class UserController extends Controller
             if (empty($user->id) && $request->filled('user_id')) {
                 $user = User::findOrFail($request->user_id);
             }
+
+            $isSuperadmin = auth()->user()->role === 'superadmin';
+
+            // Anyone below superadmin may only edit themselves. Without this a
+            // hand-crafted POST to /users/{id}/update would edit any account.
+            if (!$isSuperadmin && $user->id !== auth()->id()) {
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'You can only edit your own account.'
+                    ], 403);
+                }
+                return redirect()->route('users.index')
+                    ->with('error', 'You can only edit your own account.');
+            }
             
             $validated = $request->validate([
                 'first_name' => 'required|string|max:255',
@@ -172,8 +237,6 @@ class UserController extends Controller
                 'role' => 'nullable|string|max:50',
                 'department' => 'nullable|string|max:100',
                 'password' => 'nullable|string|min:8',
-                'receive_new_order_emails' => 'nullable|boolean',
-                'receive_order_ready_emails' => 'nullable|boolean',
             ]);
 
             $userData = [
@@ -182,11 +245,15 @@ class UserController extends Controller
                 'username' => $request->username,
                 'email' => $request->email,
                 'designation' => $request->designation,
-                'role' => $request->role ?? 'user',
-                'department' => $request->department,
-                'receive_new_order_emails' => $request->has('receive_new_order_emails'),
-                'receive_order_ready_emails' => $request->has('receive_order_ready_emails'),
             ];
+
+            // Role and department are superadmin-only. For everyone else the
+            // posted values are ignored entirely, so submitting role=superadmin
+            // by hand changes nothing.
+            if ($isSuperadmin) {
+                $userData['role'] = $request->role ?? 'user';
+                $userData['department'] = $request->department;
+            }
 
             // Only update password if provided
             if ($request->filled('password')) {
@@ -234,6 +301,18 @@ class UserController extends Controller
      */
     public function destroy(Request $request, User $user)
     {
+        // Deleting accounts is superadmin-only.
+        if (auth()->user()->role !== 'superadmin') {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Only a superadmin can delete users.'
+                ], 403);
+            }
+            return redirect()->route('users.index')
+                ->with('error', 'Only a superadmin can delete users.');
+        }
+
         try {
             // If user was not found via route model binding but user_id was provided
             if (empty($user->id) && $request->filled('user_id')) {
