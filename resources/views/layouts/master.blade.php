@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-layout="vertical" data-topbar="light" data-sidebar="dark" data-sidebar-size="sm-hover" data-sidebar-image="none" data-preloader="disable">
+<html lang="en" data-layout="vertical" data-topbar="light" data-sidebar="dark" data-sidebar-size="lg" data-sidebar-image="none" data-preloader="disable">
 
 <head>
 
@@ -13,8 +13,79 @@
     <!-- App favicon -->
     <link rel="shortcut icon" href="{{ asset('assets/images/mgrc/MGRC-logo-only.png') }}">
 
+
+    {{-- Sidebar is static and expanded. The theme ships it at 250px, which is more
+         width than these labels need; 210px is the single number to change if it
+         wants adjusting. Desktop only - below 768px the sidebar is an overlay
+         drawer and must keep the theme's own sizing. --}}
+    <style>
+        @media (min-width: 768px) {
+            [data-layout="vertical"][data-sidebar-size="lg"] .navbar-menu {
+                width: 210px;
+            }
+            [data-layout="vertical"][data-sidebar-size="lg"] .main-content {
+                margin-left: 210px;
+            }
+            [data-layout="vertical"][data-sidebar-size="lg"] #page-topbar,
+            [data-layout="vertical"][data-sidebar-size="lg"] .footer {
+                left: 210px;
+            }
+            /* Tighter rows so the narrower panel does not feel cramped. */
+            [data-layout="vertical"][data-sidebar-size="lg"] .navbar-menu .navbar-nav .nav-link {
+                padding: 0.55rem 1.1rem;
+            }
+            /* Keep the wordmark inside the narrower panel. Constrain by height, not
+               width: height:auto lets a wide logo scale up to fill the panel. */
+            [data-layout="vertical"][data-sidebar-size="lg"] .navbar-brand-box {
+                padding: 0 0.75rem;
+            }
+            [data-layout="vertical"][data-sidebar-size="lg"] .navbar-brand-box .logo-lg img {
+                height: 44px;
+                width: auto;
+                max-width: 100%;
+            }
+        }
+
+        /* Mobile drawer: show the full wordmark, not just the square mark. */
+        @media (max-width: 767.98px) {
+            .navbar-brand-box .logo-sm {
+                display: none !important;
+            }
+            .navbar-brand-box .logo-lg {
+                display: inline-block !important;
+            }
+            .navbar-brand-box .logo-lg img {
+                height: 42px;
+                width: auto;
+                max-width: 100%;
+            }
+        }
+
+        /* iOS Safari zooms the page in whenever a focused input is under 16px,
+           and never zooms back out. The theme sets .form-control to 14px, so
+           tapping any field left the whole app zoomed. 16px on touch widths
+           only; desktop keeps the theme's sizing. */
+        @media (max-width: 767.98px) {
+            .form-control,
+            .form-select,
+            input[type="text"],
+            input[type="email"],
+            input[type="password"],
+            input[type="number"],
+            input[type="search"],
+            input[type="tel"],
+            input[type="date"],
+            input[type="time"],
+            textarea,
+            select {
+                font-size: 16px;
+            }
+        }
+    </style>
+
     <!-- Layout config Js -->
     <script src="{{ asset('assets/js/layout.js') }}"></script>
+
     <!-- Bootstrap Css -->
     <link href="{{ asset('assets/css/bootstrap.min.css') }}" rel="stylesheet" type="text/css" />
     <!-- Icons Css -->
@@ -150,6 +221,10 @@
 
     <!-- App js -->
     <script src="{{ asset('assets/js/app.js') }}"></script>
+
+    {{-- Idle lock for every page. Must come after app.js so bootstrap is defined. --}}
+    @include("components.security-lock")
+
     
     @yield('script')
 

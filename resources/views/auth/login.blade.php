@@ -25,6 +25,24 @@
     <link href="{{ asset('assets/libs/fullcalendar/main.min.css') }}" rel="stylesheet" type="text/css" />
     <!-- SweetAlert2 Css -->
     <link href="{{ asset('assets/libs/sweetalert2/sweetalert2.min.css') }}" rel="stylesheet" type="text/css" />
+
+    {{-- iOS Safari zooms in when a focused input is under 16px and does not zoom
+         back out, so signing in left the whole app zoomed. The theme sets
+         .form-control to 14px. Touch widths only. --}}
+    <style>
+        @media (max-width: 767.98px) {
+            .form-control,
+            .form-select,
+            input[type="text"],
+            input[type="email"],
+            input[type="password"],
+            textarea,
+            select {
+                font-size: 16px;
+            }
+        }
+    </style>
+
 </head>
 
 <body>

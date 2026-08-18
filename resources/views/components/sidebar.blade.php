@@ -20,7 +20,9 @@
                 <img src="{{ asset('assets/images/mgrc/MGRC white font.png') }}" alt="" height="50">
             </span>
         </a>
-        <button type="button" class="btn btn-sm p-0 fs-20 header-item float-end btn-vertical-sm-hover ms-4" id="vertical-hover">
+        {{-- Hidden, not removed: app.js calls getElementById("vertical-hover") with no
+             null check and would throw, breaking the rest of its load handler. --}}
+        <button type="button" class="btn btn-sm p-0 fs-20 header-item float-end btn-vertical-sm-hover ms-4 d-none" id="vertical-hover">
             <i class="ri-record-circle-line"></i>
         </button>
     </div>

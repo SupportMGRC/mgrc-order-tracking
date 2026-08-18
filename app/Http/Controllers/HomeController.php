@@ -176,6 +176,11 @@ class HomeController extends Controller
             ->orderBy('pickup_delivery_date')
             ->get();
         
+        // Set by verifyPassword(). Read here so the prompt appears once per
+        // session rather than on every dashboard load - the flag was already
+        // being written, it was just never checked.
+        $dashboardUnlocked = (bool) session('dashboard_unlocked', false);
+
         return view('dashboard', compact(
             'todayNewCount',
             'todayPreparingCount',
@@ -199,8 +204,22 @@ class HomeController extends Controller
             'currentYear',
             'calendarEvents',
             'upcomingDeliveries',
-            'overdueDeliveries'
+            'overdueDeliveries',
+            'dashboardUnlocked'
         ));
+    }
+
+    /**
+     * Clear the dashboard unlock so a refresh cannot bypass the idle re-lock.
+     *
+     * Called by the idle timer on the dashboard. Without it the session flag
+     * would survive a lock and reloading the page would walk straight in.
+     */
+    public function lockDashboard(Request $request)
+    {
+        session()->forget(['dashboard_unlocked', 'dashboard_unlocked_at']);
+
+        return response()->json(['success' => true]);
     }
 
     /**

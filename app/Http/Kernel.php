@@ -36,6 +36,9 @@ class Kernel extends HttpKernel
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            // Expires the dashboard unlock after inactivity on any page, not
+            // just the dashboard. Must run after StartSession.
+            \App\Http\Middleware\TrackUserActivity::class,
         ],
 
         'api' => [

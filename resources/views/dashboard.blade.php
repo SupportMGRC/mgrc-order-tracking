@@ -1,38 +1,6 @@
 @extends('layouts.master')
 
 @section('content')
-    <!-- Password Verification Modal -->
-    <div class="modal fade" id="dashboardPasswordModal" tabindex="-1" aria-labelledby="dashboardPasswordModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title" id="dashboardPasswordModalLabel">
-                        <i class="ri-lock-line me-2"></i>Dashboard Security
-                    </h5>
-                </div>
-                <div class="modal-body">
-                    <div class="text-center mb-3">
-                        <i class="ri-shield-check-line text-primary" style="font-size: 48px;"></i>
-                    </div>
-                    <p class="text-center text-muted mb-4">Please enter your password to access the dashboard</p>
-                    <form id="dashboardPasswordForm">
-                        @csrf
-                        <div class="mb-3">
-                            <label for="dashboardPassword" class="form-label">Password</label>
-                            <input type="password" class="form-control" id="dashboardPassword" name="password" required autofocus>
-                            <div class="invalid-feedback" id="passwordError"></div>
-                        </div>
-                        <div class="d-grid">
-                            <button type="submit" class="btn btn-primary" id="verifyPasswordBtn">
-                                <i class="ri-check-line me-1"></i> Verify Password
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Dashboard Content Container -->
     <div id="dashboard-content" class="dashboard-content-container">
     <!-- start page title -->
@@ -398,16 +366,11 @@
 
 @section('script')
 <style>
-/* Dashboard Security Styles */
+/* Idle lock moved to components/security-lock.blade.php so it covers every
+   page, not just this one. The wrapper div below is left in place as a plain
+   container. */
 .dashboard-content-container {
-    transition: filter 0.3s ease;
     position: relative;
-}
-
-.dashboard-content-container.blurred {
-    filter: blur(5px);
-    pointer-events: none;
-    user-select: none;
 }
 
 /* Ensure sidebar is ALWAYS functional and clickable - even when dashboard is blurred */
@@ -445,65 +408,7 @@
     filter: none !important;
 }
 
-/* Ensure modal and all its elements can always receive clicks */
-#dashboardPasswordModal,
-#dashboardPasswordModal *,
-.modal,
-.modal *,
-.modal-content,
-.modal-content *,
-.modal-header,
-.modal-header *,
-.modal-body,
-.modal-body *,
-.modal-footer,
-.modal-footer * {
-    pointer-events: auto !important;
-    filter: none !important;
-    user-select: auto !important;
-}
-
-/* Ensure modal is never blurred - modals are rendered at body level */
-#dashboardPasswordModal {
-    filter: none !important;
-    z-index: 9999 !important;
-    pointer-events: auto !important;
-}
-
-#dashboardPasswordModal .modal-backdrop {
-    pointer-events: auto !important;
-    z-index: 9998 !important;
-}
-
-/* Ensure modal backdrop doesn't interfere */
-#dashboardPasswordModal.modal.show {
-    z-index: 9999 !important;
-    pointer-events: auto !important;
-}
-
-#dashboardPasswordModal .modal-content {
-    border: none;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-}
-
-#dashboardPasswordModal .modal-header {
-    border-bottom: 2px solid rgba(255, 255, 255, 0.1);
-}
-
-#dashboardPasswordModal .form-control:focus {
-    border-color: #0ab39c;
-    box-shadow: 0 0 0 0.2rem rgba(10, 179, 156, 0.25);
-}
-
-#dashboardPasswordModal .btn-primary {
-    background-color: #0ab39c;
-    border-color: #0ab39c;
-}
-
-#dashboardPasswordModal .btn-primary:hover {
-    background-color: #089981;
-    border-color: #089981;
-}
+/* Idle-lock modal styling now lives in components/security-lock.blade.php. */
 
 /* Custom Bootstrap Tooltip Styles */
 /* Custom Bootstrap Tooltip Styles */
@@ -751,186 +656,5 @@
             calendar.render();
         });
 
-        // Dashboard Security - Password Verification and Idle Tracking
-        (function() {
-            const IDLE_TIMEOUT = 3 * 60 * 1000; // 3 minutes in milliseconds
-            const PASSWORD_MODAL_ID = 'dashboardPasswordModal';
-            const CONTENT_CONTAINER_ID = 'dashboard-content';
-            
-            let idleTimer = null;
-            let isUnlocked = false;
-            let passwordModal = null;
-            
-            // Initialize modal
-            document.addEventListener('DOMContentLoaded', function() {
-                const modalElement = document.getElementById(PASSWORD_MODAL_ID);
-                if (modalElement) {
-                    passwordModal = new bootstrap.Modal(modalElement, {
-                        backdrop: 'static',
-                        keyboard: false
-                    });
-                    
-                    // Show modal on page load
-                    lockDashboard();
-                }
-            });
-            
-            // Lock dashboard (show password modal and blur content)
-            function lockDashboard() {
-                isUnlocked = false;
-                const contentContainer = document.getElementById(CONTENT_CONTAINER_ID);
-                
-                // Only blur the dashboard content container, not the entire page
-                if (contentContainer) {
-                    contentContainer.classList.add('blurred');
-                }
-                
-                // Ensure sidebar remains fully functional - explicitly enable pointer events
-                const sidebar = document.querySelector('.app-menu');
-                if (sidebar) {
-                    sidebar.style.pointerEvents = 'auto';
-                    sidebar.style.filter = 'none';
-                    // Also ensure all sidebar children are clickable
-                    const sidebarElements = sidebar.querySelectorAll('*');
-                    sidebarElements.forEach(el => {
-                        el.style.pointerEvents = 'auto';
-                        el.style.filter = 'none';
-                    });
-                }
-                
-                if (passwordModal) {
-                    passwordModal.show();
-                    // Focus password input
-                    setTimeout(() => {
-                        const passwordInput = document.getElementById('dashboardPassword');
-                        if (passwordInput) {
-                            passwordInput.focus();
-                            passwordInput.value = '';
-                        }
-                    }, 300);
-                }
-                
-                // Clear idle timer
-                resetIdleTimer();
-            }
-            
-            // Unlock dashboard (hide modal and remove blur)
-            function unlockDashboard() {
-                isUnlocked = true;
-                const contentContainer = document.getElementById(CONTENT_CONTAINER_ID);
-                
-                // Remove blur from dashboard content
-                if (contentContainer) {
-                    contentContainer.classList.remove('blurred');
-                }
-                
-                if (passwordModal) {
-                    passwordModal.hide();
-                }
-                
-                // Reset idle timer
-                resetIdleTimer();
-            }
-            
-            // Reset idle timer
-            function resetIdleTimer() {
-                if (idleTimer) {
-                    clearTimeout(idleTimer);
-                }
-                
-                // Only set timer if dashboard is unlocked
-                if (isUnlocked) {
-                    idleTimer = setTimeout(() => {
-                        lockDashboard();
-                    }, IDLE_TIMEOUT);
-                }
-            }
-            
-            // Track user activity
-            const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
-            activityEvents.forEach(event => {
-                document.addEventListener(event, () => {
-                    if (isUnlocked) {
-                        resetIdleTimer();
-                    }
-                }, { passive: true });
-            });
-            
-            // Handle password form submission
-            function setupPasswordForm() {
-                const passwordForm = document.getElementById('dashboardPasswordForm');
-                const passwordInput = document.getElementById('dashboardPassword');
-                
-                if (passwordForm) {
-                    passwordForm.addEventListener('submit', async function(e) {
-                        e.preventDefault();
-                        
-                        const verifyBtn = document.getElementById('verifyPasswordBtn');
-                        const errorDiv = document.getElementById('passwordError');
-                        const password = passwordInput.value;
-                        
-                        if (!password) {
-                            passwordInput.classList.add('is-invalid');
-                            errorDiv.textContent = 'Please enter your password';
-                            return;
-                        }
-                        
-                        // Disable button and show loading state
-                        verifyBtn.disabled = true;
-                        verifyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Verifying...';
-                        passwordInput.classList.remove('is-invalid');
-                        errorDiv.textContent = '';
-                        
-                        try {
-                            const response = await fetch('{{ route("dashboard.verify.password") }}', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                                },
-                                body: JSON.stringify({ password: password })
-                            });
-                            
-                            const data = await response.json();
-                            
-                            if (data.success) {
-                                unlockDashboard();
-                            } else {
-                                passwordInput.classList.add('is-invalid');
-                                errorDiv.textContent = data.message || 'Invalid password. Please try again.';
-                                passwordInput.value = '';
-                                passwordInput.focus();
-                            }
-                        } catch (error) {
-                            console.error('Password verification error:', error);
-                            passwordInput.classList.add('is-invalid');
-                            errorDiv.textContent = 'An error occurred. Please try again.';
-                        } finally {
-                            verifyBtn.disabled = false;
-                            verifyBtn.innerHTML = '<i class="ri-check-line me-1"></i> Verify Password';
-                        }
-                    });
-                }
-                
-                // Handle Enter key in password input
-                if (passwordInput) {
-                    passwordInput.addEventListener('keypress', function(e) {
-                        if (e.key === 'Enter') {
-                            e.preventDefault();
-                            if (passwordForm) {
-                                passwordForm.dispatchEvent(new Event('submit'));
-                            }
-                        }
-                    });
-                }
-            }
-            
-            // Initialize password form when DOM is ready
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', setupPasswordForm);
-            } else {
-                setupPasswordForm();
-            }
-        })();
     </script>
 @endsection

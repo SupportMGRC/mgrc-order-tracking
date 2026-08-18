@@ -40,6 +40,26 @@ class LoginController extends Controller
     }
 
     /**
+     * Mark the session unlocked immediately after signing in.
+     *
+     * The idle lock asks for the same password the user just typed, so without
+     * this they would be challenged again the moment they land on a page.
+     * TrackUserActivity expires this after the idle interval as normal.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  mixed  $user
+     * @return void
+     */
+    protected function authenticated($request, $user)
+    {
+        session([
+            'dashboard_unlocked'    => true,
+            'dashboard_unlocked_at' => now()->toDateTimeString(),
+            'last_activity'         => now()->toDateTimeString(),
+        ]);
+    }
+
+    /**
      * Create a new controller instance.
      *
      * @return void

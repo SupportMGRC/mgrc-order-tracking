@@ -110,6 +110,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/calendar', [HomeController::class, 'index'])->name('dashboard');
     Route::post('/dashboard/verify-password', [HomeController::class, 'verifyPassword'])->name('dashboard.verify.password');
+    Route::post('/dashboard/lock', [HomeController::class, 'lockDashboard'])->name('dashboard.lock');
 
     Route::post('order-batch-update/{id}', [OrderController::class, 'updateBatch'])->name('orders.update.batch');
 
