@@ -19,6 +19,18 @@ use App\Services\CoaTemplateService;
 class OrderController extends Controller
 {
     /**
+     * Columns the Order History date filter may target.
+     *
+     * Whitelisted because the chosen field goes straight into a query builder
+     * call; anything not on this list falls back to order_date.
+     */
+    private const DATE_FIELDS = [
+        'order_date',
+        'pickup_delivery_date',
+        'collection_date',
+    ];
+
+    /**
      * Image size limit for morphology uploads
      */
     public const MORPHOLOGY_MAX_KB = 8192;
@@ -327,58 +339,82 @@ class OrderController extends Controller
             $request->session()->forget('status_filter');
         }
 
-        // Only apply date filtering for 'all' or 'delivered' status
-        // For 'new', 'preparing', and 'ready' statuses, show all orders regardless of date
-        if (!in_array($request->status, ['new', 'preparing', 'ready'])) {
-            // Filter by date range - using predefined options
-            $dateRange = $request->get('date_range', 'all'); // Default to all if not specified
+        // Date filtering. Previously this was skipped entirely for the new,
+        // preparing and ready tabs, so "new orders from last week" silently
+        // returned everything. It now applies on every tab.
+        //
+        // date_field chooses which column to filter, so one control covers what
+        // used to be a dropdown for order_date plus a separate hidden popup for
+        // the reach-client date.
+        $dateField = in_array($request->get('date_field'), self::DATE_FIELDS, true)
+            ? $request->get('date_field')
+            : 'order_date';
 
-            switch ($dateRange) {
-                case 'today':
-                    $today = Carbon::today();
-                    $query->whereDate('order_date', $today);
-                    break;
+        $dateRange = $request->get('date_range', 'all');
 
-                case 'weekly':
-                    $startOfWeek = Carbon::now()->startOfWeek();
-                    $endOfWeek = Carbon::now()->endOfWeek();
-                    $query->whereBetween('order_date', [$startOfWeek, $endOfWeek]);
-                    break;
+        switch ($dateRange) {
+            case 'today':
+                $query->whereDate($dateField, Carbon::today());
+                break;
 
-                case 'monthly':
-                    $startOfMonth = Carbon::now()->startOfMonth();
-                    $endOfMonth = Carbon::now()->endOfMonth();
-                    $query->whereBetween('order_date', [$startOfMonth, $endOfMonth]);
-                    break;
+            case 'weekly':
+                $query->whereBetween($dateField, [
+                    Carbon::now()->startOfWeek(),
+                    Carbon::now()->endOfWeek(),
+                ]);
+                break;
 
-                case 'yearly':
-                    $startOfYear = Carbon::now()->startOfYear();
-                    $endOfYear = Carbon::now()->endOfYear();
-                    $query->whereBetween('order_date', [$startOfYear, $endOfYear]);
-                    break;
+            case 'monthly':
+                $query->whereBetween($dateField, [
+                    Carbon::now()->startOfMonth(),
+                    Carbon::now()->endOfMonth(),
+                ]);
+                break;
 
-                case 'all':
-                    // No date filtering
-                    break;
+            case 'yearly':
+                $query->whereBetween($dateField, [
+                    Carbon::now()->startOfYear(),
+                    Carbon::now()->endOfYear(),
+                ]);
+                break;
 
-                default:
-                    // If it's a custom date range string (for backwards compatibility)
-                    if (strpos($dateRange, ' to ') !== false) {
-                        $dates = explode(' to ', $dateRange);
-                        if (count($dates) == 2) {
-                            $start_date = date('Y-m-d', strtotime($dates[0]));
-                            $end_date = date('Y-m-d', strtotime($dates[1]));
-                            $query->whereBetween('order_date', [$start_date, $end_date]);
-                        }
+            case 'custom':
+                // Two separate inputs rather than one "X to Y" string, so a
+                // half-filled range still works as an open-ended one.
+                $from = $request->get('date_from');
+                $to   = $request->get('date_to');
+
+                if ($from && $to) {
+                    $query->whereBetween($dateField, [
+                        Carbon::parse($from)->startOfDay(),
+                        Carbon::parse($to)->endOfDay(),
+                    ]);
+                } elseif ($from) {
+                    $query->whereDate($dateField, '>=', Carbon::parse($from));
+                } elseif ($to) {
+                    $query->whereDate($dateField, '<=', Carbon::parse($to));
+                }
+                break;
+
+            case 'all':
+            default:
+                // Legacy "X to Y" strings from old bookmarked URLs.
+                if (is_string($dateRange) && strpos($dateRange, ' to ') !== false) {
+                    $dates = explode(' to ', $dateRange);
+                    if (count($dates) == 2) {
+                        $query->whereBetween($dateField, [
+                            Carbon::parse($dates[0])->startOfDay(),
+                            Carbon::parse($dates[1])->endOfDay(),
+                        ]);
                     }
-                    break;
-            }
+                }
+                break;
         }
 
-        // Filter by reach client date if provided
-        if ($request->has('reach_client_date') && !empty($request->reach_client_date)) {
-            $reachClientDate = $request->reach_client_date;
-            $query->whereDate('pickup_delivery_date', $reachClientDate);
+        // Legacy parameter from the old column-header popup. Kept so existing
+        // bookmarks and links still work.
+        if ($request->filled('reach_client_date')) {
+            $query->whereDate('pickup_delivery_date', $request->reach_client_date);
         }
 
         // Search by ID, customer name, product name, or status
@@ -485,12 +521,26 @@ class OrderController extends Controller
                         ->orWhere('order_placed_by', $user->name);
                 })
                 ->count();
+            $canceledCount = Order::where('status', 'cancel')
+                ->where(function ($q) use ($user) {
+                    $q->where('user_id', $user->id)
+                        ->orWhere('order_placed_by', $user->name);
+                })
+                ->count();
+            $allCount = Order::where(function ($q) use ($user) {
+                $q->where('user_id', $user->id)
+                    ->orWhere('order_placed_by', $user->name);
+            })->count();
         } else {
             // Show all orders for other departments
             $newCount = Order::where('status', 'new')->count();
             $preparingCount = Order::where('status', 'preparing')->count();
             $readyCount = Order::where('status', 'ready')->count();
             $deliveredCount = Order::where('status', 'delivered')->count();
+            // Cancelled and the overall total were never counted, so those two
+            // tabs showed no badge.
+            $canceledCount = Order::where('status', 'cancel')->count();
+            $allCount = Order::count();
         }
 
         return view('orders.orderhistory', compact(
@@ -498,7 +548,9 @@ class OrderController extends Controller
             'newCount',
             'preparingCount',
             'readyCount',
-            'deliveredCount'
+            'deliveredCount',
+            'canceledCount',
+            'allCount'
         ));
     }
 

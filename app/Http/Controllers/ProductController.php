@@ -24,15 +24,8 @@ class ProductController extends Controller
             });
         }
         
-        // Handle date range filtering
-        if ($request->has('date_range') && !empty($request->date_range)) {
-            $dates = explode(' to ', str_replace(',', '', $request->date_range));
-            if (count($dates) == 2) {
-                $startDate = \Carbon\Carbon::parse($dates[0])->startOfDay();
-                $endDate = \Carbon\Carbon::parse($dates[1])->endOfDay();
-                $query->whereBetween('created_at', [$startDate, $endDate]);
-            }
-        }
+        // Date range filtering removed along with its form field: it filtered on
+        // created_at, which is not a useful question to ask of a product list.
         
         // Handle stock status filtering
         if ($request->has('stock_status') && !empty($request->stock_status) && $request->stock_status != 'all') {

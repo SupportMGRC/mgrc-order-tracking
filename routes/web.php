@@ -58,7 +58,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/users/{user}/delete', [UserController::class, 'destroy'])->name('users.delete.post');
 
     // Customer routes
-    Route::resource('customers', CustomerController::class);
+    // Customers appear in the sidebar for admin and superadmin only, so the route
+    // is gated to match. Without this any signed-in user could reach /customers
+    // by URL and add, edit or delete records.
+    Route::resource('customers', CustomerController::class)->middleware('role:admin');
 
     // Product routes. Gated at the route so the URL itself is closed, not just
     // the sidebar link — superadmin passes through 'role:admin' automatically.
@@ -79,14 +82,19 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/orders/{order}/products/{product}/ready', [OrderController::class, 'updateProductReadyStatus'])->name('orders.product.ready');
 
     // Visit routes
-    Route::resource('visits', VisitController::class);
+    // Not linked from the UI anywhere, but the route is live, so gate it too.
+    Route::resource('visits', VisitController::class)->middleware('role:admin');
 
     // Legacy routes - keeping them for backward compatibility
     Route::get('/neworder', [OrderController::class, 'newOrder'])->name('neworder')->middleware('department.permission:view-new-order');
     Route::post('/neworder', [OrderController::class, 'storeNewOrder'])->name('neworder.store')->middleware('department.permission:view-new-order');
 
     // Customer API route for AJAX
-    Route::get('/api/customers/{id}', [CustomerController::class, 'getCustomerData'])->name('api.customers.data');
+    // Removed: /api/customers/{id} returned a full customer record as raw JSON
+    // with no role check. No caller existed anywhere in the codebase, so it was
+    // dead from an unfinished feature. Restore from git history if something
+    // outside the repo turns out to need it.
+
 
     Route::get('/orderhistory', [OrderController::class, 'history'])->name('orderhistory');
     Route::get('/orderdetails/{order}', [OrderController::class, 'orderDetails'])->name('orderdetails');

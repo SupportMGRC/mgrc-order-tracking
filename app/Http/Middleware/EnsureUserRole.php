@@ -22,8 +22,11 @@ class EnsureUserRole
         }
 
         if (!in_array($user->role, $roles, true)) {
-            return redirect()->route('dashboard')
-                ->with('error', 'You do not have permission to access that page.');
+            // 403 rather than a redirect to the dashboard. A redirect looks like the
+            // link was wrong or the page moved; this says plainly that the page
+            // exists and access was refused. Matches BlockedDateController, which
+            // already aborts, so every blocked page now behaves the same way.
+            abort(403, 'Unauthorized access');
         }
 
         return $next($request);

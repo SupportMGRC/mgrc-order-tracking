@@ -42,47 +42,77 @@
                     </div>
                 </div>
                 <div class="card-body border border-dashed border-end-0 border-start-0">
+                    @php
+                        $dateFieldLabels = [
+                            'order_date'           => 'Order Date',
+                            'pickup_delivery_date' => 'Reach Client Date',
+                            'collection_date'      => 'Collection Date',
+                        ];
+                        $activeField = array_key_exists(request('date_field'), $dateFieldLabels)
+                            ? request('date_field')
+                            : 'order_date';
+                        $activeRange = request('date_range', 'all');
+                    @endphp
+
                     <form action="{{ route('orderhistory') }}" method="GET" id="filterForm">
-                        <div class="row g-3">
-                            <div class="col-lg-8 col-12">
+                        {{-- Status lives in the tabs, so carry it through rather than
+                             resetting to All every time someone filters. --}}
+                        @if(request('status') && request('status') != 'all')
+                            <input type="hidden" name="status" value="{{ request('status') }}">
+                        @endif
+
+                        <div class="row g-2 align-items-center">
+                            <div class="col-lg-4 col-12">
                                 <div class="search-box">
                                     <input type="text" class="form-control" name="search"
-                                        placeholder="Search for order ID, customer, order status..."
+                                        placeholder="Search order ID, customer, product..."
                                         value="{{ request('search') }}">
                                     <i class="ri-search-line search-icon"></i>
                                 </div>
                             </div>
-                            <div class="col-lg-4 col-12">
-                                <div class="d-flex flex-column flex-sm-row gap-2">
-                                    <select class="form-select flex-fill" name="date_range" id="dateRangeSelect" 
-                                            {{ in_array(request('status'), ['new', 'preparing', 'ready']) ? 'disabled' : '' }}>
-                                        <option value="today" {{ request('date_range') == 'today' ? 'selected' : '' }}>
-                                            Today
-                                        </option>
-                                        <option value="weekly" {{ request('date_range') == 'weekly' ? 'selected' : '' }}>
-                                            This Week
-                                        </option>
-                                        <option value="monthly" {{ request('date_range') == 'monthly' ? 'selected' : '' }}>
-                                            This Month
-                                        </option>
-                                        <option value="yearly" {{ request('date_range') == 'yearly' ? 'selected' : '' }}>
-                                            This Year
-                                        </option>
-                                        <option value="all" {{ request('date_range') == 'all' || !request('date_range') ? 'selected' : '' }}>
-                                            All Time
-                                        </option>
-                                    </select>
-                                    <button type="submit" class="btn btn-primary flex-shrink-0" 
-                                            {{ in_array(request('status'), ['new', 'preparing', 'ready']) ? 'disabled' : '' }}>
-                                        <i class="ri-equalizer-fill align-bottom me-1"></i><span class="d-none d-sm-inline"> Filter</span><span class="d-sm-none">Filter</span>
+
+                            <div class="col-lg-3 col-sm-6">
+                                <select class="form-select" name="date_field">
+                                    @foreach($dateFieldLabels as $fieldKey => $fieldLabel)
+                                        <option value="{{ $fieldKey }}" @selected($activeField === $fieldKey)>{{ $fieldLabel }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="col-lg-3 col-sm-6">
+                                <select class="form-select" name="date_range" id="dateRangeSelect">
+                                    <option value="all" @selected($activeRange === 'all')>All Time</option>
+                                    <option value="today" @selected($activeRange === 'today')>Today</option>
+                                    <option value="weekly" @selected($activeRange === 'weekly')>This Week</option>
+                                    <option value="monthly" @selected($activeRange === 'monthly')>This Month</option>
+                                    <option value="yearly" @selected($activeRange === 'yearly')>This Year</option>
+                                    <option value="custom" @selected($activeRange === 'custom')>Custom range...</option>
+                                </select>
+                            </div>
+
+                            <div class="col-lg-2 col-12">
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-primary flex-fill">
+                                        <i class="ri-equalizer-fill align-bottom me-1"></i>Filter
                                     </button>
-                                    <!-- Hidden input to preserve the status parameter -->
-                                    @if(request('status') && request('status') != 'all')
-                                    <input type="hidden" name="status" value="{{ request('status') }}">
-                                    @endif
-                                    <!-- Hidden input for reach client date filter -->
-                                    <input type="hidden" name="reach_client_date" id="reachClientDateFilter" value="{{ request('reach_client_date') }}">
+                                    <a href="{{ route('orderhistory', ['status' => request('status')]) }}"
+                                       class="btn btn-light" title="Clear all filters">
+                                        <i class="ri-close-line align-bottom"></i>
+                                    </a>
                                 </div>
+                            </div>
+                        </div>
+
+                        {{-- Only shown when Custom range is picked. Either box may be left
+                             empty for an open-ended range. --}}
+                        <div class="row g-2 mt-1 {{ $activeRange === 'custom' ? '' : 'd-none' }}" id="customRangeRow">
+                            <div class="col-lg-3 col-sm-6">
+                                <input type="text" class="form-control" name="date_from" id="dateFrom"
+                                       placeholder="From" value="{{ request('date_from') }}">
+                            </div>
+                            <div class="col-lg-3 col-sm-6">
+                                <input type="text" class="form-control" name="date_to" id="dateTo"
+                                       placeholder="To" value="{{ request('date_to') }}">
                             </div>
                         </div>
                     </form>
@@ -96,20 +126,21 @@
                                         <ul class="nav nav-tabs nav-tabs-custom nav-primary gap-1 flex-nowrap overflow-auto" role="tablist" style="white-space: nowrap;">
                                             <li class="nav-item flex-shrink-0">
                                                 <a class="nav-link {{ request('status') == 'all' || !request('status') ? 'active' : '' }} py-3 All"
-                                                    href="{{ route('orderhistory', ['status' => 'all', 'date_range' => request('date_range', 'all'), 'search' => request('search'), 'reach_client_date' => request('reach_client_date')]) }}" role="tab">
+                                                    href="{{ route('orderhistory', ['status' => 'all', 'date_field' => request('date_field'), 'date_range' => request('date_range'), 'date_from' => request('date_from'), 'date_to' => request('date_to'), 'search' => request('search'), 'reach_client_date' => request('reach_client_date')]) }}" role="tab">
                                                     <i class="ri-shopping-bag-3-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> All Orders</span><span class="d-sm-none">All</span>
+                                                    <span class="badge bg-dark align-middle ms-1">{{ $allCount }}</span>
                                                 </a>
                                             </li>
                                             <li class="nav-item flex-shrink-0">
                                                 <a class="nav-link {{ request('status') == 'new' ? 'active' : '' }} py-3 Pending"
-                                                    href="{{ route('orderhistory', ['status' => 'new', 'search' => request('search'), 'reach_client_date' => request('reach_client_date')]) }}" role="tab">
+                                                    href="{{ route('orderhistory', ['status' => 'new', 'date_field' => request('date_field'), 'date_range' => request('date_range'), 'date_from' => request('date_from'), 'date_to' => request('date_to'), 'search' => request('search'), 'reach_client_date' => request('reach_client_date')]) }}" role="tab">
                                                     <i class="ri-add-circle-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> New</span><span class="d-sm-none">New</span>
                                                     <span class="badge bg-light text-dark align-middle ms-1">{{ $newCount }}</span>
                                                 </a>
                                             </li>
                                             <li class="nav-item flex-shrink-0">
                                                 <a class="nav-link {{ request('status') == 'preparing' ? 'active' : '' }} py-3 Inprogress"
-                                                    href="{{ route('orderhistory', ['status' => 'preparing', 'search' => request('search'), 'reach_client_date' => request('reach_client_date')]) }}"
+                                                    href="{{ route('orderhistory', ['status' => 'preparing', 'date_field' => request('date_field'), 'date_range' => request('date_range'), 'date_from' => request('date_from'), 'date_to' => request('date_to'), 'search' => request('search'), 'reach_client_date' => request('reach_client_date')]) }}"
                                                     role="tab">
                                                     <i class="ri-loader-4-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> Preparing</span><span class="d-sm-none">Prep</span>
                                                     <span
@@ -118,14 +149,14 @@
                                             </li>
                                             <li class="nav-item flex-shrink-0">
                                                 <a class="nav-link {{ request('status') == 'ready' ? 'active' : '' }} py-3 Ready"
-                                                    href="{{ route('orderhistory', ['status' => 'ready', 'search' => request('search'), 'reach_client_date' => request('reach_client_date')]) }}" role="tab">
+                                                    href="{{ route('orderhistory', ['status' => 'ready', 'date_field' => request('date_field'), 'date_range' => request('date_range'), 'date_from' => request('date_from'), 'date_to' => request('date_to'), 'search' => request('search'), 'reach_client_date' => request('reach_client_date')]) }}" role="tab">
                                                     <i class="ri-checkbox-circle-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> Ready</span><span class="d-sm-none">Ready</span>
                                                     <span class="badge bg-primary align-middle ms-1">{{ $readyCount }}</span>
                                                 </a>
                                             </li>
                                             <li class="nav-item flex-shrink-0">
                                                 <a class="nav-link {{ request('status') == 'delivered' ? 'active' : '' }} py-3 Delivered"
-                                                    href="{{ route('orderhistory', ['status' => 'delivered', 'date_range' => request('date_range', 'all'), 'search' => request('search'), 'reach_client_date' => request('reach_client_date')]) }}"
+                                                    href="{{ route('orderhistory', ['status' => 'delivered', 'date_field' => request('date_field'), 'date_range' => request('date_range'), 'date_from' => request('date_from'), 'date_to' => request('date_to'), 'search' => request('search'), 'reach_client_date' => request('reach_client_date')]) }}"
                                                     role="tab">
                                                     <i class="ri-truck-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> Delivered</span><span class="d-sm-none">Deliv</span>
                                                     <span
@@ -134,8 +165,9 @@
                                             </li>
                                             <li class="nav-item flex-shrink-0">
                                                 <a class="nav-link {{ request('status') == 'cancel' ? 'active' : '' }} py-3 text-muted"
-                                                    href="{{ route('orderhistory', ['status' => 'cancel', 'date_range' => request('date_range', 'all'), 'search' => request('search'), 'reach_client_date' => request('reach_client_date')]) }}" role="tab">
+                                                    href="{{ route('orderhistory', ['status' => 'cancel', 'date_field' => request('date_field'), 'date_range' => request('date_range'), 'date_from' => request('date_from'), 'date_to' => request('date_to'), 'search' => request('search'), 'reach_client_date' => request('reach_client_date')]) }}" role="tab">
                                                     <i class="ri-close-circle-line me-1 align-bottom"></i><span class="d-none d-sm-inline"> Canceled</span><span class="d-sm-none">Cancel</span>
+                                                    <span class="badge bg-danger align-middle ms-1">{{ $canceledCount }}</span>
                                                 </a>
                                             </li>
                                         </ul>
@@ -145,12 +177,70 @@
                         </div>
                     </div>
 
-                    <!-- Display active filters -->
-                    @if(request('reach_client_date'))
-                    <div class="alert alert-info alert-dismissible fade show mb-4" role="alert">
-                        <i class="ri-calendar-line me-1"></i>
-                        <strong>Active Filter:</strong> Reach Client Date - {{ \Carbon\Carbon::parse(request('reach_client_date'))->format('d M, Y') }}
-                        <a href="{{ route('orderhistory', ['status' => request('status'), 'date_range' => request('date_range'), 'search' => request('search')]) }}" class="btn-close" aria-label="Close"></a>
+                    {{-- Active filter chips. Without these, a filter set earlier makes the
+                         list look wrong with nothing on screen explaining why. Each chip
+                         drops just its own filter and keeps the rest. --}}
+                    @php
+                        $rangeLabels = [
+                            'today'   => 'Today',
+                            'weekly'  => 'This Week',
+                            'monthly' => 'This Month',
+                            'yearly'  => 'This Year',
+                        ];
+
+                        $base = [
+                            'status'     => request('status'),
+                            'search'     => request('search'),
+                            'date_field' => request('date_field'),
+                            'date_range' => request('date_range'),
+                            'date_from'  => request('date_from'),
+                            'date_to'    => request('date_to'),
+                        ];
+
+                        $chips = [];
+
+                        if (request('search')) {
+                            $chips[] = [
+                                'label' => 'Search: "' . request('search') . '"',
+                                'url'   => route('orderhistory', array_merge($base, ['search' => null])),
+                            ];
+                        }
+
+                        $fieldLabel = $dateFieldLabels[$activeField];
+
+                        if (array_key_exists($activeRange, $rangeLabels)) {
+                            $chips[] = [
+                                'label' => $fieldLabel . ': ' . $rangeLabels[$activeRange],
+                                'url'   => route('orderhistory', array_merge($base, ['date_range' => null])),
+                            ];
+                        } elseif ($activeRange === 'custom' && (request('date_from') || request('date_to'))) {
+                            $from = request('date_from') ? \Carbon\Carbon::parse(request('date_from'))->format('d M Y') : null;
+                            $to   = request('date_to') ? \Carbon\Carbon::parse(request('date_to'))->format('d M Y') : null;
+
+                            $chips[] = [
+                                'label' => $fieldLabel . ': ' . ($from && $to ? $from . ' — ' . $to : ($from ? 'from ' . $from : 'until ' . $to)),
+                                'url'   => route('orderhistory', array_merge($base, ['date_range' => null, 'date_from' => null, 'date_to' => null])),
+                            ];
+                        }
+
+                        if (request('reach_client_date')) {
+                            $chips[] = [
+                                'label' => 'Reach Client Date: ' . \Carbon\Carbon::parse(request('reach_client_date'))->format('d M Y'),
+                                'url'   => route('orderhistory', $base),
+                            ];
+                        }
+                    @endphp
+
+                    @if(count($chips))
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                        <span class="text-muted small">Showing:</span>
+                        @foreach($chips as $chip)
+                            <span class="badge bg-light text-dark border fw-normal fs-12 py-2 px-2">
+                                {{ $chip['label'] }}
+                                <a href="{{ $chip['url'] }}" class="text-danger ms-1 text-decoration-none" title="Remove this filter">&times;</a>
+                            </span>
+                        @endforeach
+                        <a href="{{ route('orderhistory', ['status' => request('status')]) }}" class="small text-decoration-none">Clear all</a>
                     </div>
                     @endif
 
@@ -171,12 +261,9 @@
                                     <th class="sort" data-sort="delivered_by">Delivered By</th>
                                     <th class="sort" data-sort="order_date">Order Date</th>
                                     <th class="sort" data-sort="ready_time">Ready Time</th>
-                                    <th class="sort position-relative" data-sort="reach_client_time">
-                                        Reach Client 
-                                        <button type="button" class="btn btn-sm btn-outline-primary ms-2" id="reachClientDateBtn" data-bs-toggle="tooltip" title="Filter by Reach Client Date">
-                                            <i class="ri-calendar-line"></i>
-                                        </button>
-                                    </th>
+                                    {{-- Filter button removed: filtering by this date now lives in
+                                         the main filter bar, alongside the other date fields. --}}
+                                    <th class="sort" data-sort="reach_client_time">Reach Client</th>
                                     <th class="sort" data-sort="collection_date">Collection Date</th>
                                     <th class="sort" data-sort="type">Type</th>
                                     {{-- <th scope="col">Delivery Address</th> --}}
@@ -314,30 +401,6 @@
                     <div class="d-flex justify-content-center justify-content-sm-end">
                         <div class="pagination-wrap hstack gap-2">
                             {{ $orders->links('vendor.pagination.bootstrap-4') }}
-                        </div>
-                    </div>
-
-                    <!-- Date picker modal for reach client date filter -->
-                    <div class="modal fade" id="reachClientDateModal" tabindex="-1" aria-labelledby="reachClientDateModalLabel" aria-hidden="true">
-                        <div class="modal-dialog modal-dialog-centered modal-sm">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h5 class="modal-title" id="reachClientDateModalLabel">Filter by Reach Client Date</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <div class="mb-3">
-                                        <label for="reachClientDatePicker" class="form-label">Select Date</label>
-                                        <input type="text" class="form-control" id="reachClientDatePicker" 
-                                               placeholder="Select reach client date" 
-                                               value="{{ request('reach_client_date') ? \Carbon\Carbon::parse(request('reach_client_date'))->format('d/m/Y') : '' }}">
-                                    </div>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-sm btn-danger" id="clearReachClientFilter">Clear Filter</button>
-                                    <button type="button" class="btn btn-sm btn-primary" id="applyReachClientFilter">Apply Filter</button>
-                                </div>
-                            </div>
                         </div>
                     </div>
 
@@ -581,40 +644,18 @@
                     time_24hr: true
                 });
 
-                // Initialize Flatpickr for reach client date filter
-                const reachClientDatePicker = flatpickr("#reachClientDatePicker", {
-                    dateFormat: "d/m/Y",
-                    allowInput: true,
-                    clickOpens: true
-                });
+                // Custom range: show the two date inputs only when that option is picked.
+                const dateRangeSelect = document.getElementById('dateRangeSelect');
+                const customRangeRow  = document.getElementById('customRangeRow');
 
-                // Handle reach client date filter button click
-                document.getElementById('reachClientDateBtn').addEventListener('click', function() {
-                    var modal = new bootstrap.Modal(document.getElementById('reachClientDateModal'));
-                    modal.show();
-                });
+                if (dateRangeSelect && customRangeRow) {
+                    flatpickr('#dateFrom', { dateFormat: 'Y-m-d', allowInput: true });
+                    flatpickr('#dateTo',   { dateFormat: 'Y-m-d', allowInput: true });
 
-                // Handle apply filter button
-                document.getElementById('applyReachClientFilter').addEventListener('click', function() {
-                    const selectedDate = document.getElementById('reachClientDatePicker').value;
-                    if (selectedDate) {
-                        // Convert date format from d/m/Y to Y-m-d for URL parameter
-                        const dateParts = selectedDate.split('/');
-                        if (dateParts.length === 3) {
-                            const formattedDate = dateParts[2] + '-' + dateParts[1].padStart(2, '0') + '-' + dateParts[0].padStart(2, '0');
-                            document.getElementById('reachClientDateFilter').value = formattedDate;
-                            document.getElementById('filterForm').submit();
-                        }
-                    } else {
-                        alert('Please select a date');
-                    }
-                });
-
-                // Handle clear filter button
-                document.getElementById('clearReachClientFilter').addEventListener('click', function() {
-                    document.getElementById('reachClientDateFilter').value = '';
-                    document.getElementById('filterForm').submit();
-                });
+                    dateRangeSelect.addEventListener('change', function () {
+                        customRangeRow.classList.toggle('d-none', this.value !== 'custom');
+                    });
+                }
             }
         });
     </script>

@@ -110,11 +110,4 @@ class CustomerController extends Controller
             ->with('success', 'Customer deleted successfully.');
     }
 
-    /**
-     * Get customer data as JSON for AJAX requests.
-     */
-    public function getCustomerData(Customer $id)
-    {
-        return response()->json($id);
-    }
 }

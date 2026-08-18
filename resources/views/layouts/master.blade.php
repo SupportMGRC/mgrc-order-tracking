@@ -109,11 +109,11 @@
     <link rel="stylesheet" href="{{ asset('assets/libs/@simonwep/pickr/themes/monolith.min.css') }}" /> <!-- 'monolith' theme -->
     <link rel="stylesheet" href="{{ asset('assets/libs/@simonwep/pickr/themes/nano.min.css') }}" /> <!-- 'nano' theme -->
     <!-- Flatpickr -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="{{ asset('assets/libs/flatpickr/flatpickr.min.css') }}">
     {{-- multi.js and autoComplete stylesheets were listed a second time here. --}}
     
     <!-- Toastify CSS -->
-    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <link rel="stylesheet" type="text/css" href="{{ asset('assets/libs/toastify-js/src/toastify.css') }}">
     
     @stack('head-scripts')
 </head>
@@ -158,7 +158,15 @@
     <script src="{{ asset('assets/libs/node-waves/waves.min.js') }}"></script>
     <script src="{{ asset('assets/libs/feather-icons/feather.min.js') }}"></script>
     <script src="{{ asset('assets/js/pages/plugins/lord-icon-2.1.0.js') }}"></script>
-    <script src="{{ asset('assets/js/plugins.js') }}"></script>
+    {{-- plugins.js replaced with direct tags. It used document.write with relative
+         paths ('assets/libs/...'), which resolve against the current URL: fine on
+         /calendar, but 404 on /orderdetails/1656 because the base becomes
+         /orderdetails/. That silently stopped Choices loading on any two-segment
+         URL. asset() gives an absolute path, and no document.write means no
+         parser-blocking warning. All three files were already on the server. --}}
+    <script src="{{ asset('assets/libs/toastify-js/src/toastify.js') }}"></script>
+    <script src="{{ asset('assets/libs/choices.js/public/assets/scripts/choices.min.js') }}"></script>
+    <script src="{{ asset('assets/libs/flatpickr/flatpickr.min.js') }}"></script>
     <!-- calendar min js -->
     <script src="{{ asset('assets/libs/fullcalendar/main.min.js') }}"></script>
     {{-- calendar.init.js removed: it is the theme's demo calendar page script.
@@ -185,8 +193,6 @@
     {{-- <script src="{{ asset('assets/js/pages/team.init.js') }}"></script> --}}
     <!-- Modern colorpicker bundle -->
     <script src="{{ asset('assets/libs/@simonwep/pickr/pickr.min.js') }}"></script>
-    <!-- Flatpickr -->
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     {{-- multi.js, autoComplete, form-advanced.init, form-input-spin.init and
          flag-input.init were listed a second time here. Loading them twice ran
          every initialiser twice and produced duplicate console errors. The first
@@ -197,7 +203,7 @@
          form-input-spin, flag-input and form-pickers. Each scanned for demo
          markup TRACOM does not have (.country-flagimg, .classic-colorpicker,
          autocomplete fields) and threw on load. The libraries themselves are
-         kept: plugins.js and app.js initialise [data-choices] and
+         kept: app.js initialises [data-choices] and
          [data-provider="flatpickr"], and orderhistory uses list.js directly. --}}
 
     <!-- ApexCharts js -->
@@ -216,7 +222,6 @@
 
     <!-- Add Toastify JS before the closing body tag -->
     @push('footer-scripts')
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     @endpush
 </body>
 

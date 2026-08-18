@@ -82,13 +82,10 @@
                                     <i class="ri-search-line search-icon"></i>
                                 </div>
                             </div>
-                            <div class="col-xxl-2 col-sm-6">
-                                <div>
-                                    <input type="text" class="form-control" data-provider="flatpickr"
-                                        data-date-format="d M, Y" data-range-date="true" name="date_range"
-                                        id="demo-datepicker" placeholder="Select date" value="{{ request('date_range') }}">
-                                </div>
-                            </div>
+                            {{-- Date filter removed. CustomerController never read the
+                                 date_range parameter, so picking a date and clicking
+                                 Filter changed nothing. Leftover from the theme demo
+                                 (id was "demo-datepicker"). --}}
                             <div class="col-xxl-2 col-sm-4">
                                 <div>
                                     <select class="form-control" data-choices data-choices-search-false name="gender"
@@ -224,4 +221,4 @@
         });
     });
 </script>
-@endpush 
+@endpush

@@ -83,14 +83,9 @@
                             </div>
                         </div>
                         <!--end col-->
-                        <div class="col-xxl-2 col-sm-6">
-                            <div>
-                                <input type="text" class="form-control" data-provider="flatpickr"
-                                    data-date-format="d M, Y" data-range-date="true" name="date_range"
-                                    id="demo-datepicker" placeholder="Select date" value="{{ request('date_range') }}">
-                            </div>
-                        </div>
-                        <!--end col-->
+                        {{-- Date filter removed. It filtered products by created_at,
+                             i.e. when the row was added to the database, which is not a
+                             question anyone asks of a product list. --}}
                         {{-- <div class="col-xxl-2 col-sm-4">
                             <div>
                                 <select class="form-control" data-choices data-choices-search-false name="stock_status"
@@ -216,11 +211,11 @@
                                                     <select class="form-select" id="edit-coa-template-{{ $product->id }}" name="coa_template"
                                                         @if(auth()->user()->role != 'superadmin') required @endif>
                                                         @if(auth()->user()->role == 'superadmin')
-                                                            <option value="" @selected($coaIsUnset)>Not set (ask when generating)</option>
+                                                            <option value="" @selected($coaIsUnset)>— Not set (ask when generating) —</option>
                                                         @else
                                                             {{-- An admin editing a product that is still unset has to resolve it
                                                                  before saving, which is how the unset state gets cleaned up. --}}
-                                                            <option value="" disabled @selected($coaIsUnset)>Select a template</option>
+                                                            <option value="" disabled @selected($coaIsUnset)>— Select a template —</option>
                                                         @endif
                                                         @foreach ($coaSvc->productChoices() as $coaKey => $coaLabel)
                                                             <option value="{{ $coaKey }}" @selected($coaSelected === $coaKey)>{{ $coaLabel }}</option>
@@ -355,9 +350,9 @@
                             @if(auth()->user()->role == 'superadmin')
                                 {{-- Only a superadmin may leave a product unresolved, because
                                      only a superadmin can pick the template later on the COA screen. --}}
-                                <option value="" @selected(old('coa_template') === '')>Not set (ask when generating)</option>
+                                <option value="" @selected(old('coa_template') === '')>— Not set (ask when generating) —</option>
                             @else
-                                <option value="" disabled @selected(old('coa_template') === null)>Select a template</option>
+                                <option value="" disabled @selected(old('coa_template') === null)>— Select a template —</option>
                             @endif
                             @foreach (app(\App\Services\CoaTemplateService::class)->productChoices() as $coaKey => $coaLabel)
                                 <option value="{{ $coaKey }}" @selected(old('coa_template') === $coaKey)>{{ $coaLabel }}</option>
