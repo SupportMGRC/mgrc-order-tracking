@@ -103,7 +103,7 @@
 <script>
     (function () {
         // Keep in step with IDLE_MINUTES in App\Http\Middleware\TrackUserActivity.
-        const IDLE_TIMEOUT = 3 * 60 * 1000;
+        const IDLE_TIMEOUT = 15 * 60 * 1000;
 
         const VERIFY_URL = '{{ route("dashboard.verify.password") }}';
         const LOCK_URL = '{{ route("dashboard.lock") }}';

@@ -21,9 +21,9 @@ class TrackUserActivity
 {
     /**
      * Minutes of inactivity before the dashboard re-locks. Kept in step with
-     * IDLE_TIMEOUT in dashboard.blade.php, which is 3 minutes.
+     * IDLE_TIMEOUT in dashboard.blade.php, which is 15 minutes.
      */
-    private const IDLE_MINUTES = 3;
+    private const IDLE_MINUTES = 15;
 
     public function handle(Request $request, Closure $next)
     {
