@@ -110,10 +110,7 @@
     <link rel="stylesheet" href="{{ asset('assets/libs/@simonwep/pickr/themes/nano.min.css') }}" /> <!-- 'nano' theme -->
     <!-- Flatpickr -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <!-- multi.js css -->
-    <link rel="stylesheet" type="text/css" href="{{ asset('assets/libs/multi.js/multi.min.css') }}" />
-    <!-- autocomplete css -->
-    <link rel="stylesheet" href="{{ asset('assets/libs/@tarekraafat/autocomplete.js/css/autoComplete.css') }}"> 
+    {{-- multi.js and autoComplete stylesheets were listed a second time here. --}}
     
     <!-- Toastify CSS -->
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
@@ -164,55 +161,44 @@
     <script src="{{ asset('assets/js/plugins.js') }}"></script>
     <!-- calendar min js -->
     <script src="{{ asset('assets/libs/fullcalendar/main.min.js') }}"></script>
-    <!-- Calendar init -->
-    <script src="{{ asset('assets/js/pages/calendar.init.js') }}"></script>
+    {{-- calendar.init.js removed: it is the theme's demo calendar page script.
+         It looks for #calendar and demo buttons (btn-new-event, event-category,
+         edit-event-btn) that exist in no view, and called flatpickr() on a null
+         element - the "Cannot convert undefined or null to object" error. The
+         dashboard builds its own calendar on #delivery-calendar; fullcalendar
+         itself is still loaded above. --}}
     <!-- prismjs plugin -->
     <script src="{{ asset('assets/libs/prismjs/prism.js') }}"></script>
     <script src="{{ asset('assets/libs/list.js/list.min.js') }}"></script>
     <script src="{{ asset('assets/libs/list.pagination.js/list.pagination.min.js') }}"></script>
-    <!-- listjs init -->
-    <script src="{{ asset('assets/js/pages/listjs.init.js') }}"></script>
     <!-- Sweet Alerts js -->
     <script src="{{ asset('assets/libs/sweetalert2/sweetalert2.min.js') }}"></script>
-    <!-- ecommerce-order init js -->
-    <script src="{{ asset('assets/js/pages/ecommerce-order.init.js') }}"></script>
-    <!-- init js -->
-    <script src="{{ asset('assets/js/pages/ecommerce-product-checkout.init.js') }}"></script>
     <!-- multi.js -->
     <script src="{{ asset('assets/libs/multi.js/multi.min.js') }}"></script>
     <!-- autocomplete js -->
     <script src="{{ asset('assets/libs/@tarekraafat/autocomplete.js/autoComplete.min.js') }}"></script>
-    <!-- init js -->
-    <script src="{{ asset('assets/js/pages/form-advanced.init.js') }}"></script>
-    <!-- input spin init -->
-    <script src="{{ asset('assets/js/pages/form-input-spin.init.js') }}"></script>
-    <!-- input flag init -->
-    <script src="{{ asset('assets/js/pages/flag-input.init.js') }}"></script>
     <!-- dropzone min -->
     <script src="{{ asset('assets/libs/dropzone/dropzone-min.js') }}"></script>
     <!-- cleave.js -->
     <script src="{{ asset('assets/libs/cleave.js/cleave.min.js') }}"></script>
-    <!--Invoice create init js-->
-    <script src="{{ asset('assets/js/pages/invoicecreate.init.js') }}"></script>
     <!-- team init js -->
     {{-- <script src="{{ asset('assets/js/pages/team.init.js') }}"></script> --}}
     <!-- Modern colorpicker bundle -->
     <script src="{{ asset('assets/libs/@simonwep/pickr/pickr.min.js') }}"></script>
-    <!-- init js -->
-    <script src="{{ asset('assets/js/pages/form-pickers.init.js') }}"></script>
     <!-- Flatpickr -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <!-- multi.js -->
-    <script src="{{ asset('assets/libs/multi.js/multi.min.js') }}"></script>
-    <!-- autocomplete js -->
-    <script src="{{ asset('assets/libs/@tarekraafat/autocomplete.js/autoComplete.min.js') }}"></script>
+    {{-- multi.js, autoComplete, form-advanced.init, form-input-spin.init and
+         flag-input.init were listed a second time here. Loading them twice ran
+         every initialiser twice and produced duplicate console errors. The first
+         copies above are the ones in use. --}}
 
-    <!-- init js -->
-    <script src="{{ asset('assets/js/pages/form-advanced.init.js') }}"></script>
-    <!-- input spin init -->
-    <script src="{{ asset('assets/js/pages/form-input-spin.init.js') }}"></script>
-    <!-- input flag init -->
-    <script src="{{ asset('assets/js/pages/flag-input.init.js') }}"></script>
+    {{-- Theme demo initialisers removed: listjs, ecommerce-order,
+         ecommerce-product-checkout, form-advanced, invoicecreate,
+         form-input-spin, flag-input and form-pickers. Each scanned for demo
+         markup TRACOM does not have (.country-flagimg, .classic-colorpicker,
+         autocomplete fields) and threw on load. The libraries themselves are
+         kept: plugins.js and app.js initialise [data-choices] and
+         [data-provider="flatpickr"], and orderhistory uses list.js directly. --}}
 
     <!-- ApexCharts js -->
     <script src="{{ asset('assets/libs/apexcharts/apexcharts.min.js') }}"></script>

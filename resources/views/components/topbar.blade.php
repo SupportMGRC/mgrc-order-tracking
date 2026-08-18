@@ -851,15 +851,21 @@
 <!-- Time Display Script -->
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        function updateTime() {
-            const now = new Date();
-            const timeElement = document.getElementById('current-time');
-            timeElement.textContent = now.toLocaleTimeString();
+        // The clock markup above is commented out, so this element does not exist.
+        // Without the guard, updateTime() threw "Cannot set properties of null"
+        // once a second on every page for every user, flooding the console and
+        // burying real errors. If the clock is ever restored, this starts working
+        // again on its own.
+        const timeElement = document.getElementById('current-time');
+
+        if (timeElement) {
+            const updateTime = function () {
+                timeElement.textContent = new Date().toLocaleTimeString();
+            };
+
+            updateTime();
+            setInterval(updateTime, 1000);
         }
-        
-        // Update time immediately and then every second
-        updateTime();
-        setInterval(updateTime, 1000);
 
         // Show Edit Profile modal if there are profile-specific validation errors
         @if(session('profile_errors'))

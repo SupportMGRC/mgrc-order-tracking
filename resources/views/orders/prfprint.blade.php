@@ -22,7 +22,13 @@
         <div class="card">
             <div class="card-body">
                 <div class="prf-container">
-                    <div class="text-end mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        {{-- The breadcrumb links back too, but it is easy to miss up
+                             there. This sits next to Print where the eye already is.
+                             Outside #printSection, so the print CSS hides it. --}}
+                        <a href="{{ route('orderdetails', $order->id) }}" class="btn btn-light">
+                            <i class="ri-arrow-left-line align-bottom me-1"></i> Back to Order Details
+                        </a>
                         <button class="btn btn-primary" onclick="window.print()">
                             <i class="ri-printer-line align-bottom me-1"></i> Print
                         </button>
