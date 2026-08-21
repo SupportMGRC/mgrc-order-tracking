@@ -164,18 +164,6 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label fw-semibold">Gender</label>
-                                    <p class="mb-0 fs-15">{{ ucfirst($customer->gender) ?? 'N/A' }}</p>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label fw-semibold">Birthdate</label>
-                                    <p class="mb-0 fs-15">{{ $customer->birthdate ? date('F d, Y', strtotime($customer->birthdate)) : 'N/A' }}</p>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
                                     <label class="form-label fw-semibold">Person in Charge</label>
                                     <p class="mb-0 fs-15">
                                         @if($customer->userID)
@@ -389,4 +377,4 @@
         });
     });
 </script>
-@endsection 
+@endsection

@@ -74,7 +74,7 @@
                 <div class="card-body border border-dashed border-end-0 border-start-0">
                     <form action="{{ route('customers.index') }}" method="GET">
                         <div class="row g-3 mb-3">
-                            <div class="col-xxl-5 col-sm-6">
+                            <div class="col-xxl-7 col-sm-8">
                                 <div class="search-box">
                                     <input type="text" class="form-control" name="search"
                                         placeholder="Search for customer name, email or phone..."
@@ -86,20 +86,9 @@
                                  date_range parameter, so picking a date and clicking
                                  Filter changed nothing. Leftover from the theme demo
                                  (id was "demo-datepicker"). --}}
-                            <div class="col-xxl-2 col-sm-4">
-                                <div>
-                                    <select class="form-control" data-choices data-choices-search-false name="gender"
-                                        id="idGender">
-                                        <option value="all"
-                                            {{ request('gender') == 'all' || !request('gender') ? 'selected' : '' }}>All
-                                        </option>
-                                        <option value="male" {{ request('gender') == 'male' ? 'selected' : '' }}>Male
-                                        </option>
-                                        <option value="female" {{ request('gender') == 'female' ? 'selected' : '' }}>
-                                            Female</option>
-                                    </select>
-                                </div>
-                            </div>
+                            {{-- Gender filter removed along with the field itself:
+                                 customers are clinics and hospitals, so gender and
+                                 birthdate never applied to them. --}}
                             <div class="col-xxl-1 col-sm-4">
                                 <div>
                                     <button type="submit" class="btn btn-primary w-100">
@@ -156,10 +145,11 @@
                                                     <i class="ri-pencil-fill fs-16"></i>
                                                 </a>
                                             </li> --}}
+                                            @if(Auth::user()->role == 'admin' || Auth::user()->role == 'superadmin')
                                             <li class="list-inline-item" data-bs-toggle="tooltip"
                                                 data-bs-trigger="hover" data-bs-placement="top" title="Remove">
                                                 <a href="javascript:void(0);" class="text-danger d-inline-block remove-item-btn"
-                                                   onclick="if(confirm('Are you sure you want to delete this customer?')) { document.getElementById('delete-form-{{ $customer->id }}').submit(); }">
+                                                   onclick="if(confirm('Delete this customer? This also deletes every order belonging to them, and cannot be undone.')) { document.getElementById('delete-form-{{ $customer->id }}').submit(); }">
                                                     <i class="ri-delete-bin-5-fill fs-16"></i>
                                                 </a>
                                                 <form id="delete-form-{{ $customer->id }}" action="{{ route('customers.destroy', $customer->id) }}" method="POST" class="d-none">
@@ -167,12 +157,20 @@
                                                     @method('DELETE')
                                                 </form>
                                             </li>
+                                            @endif
                                         </ul>
                                     </td>
                                 </tr>
                                 @empty
                                 <tr>
-                                    <td colspan="7" class="text-center">No customers found</td>
+                                    <td colspan="7" class="text-center">
+                                        @if(request('search'))
+                                            No customers match "{{ request('search') }}".
+                                            <a href="{{ route('customers.index') }}">Clear search</a>
+                                        @else
+                                            No customers found
+                                        @endif
+                                    </td>
                                 </tr>
                                 @endforelse
                             </tbody>

@@ -17,8 +17,6 @@ class Customer extends Model
     protected $fillable = [
         'title',
         'name',
-        'gender',
-        'birthdate',
         'phoneNo',
         'email',
         'address',
@@ -39,7 +37,6 @@ class Customer extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'birthdate' => 'date',
         'lastInteractionDate' => 'date',
         'lastUpdate' => 'datetime',
     ];
@@ -67,4 +64,4 @@ class Customer extends Model
     {
         return $this->hasMany(Visit::class, 'customer_id');
     }
-} 
+}

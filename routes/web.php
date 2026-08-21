@@ -58,10 +58,17 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/users/{user}/delete', [UserController::class, 'destroy'])->name('users.delete.post');
 
     // Customer routes
-    // Customers appear in the sidebar for admin and superadmin only, so the route
-    // is gated to match. Without this any signed-in user could reach /customers
-    // by URL and add, edit or delete records.
-    Route::resource('customers', CustomerController::class)->middleware('role:admin');
+    // Open to every authenticated user: staff look up a customer to see what
+    // orders have been sent to them, and add new customers the same way they
+    // already can from the New Order form.
+    //
+    // Delete stays admin-only. orders.customer_id is ON DELETE CASCADE, so
+    // removing a customer also removes every order attached to them, with no
+    // undo. That is not something to expose on a page everyone can reach.
+    Route::resource('customers', CustomerController::class)->except(['destroy']);
+    Route::delete('customers/{customer}', [CustomerController::class, 'destroy'])
+        ->name('customers.destroy')
+        ->middleware('role:admin');
 
     // Product routes. Gated at the route so the URL itself is closed, not just
     // the sidebar link — superadmin passes through 'role:admin' automatically.

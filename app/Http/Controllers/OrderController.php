@@ -319,15 +319,12 @@ class OrderController extends Controller
         $query = Order::with(['customer', 'products'])
             ->latest('order_date');
 
-        // Filter orders for Medical Affairs and Business Development users
-        $user = Auth::user();
-        if ($user->department === 'Medical Affairs' || $user->department === 'Business Development') {
-            // Show only orders placed by this user (matching user_id or order_placed_by name)
-            $query->where(function ($q) use ($user) {
-                $q->where('user_id', $user->id)
-                    ->orWhere('order_placed_by', $user->name);
-            });
-        }
+        // Order history is visible to every authenticated user, in every
+        // department, on both the admin and user roles. Orders are no longer
+        // scoped to the person who placed them — staff share order links with
+        // each other, and the recipient needs to be able to open the link.
+        // Who actually made each change is tracked in the activity log, not by
+        // restricting who can see the record.
 
         // Filter by status if provided
         if ($request->has('status') && $request->status != 'all') {
@@ -494,54 +491,17 @@ class OrderController extends Controller
 
         $orders = $query->paginate(10)->withQueryString();
 
-        // Filter status counts for MA and BD users
-        if ($user->department === 'Medical Affairs' || $user->department === 'Business Development') {
-            // Count only orders placed by this user
-            $newCount = Order::where('status', 'new')
-                ->where(function ($q) use ($user) {
-                    $q->where('user_id', $user->id)
-                        ->orWhere('order_placed_by', $user->name);
-                })
-                ->count();
-            $preparingCount = Order::where('status', 'preparing')
-                ->where(function ($q) use ($user) {
-                    $q->where('user_id', $user->id)
-                        ->orWhere('order_placed_by', $user->name);
-                })
-                ->count();
-            $readyCount = Order::where('status', 'ready')
-                ->where(function ($q) use ($user) {
-                    $q->where('user_id', $user->id)
-                        ->orWhere('order_placed_by', $user->name);
-                })
-                ->count();
-            $deliveredCount = Order::where('status', 'delivered')
-                ->where(function ($q) use ($user) {
-                    $q->where('user_id', $user->id)
-                        ->orWhere('order_placed_by', $user->name);
-                })
-                ->count();
-            $canceledCount = Order::where('status', 'cancel')
-                ->where(function ($q) use ($user) {
-                    $q->where('user_id', $user->id)
-                        ->orWhere('order_placed_by', $user->name);
-                })
-                ->count();
-            $allCount = Order::where(function ($q) use ($user) {
-                $q->where('user_id', $user->id)
-                    ->orWhere('order_placed_by', $user->name);
-            })->count();
-        } else {
-            // Show all orders for other departments
-            $newCount = Order::where('status', 'new')->count();
-            $preparingCount = Order::where('status', 'preparing')->count();
-            $readyCount = Order::where('status', 'ready')->count();
-            $deliveredCount = Order::where('status', 'delivered')->count();
-            // Cancelled and the overall total were never counted, so those two
-            // tabs showed no badge.
-            $canceledCount = Order::where('status', 'cancel')->count();
-            $allCount = Order::count();
-        }
+        // Status tab counts. These are no longer split by department — every
+        // user sees the same totals as the list itself, so the badge always
+        // matches the number of rows on the tab.
+        $newCount = Order::where('status', 'new')->count();
+        $preparingCount = Order::where('status', 'preparing')->count();
+        $readyCount = Order::where('status', 'ready')->count();
+        $deliveredCount = Order::where('status', 'delivered')->count();
+        // Cancelled and the overall total were never counted, so those two
+        // tabs showed no badge.
+        $canceledCount = Order::where('status', 'cancel')->count();
+        $allCount = Order::count();
 
         return view('orders.orderhistory', compact(
             'orders',
@@ -981,40 +941,12 @@ class OrderController extends Controller
     {
         $order->load(['customer', 'user', 'products']);
 
-        // Check if MA or BD user is trying to access an order they didn't place
-        $user = Auth::user();
-        if ($user->department === 'Medical Affairs' || $user->department === 'Business Development') {
-            // Check if this user placed the order (check both user_id and order_placed_by)
-            $canAccess = false;
-
-            // Check if user_id matches
-            if ($order->user_id == $user->id) {
-                $canAccess = true;
-            }
-
-            // Check if order_placed_by matches user's name (case-insensitive)
-            if (
-                $order->order_placed_by &&
-                (strtolower(trim($order->order_placed_by)) === strtolower(trim($user->name)) ||
-                    strtolower(trim($order->order_placed_by)) === strtolower(trim($user->first_name . ' ' . $user->last_name)))
-            ) {
-                $canAccess = true;
-            }
-
-            // If user cannot access this order, redirect with error
-            if (!$canAccess) {
-                \Log::warning('MA/BD user attempted to access unauthorized order', [
-                    'user_id' => $user->id,
-                    'user_name' => $user->name,
-                    'order_id' => $order->id,
-                    'order_user_id' => $order->user_id,
-                    'order_placed_by' => $order->order_placed_by
-                ]);
-
-                return redirect()->route('orderhistory')
-                    ->with('error', 'You can only view orders that you have placed.');
-            }
-        }
+        // Any authenticated user may open any order. This is what makes a
+        // shared order link work: staff A sends the URL to staff B, staff B
+        // opens it and sees the order. Edit permissions on this page are
+        // unchanged — batch numbers are still Cell Lab/Quality only, QC
+        // document numbers still Quality only, and every write is attributed
+        // to whoever is logged in at the time.
 
         return view('orders.orderdetails', compact('order'));
     }

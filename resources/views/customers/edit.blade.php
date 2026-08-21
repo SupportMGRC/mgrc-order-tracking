@@ -89,39 +89,6 @@
                                 @enderror
                             </div>
                             <div class="col-md-6">
-                                <label for="gender" class="form-label">Gender</label>
-                                <select class="form-select @error('gender') is-invalid @enderror" 
-                                    id="gender" name="gender">
-                                    <option value="">Select Gender</option>
-                                    <option value="male" {{ old('gender', $customer->gender) == 'male' ? 'selected' : '' }}>Male</option>
-                                    <option value="female" {{ old('gender', $customer->gender) == 'female' ? 'selected' : '' }}>Female</option>
-                                </select>
-                                @error('gender')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                        </div>
-
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label for="birthdate" class="form-label">Birthdate</label>
-                                @php
-                                    $birthdate = $customer->birthdate ? \Carbon\Carbon::parse($customer->birthdate)->format('Y-m-d') : '';
-                                @endphp
-                                <input type="text" 
-                                    class="form-control @error('birthdate') is-invalid @enderror" 
-                                    id="birthdate" 
-                                    name="birthdate" 
-                                    data-provider="flatpickr" 
-                                    data-date-format="Y-m-d"
-                                    value="{{ old('birthdate', $birthdate) }}"
-                                    data-default-date="{{ $birthdate }}"
-                                    placeholder="Select birthdate">
-                                @error('birthdate')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                            <div class="col-md-6">
                                 <label for="user_search_input" class="form-label">Person in Charge</label>
                                 <div class="dropdown user-dropdown">
                                     <input type="text" class="form-control" id="user_search_input" 
@@ -215,30 +182,6 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Initialize Flatpickr for birthdate
-            if (typeof flatpickr !== 'undefined') {
-                const birthdateInput = document.getElementById('birthdate');
-                const defaultDate = birthdateInput.getAttribute('data-default-date');
-                
-                const fp = flatpickr("#birthdate", {
-                    dateFormat: "Y-m-d",
-                    allowInput: true,
-                    altInput: true,
-                    altFormat: "F j, Y",
-                    maxDate: "today",
-                    defaultDate: defaultDate || undefined,
-                    onChange: function(selectedDates, dateStr) {
-                        // Update both the visible and hidden inputs
-                        birthdateInput.value = dateStr;
-                    }
-                });
-
-                // If there's a default date, set it explicitly
-                if (defaultDate) {
-                    fp.setDate(defaultDate);
-                }
-            }
-
             // User search dropdown functionality
             const userSearchInput = document.getElementById('user_search_input');
             const userList = document.getElementById('user_list');
@@ -307,4 +250,4 @@
             });
         });
     </script>
-@endsection 
+@endsection

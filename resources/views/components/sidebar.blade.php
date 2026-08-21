@@ -53,16 +53,12 @@
                 </li>
                 @endif
                 
-                {{-- Order History - Available for all authenticated users (MA/BD see only their orders, others see all) --}}
+                {{-- Order History - Available for all authenticated users. Every
+                     department and both roles see every order, so the label is
+                     the same for everyone. --}}
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="{{ route('orderhistory') }}">
-                        <i class="las la-history"></i> <span data-key="t-order-history">
-                            @if(Auth::user()->department == 'Medical Affairs' || Auth::user()->department == 'Business Development')
-                                My Orders
-                            @else
-                                Order History
-                            @endif
-                        </span>
+                        <i class="las la-history"></i> <span data-key="t-order-history">Order History</span>
                     </a>
                 </li>
 
@@ -84,15 +80,17 @@
                         </span>
                     </a>
                 </li>
+                {{-- Customer - open to every authenticated user. Staff need to
+                     look up a customer and see what orders have gone to them. --}}
+                <li class="nav-item">
+                    <a class="nav-link menu-link" href="{{ route('customers.index') }}">
+                        <i class="las la-users"></i> <span data-key="t-customer">Customer</span>
+                    </a>
+                </li>
                 @if(Auth::user()->role == 'admin' || Auth::user()->role == 'superadmin')
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="{{ route('products.index') }}">
                         <i class="las la-box-open"></i> <span data-key="t-product">Product</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link menu-link" href="{{ route('customers.index') }}">
-                        <i class="las la-users"></i> <span data-key="t-customer">Customer</span>
                     </a>
                 </li>
                 <li class="nav-item">

@@ -12,9 +12,27 @@ class CustomerController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $customers = Customer::with(['user', 'orders.products'])->latest()->paginate(10);
+        $query = Customer::with(['user', 'orders.products']);
+
+        // Search across name, email and phone. The form on the index page has
+        // always posted this parameter, but nothing here read it, so the search
+        // box did nothing.
+        if ($request->filled('search')) {
+            $search = trim($request->input('search'));
+
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', '%' . $search . '%')
+                    ->orWhere('email', 'like', '%' . $search . '%')
+                    ->orWhere('phoneNo', 'like', '%' . $search . '%');
+            });
+        }
+
+        // withQueryString keeps the search term on page 2 and beyond. Without
+        // it, paginating a filtered list silently drops back to all customers.
+        $customers = $query->latest()->paginate(10)->withQueryString();
+
         return view('customers.index', compact('customers'));
     }
 
@@ -36,8 +54,6 @@ class CustomerController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'nullable|email|max:255',
             'phoneNo' => 'nullable|string|max:20',
-            'gender' => 'nullable|string',
-            'birthdate' => 'nullable|date',
             'address' => 'nullable|string',
             'userID' => 'nullable|exists:users,id'
         ]);
@@ -81,8 +97,6 @@ class CustomerController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'nullable|email|max:255',
             'phoneNo' => 'nullable|string|max:20',
-            'gender' => 'nullable|string',
-            'birthdate' => 'nullable|date',
             'address' => 'nullable|string',
             'userID' => 'nullable|exists:users,id'
         ]);

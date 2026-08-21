@@ -56,29 +56,6 @@
                                 @enderror
                             </div>
                             <div class="col-md-6">
-                                <label for="gender" class="form-label">Gender</label>
-                                <select class="form-select @error('gender') is-invalid @enderror" 
-                                    id="gender" name="gender">
-                                    <option value="">Select Gender</option>
-                                    <option value="male" {{ old('gender') == 'male' ? 'selected' : '' }}>Male</option>
-                                    <option value="female" {{ old('gender') == 'female' ? 'selected' : '' }}>Female</option>
-                                </select>
-                                @error('gender')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                        </div>
-
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label for="birthdate" class="form-label">Birthdate</label>
-                                <input type="date" class="form-control @error('birthdate') is-invalid @enderror" 
-                                    id="birthdate" name="birthdate" value="{{ old('birthdate') }}">
-                                @error('birthdate')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                            <div class="col-md-6">
                                 <label for="userID" class="form-label">Assigned User</label>
                                 <select class="form-select @error('userID') is-invalid @enderror" 
                                     id="userID" name="userID">
@@ -113,4 +90,4 @@
             </div>
         </div>
     </div>
-@endsection 
+@endsection
