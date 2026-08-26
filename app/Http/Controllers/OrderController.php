@@ -41,6 +41,75 @@ class OrderController extends Controller
     public const COA_DOCUMENT_MAX_KB = 20480;
 
     /**
+     * Departments whose staff see only the orders they placed themselves.
+     *
+     * These are the order-raising departments. Everyone else — Quality, Cell
+     * Lab, Admin & Human Resource, Dispatcher — has to see every order to do
+     * their job, so they are deliberately not on this list.
+     *
+     * Entries are lowercase. Comparison trims and lowercases the stored
+     * department, so casing and stray spaces in the database do not matter.
+     * The Business Development variants are all listed because the department
+     * dropdown in User Management does not currently offer that department at
+     * all, so live values may differ. Add a line here if a new spelling turns
+     * up in the database.
+     */
+    private const OWN_ORDERS_ONLY_DEPARTMENTS = [
+        'medical affairs',
+        'business development',
+        'business development/sales',
+        'business development & sales',
+        'business development and sales',
+        'sales',
+    ];
+
+    /**
+     * Whether the logged-in user is limited to the orders they placed.
+     *
+     * Role wins over department: admin and superadmin always see everything,
+     * even if their department is on the list above.
+     */
+    private function restrictedToOwnOrders(): bool
+    {
+        $user = Auth::user();
+
+        if (!$user) {
+            return false;
+        }
+
+        if (in_array($user->role, ['admin', 'superadmin'], true)) {
+            return false;
+        }
+
+        $department = strtolower(trim((string) $user->department));
+
+        return in_array($department, self::OWN_ORDERS_ONLY_DEPARTMENTS, true);
+    }
+
+    /**
+     * Limit a query to the orders belonging to the given user.
+     *
+     * user_id is the reliable match — storeNewOrder() sets it to Auth::id().
+     * order_placed_by is a free-text field on the order form, kept as a
+     * fallback so older rows created before user_id was populated still reach
+     * the person who raised them. It is matched on first_name + last_name;
+     * the User model has no name column, so the previous $user->name compared
+     * against NULL and never matched anything.
+     */
+    private function applyOwnOrdersScope($query, $user)
+    {
+        $fullName = strtolower(trim($user->first_name . ' ' . $user->last_name));
+
+        return $query->where(function ($q) use ($user, $fullName) {
+            $q->where('user_id', $user->id);
+
+            if ($fullName !== '') {
+                $q->orWhereRaw('LOWER(TRIM(order_placed_by)) = ?', [$fullName]);
+            }
+        });
+    }
+
+    /**
      * Display a listing of the resource.
      */
     public function index()
@@ -319,12 +388,16 @@ class OrderController extends Controller
         $query = Order::with(['customer', 'products'])
             ->latest('order_date');
 
-        // Order history is visible to every authenticated user, in every
-        // department, on both the admin and user roles. Orders are no longer
-        // scoped to the person who placed them — staff share order links with
-        // each other, and the recipient needs to be able to open the link.
-        // Who actually made each change is tracked in the activity log, not by
-        // restricting who can see the record.
+        // Medical Affairs and Business Development / Sales see only the orders
+        // they placed. Admin and superadmin see everything, and so does every
+        // other department — Quality, Cell Lab, Admin & HR and Dispatcher all
+        // need the full list to do their part of the workflow.
+        $user = Auth::user();
+        $restrictToOwn = $this->restrictedToOwnOrders();
+
+        if ($restrictToOwn) {
+            $this->applyOwnOrdersScope($query, $user);
+        }
 
         // Filter by status if provided
         if ($request->has('status') && $request->status != 'all') {
@@ -491,17 +564,28 @@ class OrderController extends Controller
 
         $orders = $query->paginate(10)->withQueryString();
 
-        // Status tab counts. These are no longer split by department — every
-        // user sees the same totals as the list itself, so the badge always
-        // matches the number of rows on the tab.
-        $newCount = Order::where('status', 'new')->count();
-        $preparingCount = Order::where('status', 'preparing')->count();
-        $readyCount = Order::where('status', 'ready')->count();
-        $deliveredCount = Order::where('status', 'delivered')->count();
+        // Status tab counts. These carry the same ownership scope as the list
+        // above, so a badge never promises more rows than the tab shows. One
+        // closure builds each base query rather than branching the whole block
+        // in two, which is how this drifted out of sync before.
+        $countQuery = function () use ($restrictToOwn, $user) {
+            $q = Order::query();
+
+            if ($restrictToOwn) {
+                $this->applyOwnOrdersScope($q, $user);
+            }
+
+            return $q;
+        };
+
+        $newCount = $countQuery()->where('status', 'new')->count();
+        $preparingCount = $countQuery()->where('status', 'preparing')->count();
+        $readyCount = $countQuery()->where('status', 'ready')->count();
+        $deliveredCount = $countQuery()->where('status', 'delivered')->count();
         // Cancelled and the overall total were never counted, so those two
         // tabs showed no badge.
-        $canceledCount = Order::where('status', 'cancel')->count();
-        $allCount = Order::count();
+        $canceledCount = $countQuery()->where('status', 'cancel')->count();
+        $allCount = $countQuery()->count();
 
         return view('orders.orderhistory', compact(
             'orders',
@@ -941,12 +1025,34 @@ class OrderController extends Controller
     {
         $order->load(['customer', 'user', 'products']);
 
-        // Any authenticated user may open any order. This is what makes a
-        // shared order link work: staff A sends the URL to staff B, staff B
-        // opens it and sees the order. Edit permissions on this page are
-        // unchanged — batch numbers are still Cell Lab/Quality only, QC
-        // document numbers still Quality only, and every write is attributed
-        // to whoever is logged in at the time.
+        // Same rule as the history list, applied to the URL. Without this a
+        // Medical Affairs or Business Development user could still open any
+        // order by typing or being sent the ID, which would make the filtered
+        // list cosmetic. Every other department and both admin roles are
+        // unaffected, so colleague-to-colleague order links keep working
+        // everywhere they did before.
+        if ($this->restrictedToOwnOrders()) {
+            $user = Auth::user();
+            $fullName = strtolower(trim($user->first_name . ' ' . $user->last_name));
+            $placedBy = strtolower(trim((string) $order->order_placed_by));
+
+            $canAccess = $order->user_id == $user->id
+                || ($fullName !== '' && $placedBy === $fullName);
+
+            if (!$canAccess) {
+                Log::warning('User attempted to access an order they did not place', [
+                    'user_id' => $user->id,
+                    'username' => $user->username,
+                    'department' => $user->department,
+                    'order_id' => $order->id,
+                    'order_user_id' => $order->user_id,
+                    'order_placed_by' => $order->order_placed_by,
+                ]);
+
+                return redirect()->route('orderhistory')
+                    ->with('error', 'You can only view orders that you have placed.');
+            }
+        }
 
         return view('orders.orderdetails', compact('order'));
     }
