@@ -275,6 +275,7 @@
                                                         <option value="">Select Department</option>
                                                         <option value="Admin & Human Resource" {{ old('department') == 'Admin & Human Resource' ? 'selected' : '' }}>Admin & Human Resource</option>
                                                         <option value="Cell Lab" {{ old('department') == 'Cell Lab' ? 'selected' : '' }}>Cell Lab</option>
+                                                        <option value="Business Development" {{ old('department') == 'Business Development' ? 'selected' : '' }}>Business Development</option>
                                                         <option value="Medical Affairs" {{ old('department') == 'Medical Affairs' ? 'selected' : '' }}>Medical Affairs</option>
                                                         <option value="Quality" {{ old('department') == 'Quality' ? 'selected' : '' }}>Quality</option>
                                                         <option value="Finance" {{ old('department') == 'Finance' ? 'selected' : '' }}>Finance</option>
@@ -397,7 +398,7 @@
                                                     <label for="edit-department" class="form-label">Department</label>
                                                     <select class="form-select" id="edit-department" name="department">
                                                         <option value="">Select Department</option>
-                                                        @foreach(['Admin & Human Resource','Cell Lab','Medical Affairs','Quality','Finance','Management','Software','Bioinformatics','Dispatcher','Genomics'] as $deptOption)
+                                                        @foreach(['Admin & Human Resource','Cell Lab','Business Development','Medical Affairs','Quality','Finance','Management','Software','Bioinformatics','Dispatcher','Genomics'] as $deptOption)
                                                             <option value="{{ $deptOption }}" {{ old('department', $editUser->department) === $deptOption ? 'selected' : '' }}>{{ $deptOption }}</option>
                                                         @endforeach
                                                     </select>

@@ -42,25 +42,10 @@ class OrderController extends Controller
 
     /**
      * Departments whose staff see only the orders they placed themselves.
-     *
-     * These are the order-raising departments. Everyone else — Quality, Cell
-     * Lab, Admin & Human Resource, Dispatcher — has to see every order to do
-     * their job, so they are deliberately not on this list.
-     *
-     * Entries are lowercase. Comparison trims and lowercases the stored
-     * department, so casing and stray spaces in the database do not matter.
-     * The Business Development variants are all listed because the department
-     * dropdown in User Management does not currently offer that department at
-     * all, so live values may differ. Add a line here if a new spelling turns
-     * up in the database.
      */
     private const OWN_ORDERS_ONLY_DEPARTMENTS = [
         'medical affairs',
         'business development',
-        'business development/sales',
-        'business development & sales',
-        'business development and sales',
-        'sales',
     ];
 
     /**
@@ -89,12 +74,6 @@ class OrderController extends Controller
     /**
      * Limit a query to the orders belonging to the given user.
      *
-     * user_id is the reliable match — storeNewOrder() sets it to Auth::id().
-     * order_placed_by is a free-text field on the order form, kept as a
-     * fallback so older rows created before user_id was populated still reach
-     * the person who raised them. It is matched on first_name + last_name;
-     * the User model has no name column, so the previous $user->name compared
-     * against NULL and never matched anything.
      */
     private function applyOwnOrdersScope($query, $user)
     {
@@ -387,11 +366,6 @@ class OrderController extends Controller
     {
         $query = Order::with(['customer', 'products'])
             ->latest('order_date');
-
-        // Medical Affairs and Business Development / Sales see only the orders
-        // they placed. Admin and superadmin see everything, and so does every
-        // other department — Quality, Cell Lab, Admin & HR and Dispatcher all
-        // need the full list to do their part of the workflow.
         $user = Auth::user();
         $restrictToOwn = $this->restrictedToOwnOrders();
 
@@ -797,11 +771,6 @@ class OrderController extends Controller
             }
 
             DB::commit();
-
-            // [DISABLED] Old multi-recipient new-order notification — replaced by creator-only [ORDER UPDATE] emails
-            // $emailController = new EmailController();
-            // $emailController->sendNewOrderNotification($order);
-
             // Redirect to the order details page
             return redirect()->route('orderdetails', $order->id)
                 ->with('success', 'Order created successfully!');
@@ -1024,13 +993,6 @@ class OrderController extends Controller
     public function orderDetails(Order $order)
     {
         $order->load(['customer', 'user', 'products']);
-
-        // Same rule as the history list, applied to the URL. Without this a
-        // Medical Affairs or Business Development user could still open any
-        // order by typing or being sent the ID, which would make the filtered
-        // list cosmetic. Every other department and both admin roles are
-        // unaffected, so colleague-to-colleague order links keep working
-        // everywhere they did before.
         if ($this->restrictedToOwnOrders()) {
             $user = Auth::user();
             $fullName = strtolower(trim($user->first_name . ' ' . $user->last_name));
@@ -1093,10 +1055,7 @@ class OrderController extends Controller
 
         $templateKey = $coa->resolveForOrderLine($order, $product);
 
-        // Not configured yet. Only a superadmin may pick a certificate on the
-        // spot; for everyone else this is a hard stop, because choosing the
-        // wrong certificate is worse than a delayed one. The lasting fix is to
-        // set the template on the product, so that is what they are told.
+        // Only superadmin can pick COA on the spot if not set
         if ($templateKey === null) {
             if (auth()->user()->role !== 'superadmin') {
                 return redirect()->route('orderdetails', $order->id)
@@ -1984,25 +1943,7 @@ class OrderController extends Controller
             $order->status = $request->status;
             $order->save();
 
-            DB::commit();
-
-            // Dispatch email notifications after response is sent (non-blocking)
-            // [DISABLED] Old multi-recipient cancellation notification — replaced by creator-only [ORDER UPDATE] emails
-            // if ($request->status === 'cancel' && $oldStatus !== 'cancel') {
-            //     dispatch(function () use ($order) {
-            //         $emailController = new EmailController();
-            //         $emailController->sendOrderCanceledNotification($order);
-            //     })->afterResponse();
-            // }
-
-            // [DISABLED] Old multi-recipient order-ready notification — replaced by creator-only [ORDER UPDATE] emails
-            // if ($request->status === 'ready' && $oldStatus !== 'ready') {
-            //     dispatch(function () use ($order) {
-            //         $emailController = new EmailController();
-            //         $emailController->sendOrderReadyNotification($order);
-            //     })->afterResponse();
-            // }
-            
+            DB::commit();            
             // === Notify the ORDER CREATOR when status changes (QC update notification) ===
             // Maps internal status values to the labels staff expect to see.
             $creatorNotifyLabels = [
@@ -2065,13 +2006,6 @@ class OrderController extends Controller
             $order->save();
 
             DB::commit();
-
-            // [DISABLED] Old multi-recipient order-ready notification — replaced by creator-only [ORDER UPDATE] emails
-            // dispatch(function () use ($order) {
-            //     $emailController = new EmailController();
-            //     $emailController->sendOrderReadyNotification($order);
-            // })->afterResponse();
-
             // Notify the ORDER CREATOR that their order is ready (creator notification)
             dispatch(function () use ($order) {
                 $emailController = new EmailController();
@@ -2407,24 +2341,6 @@ class OrderController extends Controller
             $fileNames = implode(', ', array_column($uploadedFiles, 'filename'));
             Log::info('Photo(s) uploaded successfully for Order #' . $order->id . ' - Files: ' . $fileNames . ' - Total Size: ' . round($totalSize / 1024 / 1024, 2) . 'MB');
 
-            // Send photo upload notification to the person who placed the order
-            // Skip email notifications if admin uploads photo for delivered/canceled orders
-            // TEMPORARILY DISABLED FOR TESTING - uncomment to re-enable
-            /*
-            $shouldSendEmail = !($isAdmin && in_array($order->status, ['delivered', 'cancel']));
-
-            if ($shouldSendEmail) {
-                $orderId = $order->id;
-                dispatch(function () use ($orderId) {
-                    $order = Order::find($orderId);
-                    if ($order) {
-                        $emailController = new EmailController();
-                        $emailController->sendPhotoUploadNotification($order);
-                    }
-                })->afterResponse();
-            }
-            */
-
             $successMessage = $fileCount === 1
                 ? 'Order photo uploaded successfully! (' . round($totalSize / 1024 / 1024, 2) . 'MB)'
                 : $fileCount . ' order photos uploaded successfully! (Total: ' . round($totalSize / 1024 / 1024, 2) . 'MB)';
@@ -2539,10 +2455,6 @@ class OrderController extends Controller
                 $order->item_ready_at = now();
             }
             $order->save();
-
-            // [DISABLED] Old multi-recipient order-ready notification — replaced by creator-only [ORDER UPDATE] emails
-            // $emailController = new EmailController();
-            // $emailController->sendOrderReadyNotification($order);
         }
         return redirect()->route('orderdetails', $order->id)
             ->with('success', 'Order has been marked as Ready!');
