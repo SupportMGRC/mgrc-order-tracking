@@ -238,6 +238,18 @@
                                                         </div>
                                                     </div>
                                                 </div>
+                                                {{-- Validation errors, shown inside the modal. The page-level
+                                                     banner sits behind the modal backdrop and cannot be read. --}}
+                                                @if($errors->any())
+                                                    <div class="alert alert-danger py-2 mb-3" role="alert">
+                                                        <ul class="mb-0 ps-3">
+                                                            @foreach($errors->all() as $error)
+                                                                <li>{{ $error }}</li>
+                                                            @endforeach
+                                                        </ul>
+                                                    </div>
+                                                @endif
+
                                                 <div class="mb-3">
                                                     <label for="first_name" class="form-label">First Name</label>
                                                     <input type="text" class="form-control" id="first_name" name="first_name"
@@ -271,7 +283,8 @@
 
                                                 <div class="mb-3">
                                                     <label for="department" class="form-label">Department</label>
-                                                    <select class="form-select" id="department" name="department">
+                                                    <select class="form-select @error('department') is-invalid @enderror"
+                                                        id="department" name="department" required>
                                                         <option value="">Select Department</option>
                                                         <option value="Admin & Human Resource" {{ old('department') == 'Admin & Human Resource' ? 'selected' : '' }}>Admin & Human Resource</option>
                                                         <option value="Cell Lab" {{ old('department') == 'Cell Lab' ? 'selected' : '' }}>Cell Lab</option>
@@ -285,6 +298,9 @@
                                                         <option value="Dispatcher" {{ old('department') == 'Dispatcher' ? 'selected' : '' }}>Dispatcher</option>
                                                         <option value="Genomics" {{ old('department') == 'Genomics' ? 'selected' : '' }}>Genomics</option>
                                                     </select>
+                                                    @error('department')
+                                                        <div class="invalid-feedback d-block">{{ $message }}</div>
+                                                    @enderror
                                                 </div>
 
                                                 <div class="mb-3">
@@ -358,6 +374,18 @@
                                                         </div>
                                                     </div>
                                                 </div>
+                                                {{-- Validation errors, shown inside the modal. The page-level
+                                                     banner sits behind the modal backdrop and cannot be read. --}}
+                                                @if($errors->any())
+                                                    <div class="alert alert-danger py-2 mb-3" role="alert">
+                                                        <ul class="mb-0 ps-3">
+                                                            @foreach($errors->all() as $error)
+                                                                <li>{{ $error }}</li>
+                                                            @endforeach
+                                                        </ul>
+                                                    </div>
+                                                @endif
+
                                                 <div class="mb-3">
                                                     <label for="edit-first-name" class="form-label">First Name</label>
                                                     <input type="text" class="form-control" id="edit-first-name"
@@ -396,12 +424,16 @@
                                                 @if($isSuperadmin)
                                                 <div class="mb-3">
                                                     <label for="edit-department" class="form-label">Department</label>
-                                                    <select class="form-select" id="edit-department" name="department">
+                                                    <select class="form-select @error('department') is-invalid @enderror"
+                                                        id="edit-department" name="department" required>
                                                         <option value="">Select Department</option>
                                                         @foreach(['Admin & Human Resource','Cell Lab','Business Development','Medical Affairs','Quality','Finance','Management','Software','Bioinformatics','Dispatcher','Genomics'] as $deptOption)
                                                             <option value="{{ $deptOption }}" {{ old('department', $editUser->department) === $deptOption ? 'selected' : '' }}>{{ $deptOption }}</option>
                                                         @endforeach
                                                     </select>
+                                                    @error('department')
+                                                        <div class="invalid-feedback d-block">{{ $message }}</div>
+                                                    @enderror
                                                 </div>
 
                                                 <div class="mb-3">

@@ -113,7 +113,9 @@ class UserController extends Controller
                 'password' => 'required|string|min:8',
                 'designation' => 'required|string|max:100',
                 'role' => 'nullable|string|max:50',
-                'department' => 'nullable|string|max:100',
+                'department' => 'required|string|max:100',
+            ], [
+                'department.required' => 'Please select a department',
             ]);
 
             $user = User::create([
@@ -235,8 +237,12 @@ class UserController extends Controller
                 ],
                 'designation' => 'required|string|max:100',
                 'role' => 'nullable|string|max:50',
-                'department' => 'nullable|string|max:100',
+                // Non-superadmins get a disabled field, so nothing is posted.
+                // A plain 'required' would block their password changes.
+                'department' => $isSuperadmin ? 'required|string|max:100' : 'nullable|string|max:100',
                 'password' => 'nullable|string|min:8',
+            ], [
+                'department.required' => 'Please select a department. Every account must belong to one.',
             ]);
 
             $userData = [
