@@ -93,7 +93,7 @@ class CoaTemplateService
         return $group ? $this->groupDefaultKey($group) : $key;
     }
 
-    // ─── Variant groups ──────────────────────────────────────────────────────
+    // Variant groups
 
     public function variantGroup(?string $key): ?string
     {
@@ -178,17 +178,23 @@ class CoaTemplateService
         return $this->exists($product->coa_template) ? $product->coa_template : null;
     }
 
+    /**
+     * May open the COA editor, print and download. Quality Control, Quality
+     * Assurance and superadmins.
+     */
     public function userMayAccess(?User $user): bool
     {
-        if (! $user) {
-            return false;
-        }
+        return $user ? $user->canViewCoa() : false;
+    }
 
-        if ($user->role === 'superadmin') {
-            return true;
-        }
-
-        return strcasecmp((string) $user->department, 'Quality') === 0;
+    /**
+     * May write: save fields, switch template, upload morphology or attach a
+     * COA PDF. Quality Control and superadmins only — Quality Assurance is
+     * read-only by design, so it can audit a certificate without altering it.
+     */
+    public function userMayEdit(?User $user): bool
+    {
+        return $user ? $user->canEditCoa() : false;
     }
 
     /**

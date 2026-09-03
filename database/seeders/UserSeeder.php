@@ -91,7 +91,7 @@ class UserSeeder extends Seeder
             'receive_order_ready_emails' => false,
         ]);
 
-        // Quality Department
+        // Quality Control Department
         User::create([
             'first_name' => 'Nur',
             'last_name' => 'karim',
@@ -99,8 +99,8 @@ class UserSeeder extends Seeder
             'email' => 'nur@mgrc.com.my',
             'password' => Hash::make('password'),
             'role' => 'user',
-            'department' => 'Quality',
-            'designation' => 'Quality Assurance Specialist',
+            'department' => 'Quality Control',
+            'designation' => 'Quality Control Specialist',
             'receive_new_order_emails' => false,
             'receive_order_ready_emails' => false,
         ]);

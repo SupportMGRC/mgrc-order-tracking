@@ -32,16 +32,16 @@ class CheckDepartmentPermissions
                 break;
 
             case 'edit-qc-document':
-                // Only Quality department can insert QC document number
-                if ($user->department !== 'Quality' && $user->role !== 'superadmin') {
-                    return redirect()->back()->with('error', 'Only Quality department can edit QC document numbers.');
+                // Only Quality Control department can insert QC document number
+                if (!$user->isQualityControl() && $user->role !== 'superadmin') {
+                    return redirect()->back()->with('error', 'Only Quality Control department can edit QC document numbers.');
                 }
                 break;
 
             case 'mark-ready':
-                // Only Quality and Cell Lab departments can mark orders as ready
-                if ($user->department !== 'Quality' && $user->department !== 'Cell Lab' && $user->role !== 'admin' && $user->role !== 'superadmin') {
-                    return redirect()->back()->with('error', 'Only Quality or Cell Lab departments can mark orders as ready.');
+                // Only Quality Control and Cell Lab departments can mark orders as ready
+                if (!$user->isQualityControl() && $user->department !== 'Cell Lab' && $user->role !== 'admin' && $user->role !== 'superadmin') {
+                    return redirect()->back()->with('error', 'Only Quality Control or Cell Lab departments can mark orders as ready.');
                 }
                 break;
 

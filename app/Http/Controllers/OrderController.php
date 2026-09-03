@@ -884,11 +884,11 @@ class OrderController extends Controller
                     isset($productData['batch_number']) && !empty($productData['batch_number']) &&
                     $pivotRecord->batch_number !== $productData['batch_number']
                 ) {
-                    if ($user->department === 'Cell Lab' || $user->department === 'Quality' || $user->role === 'superadmin') {
+                    if ($user->department === 'Cell Lab' || $user->isQualityControl() || $user->role === 'superadmin') {
                         $updateData['batch_number'] = $productData['batch_number'];
                     } else {
                         $hasErrors = true;
-                        $errorMessage = 'Only Cell Lab and Quality departments can edit batch numbers.';
+                        $errorMessage = 'Only Cell Lab and Quality Control departments can edit batch numbers.';
                         \Log::warning('Unauthorized batch number update attempt', [
                             'user' => $user->toArray(),
                             'product_data' => $productData
@@ -906,11 +906,11 @@ class OrderController extends Controller
                     isset($productData['qc_document_number']) && !empty($productData['qc_document_number']) &&
                     $pivotRecord->qc_document_number !== $productData['qc_document_number']
                 ) {
-                    if ($user->department === 'Quality' || $user->role === 'superadmin') {
+                    if ($user->isQualityControl() || $user->role === 'superadmin') {
                         $updateData['qc_document_number'] = $productData['qc_document_number'];
                     } else {
                         $hasErrors = true;
-                        $errorMessage = 'Only Quality department can edit QC document numbers.';
+                        $errorMessage = 'Only Quality Control department can edit QC document numbers.';
                         \Log::warning('Unauthorized QC document number update attempt', [
                             'user' => $user->toArray(),
                             'product_data' => $productData
@@ -1026,7 +1026,7 @@ class OrderController extends Controller
     {
         if (!$coa->userMayAccess(auth()->user())) {
             return redirect()->route('orderdetails', $order->id)
-                ->with('error', 'Only the Quality department can generate COAs.');
+                ->with('error', 'Only the Quality Control and Quality Assurance departments can open a COA.');
         }
 
         // Load necessary relationships
@@ -1083,6 +1083,9 @@ class OrderController extends Controller
             'coaValues'    => $this->coaValues($orderProduct),
             'variants'     => $coa->variantsFor($templateKey),
             'morphologyMaxMb' => intdiv(self::MORPHOLOGY_MAX_KB, 1024),
+            // Quality Assurance opens this page read-only: the write controls
+            // are hidden below and the matching routes reject them anyway.
+            'canEdit'      => $coa->userMayEdit(auth()->user()),
         ]);
     }
 
@@ -1107,9 +1110,9 @@ class OrderController extends Controller
      */
     public function chooseCoaTemplate(Request $request, Order $order, Product $product, CoaTemplateService $coa)
     {
-        if (!$coa->userMayAccess(auth()->user())) {
+        if (!$coa->userMayEdit(auth()->user())) {
             return redirect()->route('orderdetails', $order->id)
-                ->with('error', 'Only the Quality department can generate COAs.');
+                ->with('error', 'Only the Quality Control department can change the COA template.');
         }
 
         $key = $request->input('coa_template');
@@ -1170,10 +1173,10 @@ class OrderController extends Controller
     public function saveCOA(Request $request, Order $order, Product $product, CoaTemplateService $coa)
     {
         try {
-            if (!$coa->userMayAccess(auth()->user())) {
+            if (!$coa->userMayEdit(auth()->user())) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Only the Quality department can generate COAs.'
+                    'message' => 'Only the Quality Control department can save a COA.'
                 ], 403);
             }
 
@@ -1277,9 +1280,9 @@ class OrderController extends Controller
      */
     public function uploadCoaDocument(Request $request, Order $order, Product $product, CoaTemplateService $coa)
     {
-        if (!$coa->userMayAccess(auth()->user())) {
+        if (!$coa->userMayEdit(auth()->user())) {
             return redirect()->route('orderdetails', $order->id)
-                ->with('error', 'Only the Quality department can upload a COA.');
+                ->with('error', 'Only the Quality Control department can upload a COA.');
         }
 
         $orderProduct = $order->products()->where('product_id', $product->id)->first();
@@ -1366,10 +1369,10 @@ class OrderController extends Controller
     public function uploadCoaMorphology(Request $request, Order $order, Product $product, CoaTemplateService $coa)
     {
         try {
-            if (!$coa->userMayAccess(auth()->user())) {
+            if (!$coa->userMayEdit(auth()->user())) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Only the Quality department can generate COAs.'
+                    'message' => 'Only the Quality Control department can upload a morphology image.'
                 ], 403);
             }
 
@@ -1613,10 +1616,10 @@ class OrderController extends Controller
                 isset($request->batch_number) && !empty($request->batch_number) &&
                 $existingPivot->batch_number !== $request->batch_number
             ) {
-                if ($user->department === 'Cell Lab' || $user->department === 'Quality' || $user->role === 'superadmin') {
+                if ($user->department === 'Cell Lab' || $user->isQualityControl() || $user->role === 'superadmin') {
                     $updateData['batch_number'] = $request->batch_number;
                 } else {
-                    return redirect()->back()->with('error', 'Only Cell Lab and Quality departments can edit batch numbers.');
+                    return redirect()->back()->with('error', 'Only Cell Lab and Quality Control departments can edit batch numbers.');
                 }
             } elseif ($existingPivot->batch_number) {
                 $updateData['batch_number'] = $existingPivot->batch_number;
@@ -1629,10 +1632,10 @@ class OrderController extends Controller
                 isset($request->qc_document_number) && !empty($request->qc_document_number) &&
                 $existingPivot->qc_document_number !== $request->qc_document_number
             ) {
-                if ($user->department === 'Quality' || $user->role === 'superadmin') {
+                if ($user->isQualityControl() || $user->role === 'superadmin') {
                     $updateData['qc_document_number'] = $request->qc_document_number;
                 } else {
-                    return redirect()->back()->with('error', 'Only Quality department can edit QC document numbers.');
+                    return redirect()->back()->with('error', 'Only Quality Control department can edit QC document numbers.');
                 }
             } elseif ($existingPivot->qc_document_number) {
                 $updateData['qc_document_number'] = $existingPivot->qc_document_number;
@@ -1785,16 +1788,16 @@ class OrderController extends Controller
 
             // Check permissions for status changes
             if ($request->status === 'preparing' && $order->status !== 'preparing') {
-                if (!($user->department === 'Quality' || $user->department === 'Cell Lab' || $user->role === 'admin' || $user->role === 'superadmin')) {
+                if (!($user->isQualityControl() || $user->department === 'Cell Lab' || $user->role === 'admin' || $user->role === 'superadmin')) {
                     DB::rollBack();
-                    return redirect()->back()->with('error', 'Only Quality, Cell Lab, Admin or Superadmin can mark orders as preparing.');
+                    return redirect()->back()->with('error', 'Only Quality Control, Cell Lab, Admin or Superadmin can mark orders as preparing.');
                 }
             }
 
             if ($request->status === 'ready' && $order->status !== 'ready') {
-                if ($user->department !== 'Quality' && $user->department !== 'Cell Lab' && $user->role !== 'admin' && $user->role !== 'superadmin') {
+                if (!$user->isQualityControl() && $user->department !== 'Cell Lab' && $user->role !== 'admin' && $user->role !== 'superadmin') {
                     DB::rollBack();
-                    return redirect()->back()->with('error', 'Only Quality or Cell Lab departments can mark orders as ready.');
+                    return redirect()->back()->with('error', 'Only Quality Control or Cell Lab departments can mark orders as ready.');
                 }
                 // Set item_ready_at if not already set
                 if (!$order->item_ready_at) {
@@ -2053,7 +2056,7 @@ class OrderController extends Controller
 
             // Check if user has permission
             if (
-                !(Auth::user()->department === 'Quality' ||
+                !(Auth::user()->isQualityControl() ||
                     Auth::user()->department === 'Cell Lab' ||
                     Auth::user()->role === 'admin' ||
                     Auth::user()->role === 'superadmin')

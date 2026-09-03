@@ -12,6 +12,54 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, Notifiable;
 
     /**
+     * Departments with a stake in the COA workflow.
+     *
+     * Quality Control produces certificates. Quality Assurance checks them and
+     * is deliberately read-only: it may open and print a COA but never save,
+     * switch template or upload artwork.
+     */
+    public const DEPT_QUALITY_CONTROL   = 'Quality Control';
+    public const DEPT_QUALITY_ASSURANCE = 'Quality Assurance';
+
+    /**
+     * Case-insensitive department match, so a row saved with different casing
+     * does not silently lose access.
+     */
+    public function isDepartment(string $name): bool
+    {
+        return strcasecmp((string) $this->department, $name) === 0;
+    }
+
+    public function isQualityControl(): bool
+    {
+        return $this->isDepartment(self::DEPT_QUALITY_CONTROL);
+    }
+
+    public function isQualityAssurance(): bool
+    {
+        return $this->isDepartment(self::DEPT_QUALITY_ASSURANCE);
+    }
+
+    /**
+     * May open the COA editor, print and download.
+     */
+    public function canViewCoa(): bool
+    {
+        return $this->role === 'superadmin'
+            || $this->isQualityControl()
+            || $this->isQualityAssurance();
+    }
+
+    /**
+     * May save fields, switch template, upload morphology or attach a COA PDF.
+     */
+    public function canEditCoa(): bool
+    {
+        return $this->role === 'superadmin'
+            || $this->isQualityControl();
+    }
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var array<int, string>

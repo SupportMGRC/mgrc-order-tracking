@@ -135,8 +135,8 @@
                             </thead>
                             <tbody id="product-rows">
                                 @php
-                                    $canEditBatch = Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'superadmin' || Auth::user()->department === 'Quality';
-                                    $canEditQc = Auth::user()->department === 'Quality' || Auth::user()->role === 'superadmin';
+                                    $canEditBatch = Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'superadmin' || Auth::user()->isQualityControl();
+                                    $canEditQc = Auth::user()->isQualityControl() || Auth::user()->role === 'superadmin';
                                 @endphp
 
                                 @foreach($order->products as $index => $product)

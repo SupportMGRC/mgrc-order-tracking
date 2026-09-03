@@ -72,7 +72,13 @@
             @endphp
             <span class="badge bg-success fs-6">{{ $badgeLabel }}</span>
 
-            @if(!empty($variants))
+            @unless($canEdit)
+                <span class="badge bg-secondary fs-6" title="Quality Assurance has view access only">
+                    <i class="ri-eye-line align-middle me-1"></i>View only
+                </span>
+            @endunless
+
+            @if($canEdit && !empty($variants))
                 <form method="POST"
                       action="{{ route('orders.coa.template', [$order->id, $product->id]) }}"
                       onsubmit="return confirmVariantSwitch()"
@@ -166,7 +172,11 @@
         <div class="card h-100">
             <div class="card-header bg-primary text-white">
                 <h5 class="card-title mb-0 text-white">
-                    <i class="ri-edit-line me-1"></i> Edit COA Information
+                    @if($canEdit)
+                        <i class="ri-edit-line me-1"></i> Edit COA Information
+                    @else
+                        <i class="ri-eye-line me-1"></i> COA Information
+                    @endif
                 </h5>
             </div>
             <div class="card-body">
@@ -193,7 +203,8 @@
                                    name="{{ $inputName }}"
                                    value="{{ $val }}"
                                    placeholder="Enter {{ strtolower($label) }}"
-                                   autocomplete="off">
+                                   autocomplete="off"
+                                   @readonly(!$canEdit)>
                         </div>
                     @endforeach
 
@@ -222,7 +233,8 @@
                                                name="{{ $field }}"
                                                value="{{ $coaValues[$field] ?? '' }}"
                                                placeholder="—"
-                                               autocomplete="off">
+                                               autocomplete="off"
+                                               @readonly(!$canEdit)>
                                     </div>
                                 @endforeach
                             </div>
@@ -233,29 +245,39 @@
                         <hr class="my-3">
                         <div class="mb-3">
                             <label class="form-label fw-semibold">Morphology of Cells Image</label>
-                            <input type="file" class="form-control" id="morphology_image"
-                                   accept="image/jpeg,image/png,.jpg,.jpeg,.png">
-                            <small class="text-muted">Shown on page 2. JPG, JPEG or PNG, up to {{ $morphologyMaxMb }} MB — scaled to fill the frame, so the edges may be cropped.</small>
+                            @if($canEdit)
+                                <input type="file" class="form-control" id="morphology_image"
+                                       accept="image/jpeg,image/png,.jpg,.jpeg,.png">
+                                <small class="text-muted">Shown on page 2. JPG, JPEG or PNG, up to {{ $morphologyMaxMb }} MB — scaled to fill the frame, so the edges may be cropped.</small>
+                            @else
+                                <small class="text-muted d-block">Shown on page 2. Uploaded by Quality Control.</small>
+                            @endif
                             <div id="morphology-preview" class="mt-2" style="{{ $coaValues['morphology_image'] ? '' : 'display:none;' }}">
                                 <img src="{{ $coaValues['morphology_image'] ?? '' }}"
                                      alt="Morphology" class="img-fluid border rounded" style="max-height: 120px;">
                             </div>
-                            <button type="button" onclick="uploadMorphology()" class="btn btn-outline-primary btn-sm mt-2" id="morphology-upload-btn">
-                                <i class="ri-upload-2-line me-1"></i> Upload Image
-                            </button>
+                            @if($canEdit)
+                                <button type="button" onclick="uploadMorphology()" class="btn btn-outline-primary btn-sm mt-2" id="morphology-upload-btn">
+                                    <i class="ri-upload-2-line me-1"></i> Upload Image
+                                </button>
+                            @endif
                         </div>
                     @endif
 
                     {{-- Signature is auto-generated from the logged-in user. --}}
-                    <input type="hidden" id="signature_name" value="{{ Auth::user()->username ?? (Auth::user()->first_name ?? '') }}">
+                    <input type="hidden" id="signature_name" value="{{ $canEdit ? (Auth::user()->username ?? (Auth::user()->first_name ?? '')) : '' }}">
 
                     <hr class="my-3">
 
                     <div class="alert alert-info alert-sm mb-3">
                         <i class="ri-information-line me-1"></i>
                         <small>
-                            <strong>Live Preview:</strong> changes appear on the PDF as you type.<br>
-                            <strong>Signature:</strong> auto-generated from your login.<br>
+                            @if($canEdit)
+                                <strong>Live Preview:</strong> changes appear on the PDF as you type.<br>
+                                <strong>Signature:</strong> auto-generated from your login.<br>
+                            @else
+                                <strong>Signature:</strong> blank on a view-only copy.<br>
+                            @endif
                             <strong>COA No.:</strong> also shows in the Order's QC Doc column.
                         </small>
                     </div>
@@ -270,11 +292,21 @@
                         </small>
                     </div>
 
-                    <div class="d-grid">
-                        <button type="button" onclick="saveCOA()" class="btn btn-primary btn-lg">
-                            <i class="ri-save-line me-1"></i> Save Changes
-                        </button>
-                    </div>
+                    @if($canEdit)
+                        <div class="d-grid">
+                            <button type="button" onclick="saveCOA()" class="btn btn-primary btn-lg">
+                                <i class="ri-save-line me-1"></i> Save Changes
+                            </button>
+                        </div>
+                    @else
+                        <div class="alert alert-secondary mb-0">
+                            <i class="ri-eye-line me-1"></i>
+                            <small>
+                                <strong>View only.</strong> Quality Assurance can read, print and
+                                download this certificate. Changes are made by Quality Control.
+                            </small>
+                        </div>
+                    @endif
                 </form>
             </div>
         </div>
@@ -301,7 +333,10 @@ window.COA = {
     pages:       {{ $template['pages'] ?? 2 }},
     coordinates: @json($coords),
     editable:    @json($editable),
-    signatureName: @json(Auth::user()->username ?? (Auth::user()->first_name ?? '')),
+    // Drawn live from the logged-in user, never stored on the order line. A
+    // view-only reader must not sign a certificate they did not produce, so
+    // the line is left blank for them rather than carrying the wrong name.
+    signatureName: @json($canEdit ? (Auth::user()->username ?? (Auth::user()->first_name ?? '')) : ''),
     morphologyUrl: @json($coaValues['morphology_image'] ?? null),
     uploadUrl:   @json(route('orders.coa.morphology', [$order->id, $product->id])),
     saveUrl:     @json(route('orders.coa.save', [$order->id, $product->id])),

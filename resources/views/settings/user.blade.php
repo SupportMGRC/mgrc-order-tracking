@@ -290,7 +290,8 @@
                                                         <option value="Cell Lab" {{ old('department') == 'Cell Lab' ? 'selected' : '' }}>Cell Lab</option>
                                                         <option value="Business Development" {{ old('department') == 'Business Development' ? 'selected' : '' }}>Business Development</option>
                                                         <option value="Medical Affairs" {{ old('department') == 'Medical Affairs' ? 'selected' : '' }}>Medical Affairs</option>
-                                                        <option value="Quality" {{ old('department') == 'Quality' ? 'selected' : '' }}>Quality</option>
+                                                        <option value="Quality Control" {{ old('department') == 'Quality Control' ? 'selected' : '' }}>Quality Control</option>
+                                                        <option value="Quality Assurance" {{ old('department') == 'Quality Assurance' ? 'selected' : '' }}>Quality Assurance</option>
                                                         <option value="Finance" {{ old('department') == 'Finance' ? 'selected' : '' }}>Finance</option>
                                                         <option value="Management" {{ old('department') == 'Management' ? 'selected' : '' }}>Management</option>
                                                         <option value="Software" {{ old('department') == 'Software' ? 'selected' : '' }}>Software</option>
@@ -427,7 +428,7 @@
                                                     <select class="form-select @error('department') is-invalid @enderror"
                                                         id="edit-department" name="department" required>
                                                         <option value="">Select Department</option>
-                                                        @foreach(['Admin & Human Resource','Cell Lab','Business Development','Medical Affairs','Quality','Finance','Management','Software','Bioinformatics','Dispatcher','Genomics'] as $deptOption)
+                                                        @foreach(['Admin & Human Resource','Cell Lab','Business Development','Medical Affairs','Quality Control','Quality Assurance','Finance','Management','Software','Bioinformatics','Dispatcher','Genomics'] as $deptOption)
                                                             <option value="{{ $deptOption }}" {{ old('department', $editUser->department) === $deptOption ? 'selected' : '' }}>{{ $deptOption }}</option>
                                                         @endforeach
                                                     </select>

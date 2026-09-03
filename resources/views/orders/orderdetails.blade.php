@@ -593,7 +593,7 @@
             @if($order->status != 'delivered' && $order->status != 'cancel')
                 <div class="text-center">
                     @if($order->status === 'new')
-                        @if(Auth::user()->department === 'Quality' || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
+                        @if(Auth::user()->isQualityControl() || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin')
                             <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#markPreparingModal">
                                 <i class="ri-tools-line align-bottom me-1"></i> Mark as Preparing
                             </button>
@@ -1113,7 +1113,7 @@
                                     <th scope="col" class="d-none d-md-table-cell">QC Doc</th>
                                     <th scope="col" class="d-none d-lg-table-cell">Prepared By</th>
                                     <th scope="col" class="d-none d-md-table-cell">COA</th>
-                                    @if($order->status === 'preparing' && (Auth::user()->department === 'Quality' || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin'))
+                                    @if($order->status === 'preparing' && (Auth::user()->isQualityControl() || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin'))
                                         <th scope="col">Status</th>
                                     @endif
                                 </tr>
@@ -1194,9 +1194,11 @@
                                         </td>
                                         <td class="d-none d-md-table-cell">
                                             @php
-                                                // Quality staff of any role, plus superadmin.
-                                                $mayUseCoa = Auth::user()->role === 'superadmin'
-                                                    || strcasecmp((string) Auth::user()->department, 'Quality') === 0;
+                                                // Quality Control and Quality Assurance of any role, plus
+                                                // superadmin, may open a COA. Only Quality Control and
+                                                // superadmin may upload or replace one.
+                                                $mayUseCoa  = Auth::user()->canViewCoa();
+                                                $mayEditCoa = Auth::user()->canEditCoa();
 
                                                 // 'none' means this product never gets a generated COA.
                                                 // null means not configured yet: the editor asks which template to use.
@@ -1213,7 +1215,7 @@
                                                     <span class="d-none d-lg-inline ms-1">COA</span>
                                                 </a>
                                             @elseif($product->pivot->coa_required && $productHasCoa)
-                                                {{-- Required, but this user is not in Quality --}}
+                                                {{-- Required, but this user is not in Quality Control or Quality Assurance --}}
                                                 <span class="text-muted">-</span>
                                             @elseif($product->pivot->coa_required && !$productHasCoa)
                                                 {{-- No template for this product: QC supplies the certificate. --}}
@@ -1224,7 +1226,7 @@
                                                         <i class="ri-file-pdf-line align-middle"></i>
                                                         <span class="d-none d-lg-inline ms-1">COA</span>
                                                     </a>
-                                                    @if($mayUseCoa)
+                                                    @if($mayEditCoa)
                                                         <button type="button" class="btn btn-sm btn-soft-secondary mt-1 mt-lg-0"
                                                             data-bs-toggle="modal"
                                                             data-bs-target="#uploadCoaDocumentModal{{ $product->pivot->id }}"
@@ -1232,7 +1234,7 @@
                                                             <i class="ri-refresh-line align-middle"></i>
                                                         </button>
                                                     @endif
-                                                @elseif($mayUseCoa)
+                                                @elseif($mayEditCoa)
                                                     <button type="button" class="btn btn-sm btn-warning"
                                                         data-bs-toggle="modal"
                                                         data-bs-target="#uploadCoaDocumentModal{{ $product->pivot->id }}"
@@ -1247,7 +1249,7 @@
                                                 <span class="badge bg-secondary">Not Required</span>
                                             @endif
                                         </td>
-                                        @if($order->status === 'preparing' && (Auth::user()->department === 'Quality' || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin'))
+                                        @if($order->status === 'preparing' && (Auth::user()->isQualityControl() || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin'))
                                             <td>
                                                 @if($product->pivot->status === 'ready')
                                                     <button type="button" class="btn btn-sm btn-soft-success" data-bs-toggle="modal"
@@ -1270,7 +1272,7 @@
                         </table>
                     </div>
 
-                    @if($order->status === 'preparing' && (Auth::user()->department === 'Quality' || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin'))
+                    @if($order->status === 'preparing' && (Auth::user()->isQualityControl() || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin'))
                         <div class="text-center mt-4">
                             @php
                                 // Check if all products are ready
@@ -1283,7 +1285,7 @@
                                 }
                             @endphp
 
-                            @if($allProductsReady && count($order->products) > 0 && (Auth::user()->department === 'Quality' || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin'))
+                            @if($allProductsReady && count($order->products) > 0 && (Auth::user()->isQualityControl() || Auth::user()->department === 'Cell Lab' || Auth::user()->role === 'admin' || Auth::user()->role === 'superadmin'))
                                 <button type="button" class="btn btn-primary" data-bs-toggle="modal"
                                     data-bs-target="#markOrderReadyModal">
                                     <i class="ri-check-double-line align-bottom me-1"></i> Mark Order as Ready
@@ -1549,8 +1551,7 @@
             </div>
         </div>
         @php
-            $mayUploadCoa = Auth::user()->role === 'superadmin'
-                || strcasecmp((string) Auth::user()->department, 'Quality') === 0;
+            $mayUploadCoa = Auth::user()->canEditCoa();
             $coaUploadAllowed = $product->pivot->coa_required
                 && ($product->coa_template ?? null) === 'none'
                 && $mayUploadCoa;
