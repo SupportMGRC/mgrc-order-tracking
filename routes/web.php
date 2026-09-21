@@ -11,6 +11,7 @@ use App\Http\Controllers\VisitController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\PRFController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PickupController;
 
 /*
 |--------------------------------------------------------------------------
@@ -105,6 +106,17 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/orderhistory', [OrderController::class, 'history'])->name('orderhistory');
     Route::get('/orderdetails/{order}', [OrderController::class, 'orderDetails'])->name('orderdetails');
+
+    // Pickup routes - any authenticated user can request a pickup.
+    // History and details are scoped in PickupController (MA/BD see own only).
+    Route::get('/newpickup', [PickupController::class, 'create'])->name('pickups.create');
+    Route::post('/newpickup', [PickupController::class, 'store'])->name('pickups.store');
+    Route::get('/pickuphistory', [PickupController::class, 'index'])->name('pickups.index');
+    Route::get('/pickupdetails/{pickup}', [PickupController::class, 'show'])->name('pickups.show');
+    Route::post('/pickupdetails/{pickup}/on-the-way', [PickupController::class, 'markOnTheWay'])->name('pickups.onTheWay');
+    Route::post('/pickupdetails/{pickup}/picked-up', [PickupController::class, 'markPickedUp'])->name('pickups.pickedUp');
+    Route::post('/pickupdetails/{pickup}/received', [PickupController::class, 'markReceived'])->name('pickups.received');
+    Route::post('/pickupdetails/{pickup}/cancel', [PickupController::class, 'cancel'])->name('pickups.cancel');
 
     // PRF routes - for displaying and printing PRF forms
     Route::get('/orders/{order}/prf', [PRFController::class, 'show'])->name('orders.prf');

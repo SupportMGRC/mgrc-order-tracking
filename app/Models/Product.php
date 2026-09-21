@@ -21,6 +21,7 @@ class Product extends Model
         'stock',
         'coa_template',
         'requires_patient_details',
+        'usage_type',
     ];
 
     /**
@@ -33,6 +34,37 @@ class Product extends Model
         'stock' => 'integer',
         'requires_patient_details' => 'boolean',
     ];
+
+    /**
+     * What a product is used for.
+     *
+     *   'order'  -> sold on New Order (stock, price, COA apply)
+     *   'pickup' -> collected by the despatcher on New Pickup (e.g. Blood Tube)
+     *
+     * Column is usage_type, not usage: USAGE is a reserved word in MySQL.
+     */
+    public const USAGE_ORDER  = 'order';
+    public const USAGE_PICKUP = 'pickup';
+
+    public const USAGE_TYPES = [
+        self::USAGE_ORDER  => 'Order',
+        self::USAGE_PICKUP => 'Pickup',
+    ];
+
+    public function scopeForOrders($query)
+    {
+        return $query->where('usage_type', self::USAGE_ORDER);
+    }
+
+    public function scopeForPickups($query)
+    {
+        return $query->where('usage_type', self::USAGE_PICKUP);
+    }
+
+    public function isPickupItem(): bool
+    {
+        return $this->usage_type === self::USAGE_PICKUP;
+    }
 
     /**
      * for test products such as NK Immunophenotyping test: the order

@@ -62,6 +62,44 @@
                     </a>
                 </li>
 
+                {{-- Pickup - every authenticated user can request a pickup.
+                     Pickup History is scoped in PickupController (MA/BD see own). --}}
+                @php
+                    // Badge on Pickup History: what is waiting for this user.
+                    //   Dispatcher      -> New + On the Way (to take / to collect)
+                    //   Receiving dept  -> Picked Up (on the way in)
+                    //   admin/superadmin-> all three
+                    $pickupBadgeStatuses = [];
+                    $sidebarUser = auth()->user();
+                    if ($sidebarUser) {
+                        $isPickupAdmin = in_array($sidebarUser->role, ['admin', 'superadmin'], true);
+                        if ($isPickupAdmin || $sidebarUser->department === \App\Models\Pickup::DESPATCH_DEPARTMENT) {
+                            $pickupBadgeStatuses[] = \App\Models\Pickup::STATUS_NEW;
+                            $pickupBadgeStatuses[] = \App\Models\Pickup::STATUS_ON_THE_WAY;
+                        }
+                        if ($isPickupAdmin || in_array($sidebarUser->department, \App\Models\Pickup::RECEIVING_DEPARTMENTS, true)) {
+                            $pickupBadgeStatuses[] = \App\Models\Pickup::STATUS_PICKED_UP;
+                        }
+                    }
+                    $pickupBadgeCount = $pickupBadgeStatuses
+                        ? \App\Models\Pickup::whereIn('status', $pickupBadgeStatuses)->count()
+                        : 0;
+                @endphp
+                <li class="menu-title"><span data-key="t-pickup">Pickup</span></li>
+                <li class="nav-item">
+                    <a class="nav-link menu-link" href="{{ route('pickups.create') }}">
+                        <i class="las la-shipping-fast"></i> <span data-key="t-new-pickup">New Pickup</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link menu-link" href="{{ route('pickups.index') }}">
+                        <i class="las la-clipboard-check"></i> <span data-key="t-pickup-history">Pickup History</span>
+                        @if($pickupBadgeCount > 0)
+                            <span class="badge badge-pill bg-danger ms-auto" title="Pickups waiting for you">{{ $pickupBadgeCount }}</span>
+                        @endif
+                    </a>
+                </li>
+
                 
 
                 {{-- Settings section. The User link is open to everyone, because a

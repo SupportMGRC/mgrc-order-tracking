@@ -578,7 +578,8 @@ class OrderController extends Controller
     public function newOrder()
     {
         $customers = Customer::all();
-        $products = Product::where('stock', '>', 0)->get();
+        // Pickup items (Blood Tube etc.) live in the same table but are never ordered.
+        $products = Product::forOrders()->where('stock', '>', 0)->get();
         $dispatchers = User::all();
         $blockedDates = BlockedDate::getBlockedDatesArray();
         $blockedDatesWithReasons = BlockedDate::getBlockedDatesWithReasons();
@@ -732,7 +733,7 @@ class OrderController extends Controller
             // Attach products to order
             foreach ($request->products as $product) {
                 // Find product by name
-                $productModel = Product::where('name', $product['type'])->first();
+                $productModel = Product::forOrders()->where('name', $product['type'])->first();
 
                 if (!$productModel) {
                     throw new \Exception("Product not found: {$product['type']}");

@@ -21,6 +21,7 @@ class ActivityLogger
         'order_photo',
         'order_photos',
         'delivery_photos',
+        'pickup_photos',
     ];
 
     /**
@@ -63,6 +64,7 @@ class ActivityLogger
             'User'     => 'User: ' . ($model->username ?? '#' . $model->getKey()),
             'Visit'    => 'Visit #' . $model->getKey(),
             'BlockedDate' => 'Blocked Date: ' . ($model->blocked_date ?? '#' . $model->getKey()),
+            'Pickup'   => 'Pickup ' . ($model->reference_no ?? '#' . $model->getKey()),
             default    => $name . ' #' . $model->getKey(),
         };
     }

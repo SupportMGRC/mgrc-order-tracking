@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\BlockedDate;
 use App\Models\Customer;
 use App\Models\Order;
+use App\Models\Pickup;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\Visit;
@@ -38,6 +39,7 @@ class AppServiceProvider extends ServiceProvider
             User::class,
             Visit::class,
             BlockedDate::class,
+            Pickup::class,
         ];
 
         foreach ($audited as $model) {

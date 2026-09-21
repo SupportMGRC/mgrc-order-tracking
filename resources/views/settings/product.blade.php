@@ -83,6 +83,15 @@
                             </div>
                         </div>
                         <!--end col-->
+                        <div class="col-xxl-2 col-sm-4">
+                            <select class="form-select" name="usage_type">
+                                <option value="">All Types</option>
+                                @foreach (\App\Models\Product::USAGE_TYPES as $typeKey => $typeLabel)
+                                    <option value="{{ $typeKey }}" @selected(request('usage_type') === $typeKey)>{{ $typeLabel }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <!--end col-->
                         {{-- Date filter removed. It filtered products by created_at,
                              i.e. when the row was added to the database, which is not a
                              question anyone asks of a product list. --}}
@@ -128,6 +137,7 @@
                                 </th>
                                 <th class="sort" data-sort="id">ID</th>
                                 <th class="sort" data-sort="name">Name</th>
+                                <th class="sort" data-sort="usage_type">Type</th>
                                 <th class="sort" data-sort="description">Description</th>
                                 @if(auth()->user()->role == 'superadmin')
                                 <th class="sort" data-sort="price">Price</th>
@@ -146,10 +156,17 @@
                                 </th>
                                 <td class="id">{{ $product->id }}</td>
                                 <td class="name">{{ $product->name }}</td>
+                                <td class="usage_type">
+                                    @if($product->isPickupItem())
+                                        <span class="badge bg-info-subtle text-info">Pickup</span>
+                                    @else
+                                        <span class="badge bg-success-subtle text-success">Order</span>
+                                    @endif
+                                </td>
                                 <td class="description">{{ $product->description }}</td>
                                 @if(auth()->user()->role == 'superadmin')
-                                <td class="price">{{ $product->price ? number_format($product->price, 2) : '-' }}</td>
-                                <td class="stock">{{ $product->stock ?? '-' }}</td>
+                                <td class="price">{{ (!$product->isPickupItem() && $product->price) ? number_format($product->price, 2) : '-' }}</td>
+                                <td class="stock">{{ $product->isPickupItem() ? '-' : ($product->stock ?? '-') }}</td>
                                 @endif
                                 <td>
                                     <ul class="list-inline hstack gap-2 mb-0">
@@ -184,6 +201,15 @@
                                             @method('PUT')
                                             <div class="modal-body">
                                                 <div class="mb-3">
+                                                    <label for="edit-usage-type-{{ $product->id }}" class="form-label">Type</label>
+                                                    <select class="form-select js-usage-type" id="edit-usage-type-{{ $product->id }}" name="usage_type" required>
+                                                        @foreach (\App\Models\Product::USAGE_TYPES as $typeKey => $typeLabel)
+                                                            <option value="{{ $typeKey }}" @selected(($product->usage_type ?? 'order') === $typeKey)>{{ $typeLabel }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                    <div class="form-text">Order products appear on New Order. Pickup items appear on New Pickup only and have no price, stock or COA.</div>
+                                                </div>
+                                                <div class="mb-3">
                                                     <label for="edit-name-{{ $product->id }}" class="form-label">Name</label>
                                                     <input type="text" class="form-control" id="edit-name-{{ $product->id }}" name="name" value="{{ $product->name }}" required>
                                                 </div>
@@ -191,6 +217,7 @@
                                                     <label for="edit-description-{{ $product->id }}" class="form-label">Description</label>
                                                     <textarea class="form-control" id="edit-description-{{ $product->id }}" name="description" rows="3" required>{{ $product->description }}</textarea>
                                                 </div>
+                                                <div class="js-order-only">
                                                 <div class="mb-3">
                                                     <label for="edit-price-{{ $product->id }}" class="form-label">Price</label>
                                                     <input type="number" step="0.01" min="0" class="form-control" id="edit-price-{{ $product->id }}" name="price" value="{{ $product->price }}" required>
@@ -245,6 +272,8 @@
                                                     </div>
                                                     <div class="form-text">Makes <em>Patient Name</em> and <em>Patient IC Number</em> compulsory on the order, and hides <em>Quantity</em> and <em>Remarks</em> for that item. Delivery address and all other fields are unaffected.</div>
                                                 </div>
+                                                </div>
+                                                <!-- end js-order-only -->
                                             </div>
                                             <div class="modal-footer">
                                                 <div class="hstack gap-2 justify-content-end">
@@ -290,7 +319,7 @@
                             <!-- End Delete Product Modal -->
                             @empty
                             <tr>
-                                <td colspan="{{ auth()->user()->role == 'superadmin' ? '6' : '4' }}" class="text-center">No products found</td>
+                                <td colspan="{{ auth()->user()->role == 'superadmin' ? '7' : '5' }}" class="text-center">No products found</td>
                             </tr>
                             @endforelse
                         </tbody>
@@ -328,6 +357,15 @@
                 @csrf
                 <div class="modal-body">
                     <div class="mb-3">
+                        <label for="usage_type" class="form-label">Type</label>
+                        <select class="form-select js-usage-type" id="usage_type" name="usage_type" required>
+                            @foreach (\App\Models\Product::USAGE_TYPES as $typeKey => $typeLabel)
+                                <option value="{{ $typeKey }}" @selected(old('usage_type', 'order') === $typeKey)>{{ $typeLabel }}</option>
+                            @endforeach
+                        </select>
+                        <div class="form-text">Order products appear on New Order. Pickup items appear on New Pickup only and have no price, stock or COA.</div>
+                    </div>
+                    <div class="mb-3">
                         <label for="name" class="form-label">Name</label>
                         <input type="text" class="form-control" id="name" name="name" required value="{{ old('name') }}">
                     </div>
@@ -335,6 +373,7 @@
                         <label for="description" class="form-label">Description</label>
                         <textarea class="form-control" id="description" name="description" rows="3" required>{{ old('description') }}</textarea>
                     </div>
+                    <div class="js-order-only">
                     <div class="mb-3">
                         <label for="price" class="form-label">Price</label>
                         <input type="number" step="0.01" min="0" class="form-control" id="price" name="price" value="{{ old('price') }}" required>
@@ -381,6 +420,8 @@
                         </div>
                         <div class="form-text">Makes <em>Patient Name</em> and <em>Patient IC Number</em> compulsory on the order, and hides <em>Quantity</em> and <em>Remarks</em> for that item. Delivery address and all other fields are unaffected.</div>
                     </div>
+                    </div>
+                    <!-- end js-order-only -->
                 </div>
                 <div class="modal-footer">
                     <div class="hstack gap-2 justify-content-end">
@@ -409,6 +450,31 @@
                 });
             });
         }
+
+        // Type = Pickup hides Price, Stock, COA Template and Order Form Behaviour.
+        // Hidden fields are also disabled so their "required" does not block
+        // submit and they are not posted; the controller sets fixed values.
+        //
+        // Looks up .modal-body, not the <form>: the Edit modals sit inside the
+        // table's <tbody>, and the browser's HTML parser empties any <form>
+        // opened there. The inputs still submit with the form, but they are
+        // not inside it in the DOM, so closest('form') finds nothing.
+        document.querySelectorAll('.js-usage-type').forEach(function (select) {
+            const container = select.closest('.modal-body');
+            const orderOnly = container ? container.querySelector('.js-order-only') : null;
+            if (!orderOnly) return;
+
+            const apply = function () {
+                const isPickup = select.value === 'pickup';
+                orderOnly.style.display = isPickup ? 'none' : '';
+                orderOnly.querySelectorAll('input, select, textarea').forEach(function (el) {
+                    el.disabled = isPickup;
+                });
+            };
+
+            select.addEventListener('change', apply);
+            apply();
+        });
 
         // Initialize Flatpickr for date picker
         if (typeof flatpickr !== 'undefined') {
