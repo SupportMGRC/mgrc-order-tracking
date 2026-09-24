@@ -22,6 +22,7 @@ class Product extends Model
         'coa_template',
         'requires_patient_details',
         'usage_type',
+        'is_active',
     ];
 
     /**
@@ -30,6 +31,7 @@ class Product extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'is_active' => 'boolean',
         'price' => 'decimal:2',
         'stock' => 'integer',
         'requires_patient_details' => 'boolean',
@@ -50,6 +52,22 @@ class Product extends Model
         self::USAGE_ORDER  => 'Order',
         self::USAGE_PICKUP => 'Pickup',
     ];
+
+    /**
+     * Active products are the ones staff can still pick on New Order and
+     * New Pickup. Inactive means discontinued: hidden from those dropdowns,
+     * but kept in Product Management so past orders and pickups keep their
+     * item details, COA data and batch numbers.
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
+    }
+
+    public function scopeInactive($query)
+    {
+        return $query->where('is_active', false);
+    }
 
     public function scopeForOrders($query)
     {

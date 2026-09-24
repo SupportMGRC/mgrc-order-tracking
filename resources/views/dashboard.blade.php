@@ -324,7 +324,7 @@
             <div class="card card-h-100">
                 <div class="card-header">
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                        <h4 class="card-title mb-0">Delivery Schedule Calendar</h4>
+                        <h4 class="card-title mb-0">Delivery &amp; Pickup Schedule Calendar</h4>
                         <div class="d-flex flex-column align-items-end gap-1">
                             <div class="d-flex align-items-center gap-2">
                                 <small class="text-muted me-2">Status Colors:</small>
@@ -335,6 +335,10 @@
                             </div>
                             <div class="d-flex align-items-center gap-2 ms-auto">
                                 <span class="badge" style="background-color: #dc3545; color: white; font-size: 10px;">Time Sensitive</span>
+                            </div>
+                            {{-- Pickups reuse the same four colours in their own order. --}}
+                            <div class="d-flex align-items-center gap-2 ms-auto">
+                                <small class="text-muted" style="font-size: 10px;">Pickups (PU-) use the same colours: New, On the Way, Picked Up, Received</small>
                             </div>
                         </div>
                     </div>
@@ -552,6 +556,7 @@
             const eventData = eventInfo.event.extendedProps;
             const productsList = eventData.products_list || [];
             const timeSensitiveBadge = eventData.time_sensitive ? '<span class="badge bg-danger ms-2">Time Sensitive</span>' : '';
+            const isPickup = eventData.record_type === 'pickup';
             
             // Format delivery date and time
             const deliveryDate = eventInfo.event.start;
@@ -575,7 +580,7 @@
             
             return `
                 <div class="tooltip-header">
-                    <div class="order-id">Order #${eventInfo.event.id}</div>
+                    <div class="order-id">${isPickup ? eventData.reference : 'Order #' + eventInfo.event.id}</div>
                     ${timeSensitiveBadge}
                 </div>
                 <div class="tooltip-body">
@@ -588,8 +593,8 @@
                         <span class="info-text">${reachClientText}</span>
                     </div>
                     <div class="info-row">
-                        <i class="ri-truck-line info-icon"></i>
-                        <span class="info-text">${eventData.delivery_type || 'N/A'}</span>
+                        <i class="${isPickup ? 'las la-shipping-fast' : 'ri-truck-line'} info-icon"></i>
+                        <span class="info-text">${isPickup ? 'Pickup - ' + eventData.status : (eventData.delivery_type || 'N/A')}</span>
                     </div>
                     <div class="info-row">
                         <i class="ri-shopping-bag-line info-icon"></i>
@@ -610,6 +615,7 @@
             var calendarEl = document.getElementById('delivery-calendar');
             var calendarEvents = @json($calendarEvents);
             var orderDetailsBaseUrl = @json(url('/orderdetails'));
+            var pickupDetailsBaseUrl = @json(url('/pickupdetails'));
             
             var calendar = new FullCalendar.Calendar(calendarEl, {
                 timeZone: 'UTC',
@@ -624,8 +630,11 @@
                 fixedWeekCount: false,
                 events: calendarEvents,
                 eventClick: function(info) {
-                    // Navigate to order details when event is clicked
-                    window.location.href = orderDetailsBaseUrl + '/' + info.event.id;
+                    // Orders and pickups share the calendar, so send each to its own page
+                    var baseUrl = info.event.extendedProps.record_type === 'pickup'
+                        ? pickupDetailsBaseUrl
+                        : orderDetailsBaseUrl;
+                    window.location.href = baseUrl + '/' + info.event.id;
                 },
                 eventDidMount: function(info) {
                     // Set up Bootstrap tooltip with custom HTML content

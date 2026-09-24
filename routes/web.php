@@ -7,7 +7,6 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\BlockedDateController;
-use App\Http\Controllers\VisitController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\PRFController;
 use App\Http\Controllers\ProfileController;
@@ -73,10 +72,21 @@ Route::middleware(['auth'])->group(function () {
 
     // Product routes. Gated at the route so the URL itself is closed, not just
     // the sidebar link — superadmin passes through 'role:admin' automatically.
-    Route::resource('products', ProductController::class)->middleware('role:admin');
+    // Only the four actions the Product Management page uses. index(), store(),
+    // update() and destroy() all have working views; create/show/edit did not,
+    // so they were removed with the dead code cleanup.
+    Route::resource('products', ProductController::class)
+        ->only(['index', 'store', 'update', 'destroy'])
+        ->middleware('role:admin');
 
     // Order routes
-    Route::resource('orders', OrderController::class);
+    // Order pages live on their own routes (/orderhistory, /orderdetails, /neworder).
+    // Only the two resource actions still wired to a form are kept: store() for
+    // the legacy Create Order modal in Order History, destroy() for Delete Order.
+    // Paths avoid /orders and /orders/{id}: a GET to those returned a 405
+    // "method not allowed" debug page instead of a plain 404.
+    Route::post('/orders/store', [OrderController::class, 'store'])->name('orders.store');
+    Route::delete('/orders/{order}/delete', [OrderController::class, 'destroy'])->name('orders.destroy');
     Route::post('/orders/{order}/batch', [OrderController::class, 'updateBatch'])->name('orders.batch');
     Route::post('/orders/{order}/delivery', [OrderController::class, 'updateDelivery'])->name('orders.delivery')->middleware('department.permission:mark-delivered');
     Route::get('/orders/{order}/batch/edit', [OrderController::class, 'editBatchInfo'])->name('orders.batch.edit');
@@ -88,10 +98,6 @@ Route::middleware(['auth'])->group(function () {
 
     // New route for updating individual product ready status
     Route::patch('/orders/{order}/products/{product}/ready', [OrderController::class, 'updateProductReadyStatus'])->name('orders.product.ready');
-
-    // Visit routes
-    // Not linked from the UI anywhere, but the route is live, so gate it too.
-    Route::resource('visits', VisitController::class)->middleware('role:admin');
 
     // Legacy routes - keeping them for backward compatibility
     Route::get('/neworder', [OrderController::class, 'newOrder'])->name('neworder')->middleware('department.permission:view-new-order');

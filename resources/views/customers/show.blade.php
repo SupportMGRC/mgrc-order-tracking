@@ -218,7 +218,7 @@
                             @forelse($customer->orders as $order)
                             <tr>
                                 <td>
-                                    <a href="{{ route('orders.show', $order->id) }}" class="fw-medium link-primary">#{{ $order->id }}</a>
+                                    <a href="{{ route('orderdetails', $order->id) }}" class="fw-medium link-primary">#{{ $order->id }}</a>
                                 </td>
                                 <td>{{ $order->created_at->format('M d, Y') }}</td>
                                 <td>
@@ -248,7 +248,7 @@
                                 </td>
                                 <td>
                                     <div class="hstack gap-2">
-                                        <a href="{{ route('orders.show', $order->id) }}" class="btn btn-sm btn-soft-info" data-bs-toggle="tooltip" data-bs-placement="top" title="View Details">
+                                        <a href="{{ route('orderdetails', $order->id) }}" class="btn btn-sm btn-soft-info" data-bs-toggle="tooltip" data-bs-placement="top" title="View Details">
                                             <i class="ri-eye-fill"></i>
                                         </a>
                                         <a href="{{ route('orders.prf', $order->id) }}" class="btn btn-sm btn-soft-primary" data-bs-toggle="tooltip" data-bs-placement="top" title="View PRF">

@@ -40,6 +40,9 @@ class Order extends Model
         'delivery_photos',
         'temp_before_delivery',
         'temp_after_delivery',
+        'cancel_reason',
+        'cancelled_by',
+        'cancelled_at',
     ];
 
     /**
@@ -48,6 +51,7 @@ class Order extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'cancelled_at' => 'datetime',
         'order_date' => 'date',
         'order_time' => 'datetime',
         'pickup_delivery_date' => 'date',

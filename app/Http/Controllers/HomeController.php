@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Order;
 use App\Models\Customer;
+use App\Models\Pickup;
 use App\Models\Product;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -24,6 +25,61 @@ class HomeController extends Controller
     }
 
     /**
+     * Same rule as Order History and Pickup History: these departments only
+     * see their own records, here too.
+     */
+    private const OWN_RECORDS_ONLY_DEPARTMENTS = [
+        'medical affairs',
+        'business development',
+    ];
+
+    private function restrictedToOwnRecords(): bool
+    {
+        $user = Auth::user();
+
+        if (!$user || in_array($user->role, ['admin', 'superadmin'], true)) {
+            return false;
+        }
+
+        return in_array(strtolower(trim((string) $user->department)), self::OWN_RECORDS_ONLY_DEPARTMENTS, true);
+    }
+
+    /**
+     * Order query for this dashboard. Matches OrderController: by user_id, or
+     * by the name recorded in order_placed_by for orders created before the
+     * user link existed.
+     */
+    private function orders()
+    {
+        $query = Order::query();
+
+        if (!$this->restrictedToOwnRecords()) {
+            return $query;
+        }
+
+        $user = Auth::user();
+        $fullName = strtolower(trim($user->first_name . ' ' . $user->last_name));
+
+        return $query->where(function ($q) use ($user, $fullName) {
+            $q->where('user_id', $user->id);
+
+            if ($fullName !== '') {
+                $q->orWhereRaw('LOWER(TRIM(order_placed_by)) = ?', [$fullName]);
+            }
+        });
+    }
+
+    /** Pickup query for this dashboard, scoped the same way. */
+    private function pickups()
+    {
+        $query = Pickup::query();
+
+        return $this->restrictedToOwnRecords()
+            ? $query->where('user_id', Auth::id())
+            : $query;
+    }
+
+    /**
      * Show the application dashboard.
      *
      * @return \Illuminate\Contracts\Support\Renderable
@@ -33,43 +89,43 @@ class HomeController extends Controller
         $today = Carbon::today();
         
         // Today's orders by status
-        $todayNewCount = Order::whereDate('created_at', $today)
+        $todayNewCount = $this->orders()->whereDate('created_at', $today)
             ->where('status', 'new')
             ->count();
             
-        $todayPreparingCount = Order::whereDate('created_at', $today)
+        $todayPreparingCount = $this->orders()->whereDate('created_at', $today)
             ->where('status', 'preparing')
             ->count();
             
-        $todayReadyCount = Order::whereDate('created_at', $today)
+        $todayReadyCount = $this->orders()->whereDate('created_at', $today)
             ->where('status', 'ready')
             ->count();
             
-        $todayDeliveredCount = Order::whereDate('created_at', $today)
+        $todayDeliveredCount = $this->orders()->whereDate('created_at', $today)
             ->where('status', 'delivered')
             ->count();
             
         $todayTotalOrders = $todayNewCount + $todayPreparingCount + $todayReadyCount + $todayDeliveredCount;
         
         // Today's orders list
-        $todayOrders = Order::with(['customer', 'products'])
+        $todayOrders = $this->orders()->with(['customer', 'products'])
             ->whereDate('created_at', $today)
             ->latest('created_at')
             ->get();
             
         // This month's orders
         $startOfMonth = Carbon::now()->startOfMonth();
-        $monthlyOrderCount = Order::whereDate('created_at', '>=', $startOfMonth)->count();
+        $monthlyOrderCount = $this->orders()->whereDate('created_at', '>=', $startOfMonth)->count();
         
         // This year's orders
         $startOfYear = Carbon::now()->startOfYear();
-        $yearlyOrderCount = Order::whereDate('created_at', '>=', $startOfYear)->count();
+        $yearlyOrderCount = $this->orders()->whereDate('created_at', '>=', $startOfYear)->count();
         
         // Total counts
-        $totalNewCount = Order::where('status', 'new')->count();
-        $totalPreparingCount = Order::where('status', 'preparing')->count();
-        $totalReadyCount = Order::where('status', 'ready')->count();
-        $totalDeliveredCount = Order::where('status', 'delivered')->count();
+        $totalNewCount = $this->orders()->where('status', 'new')->count();
+        $totalPreparingCount = $this->orders()->where('status', 'preparing')->count();
+        $totalReadyCount = $this->orders()->where('status', 'ready')->count();
+        $totalDeliveredCount = $this->orders()->where('status', 'delivered')->count();
         $totalOrders = $totalNewCount + $totalPreparingCount + $totalReadyCount + $totalDeliveredCount;
         
         // Customer and product counts
@@ -78,14 +134,14 @@ class HomeController extends Controller
         $lowStockCount = Product::where('stock', '<', 10)->count();
         
         // Recent orders
-        $recentOrders = Order::with(['customer', 'products'])
+        $recentOrders = $this->orders()->with(['customer', 'products'])
             ->latest('created_at')
             ->take(5)
             ->get();
             
         // Monthly order trends (current year)
         $currentYear = Carbon::now()->year;
-        $monthlyOrders = Order::select(
+        $monthlyOrders = $this->orders()->select(
             DB::raw('MONTH(created_at) as month'),
             DB::raw('COUNT(*) as count')
         )
@@ -109,7 +165,7 @@ class HomeController extends Controller
         }
         
         // Calendar events - orders with delivery dates
-        $calendarEvents = Order::with(['customer', 'products'])
+        $calendarEvents = $this->orders()->with(['customer', 'products'])
             ->whereNotNull('pickup_delivery_date')
             ->where('status', '!=', 'cancel')
             ->get()
@@ -145,6 +201,7 @@ class HomeController extends Controller
 
                 return [
                     'id' => $order->id,
+                    'record_type' => 'order',
                     'title' => '#' . $order->id . ' - ' . ($order->customer->name ?? 'N/A'),
                     'start' => $order->pickup_delivery_date->format('Y-m-d'),
                     'backgroundColor' => $backgroundColor,
@@ -160,8 +217,62 @@ class HomeController extends Controller
                 ];
             });
         
+        // Calendar events - pickups on their requested pickup date
+        $pickupEvents = $this->pickups()->with(['customer', 'items.product'])
+            ->where('status', '!=', Pickup::STATUS_CANCELLED)
+            ->get()
+            ->map(function ($pickup) {
+                $statusColors = [
+                    Pickup::STATUS_NEW        => '#f8f9fa',
+                    Pickup::STATUS_ON_THE_WAY => '#f1b44c',
+                    Pickup::STATUS_PICKED_UP  => '#405189',
+                    Pickup::STATUS_RECEIVED   => '#0ab39c',
+                ];
+
+                $textColors = [
+                    Pickup::STATUS_NEW        => '#212529',
+                    Pickup::STATUS_ON_THE_WAY => '#ffffff',
+                    Pickup::STATUS_PICKED_UP  => '#ffffff',
+                    Pickup::STATUS_RECEIVED   => '#ffffff',
+                ];
+
+                $itemList = $pickup->items->map(function ($item) {
+                    return ($item->product->name ?? 'Unknown item') . ' (Qty: ' . $item->quantity . ')';
+                })->toArray();
+
+                $backgroundColor = $statusColors[$pickup->status] ?? '#6c757d';
+                $textColor = $textColors[$pickup->status] ?? '#ffffff';
+
+                if ($pickup->time_sensitive) {
+                    $backgroundColor = '#dc3545';
+                    $textColor = '#ffffff';
+                }
+
+                return [
+                    'id' => $pickup->id,
+                    'title' => $pickup->reference_no . ' - ' . ($pickup->customer->name ?? 'N/A'),
+                    'start' => $pickup->pickup_date->format('Y-m-d'),
+                    'backgroundColor' => $backgroundColor,
+                    'borderColor' => $backgroundColor,
+                    'textColor' => $textColor,
+                    // Read by the calendar to pick the right link and tooltip.
+                    'record_type' => 'pickup',
+                    'reference' => $pickup->reference_no,
+                    'status' => $pickup->statusLabel(),
+                    'customer' => $pickup->customer->name ?? 'N/A',
+                    'products_count' => $pickup->items->count(),
+                    'products_list' => $itemList,
+                    'delivery_type' => 'Pickup',
+                    'delivery_time' => $pickup->pickup_time ? $pickup->pickup_time->format('H:i') : null,
+                    'time_sensitive' => (bool) $pickup->time_sensitive,
+                ];
+            });
+
+        // Orders and pickups share one calendar.
+        $calendarEvents = $calendarEvents->concat($pickupEvents)->values();
+
         // Upcoming deliveries (today and tomorrow) - exclude delivered and canceled orders
-        $upcomingDeliveries = Order::with(['customer', 'products'])
+        $upcomingDeliveries = $this->orders()->with(['customer', 'products'])
             ->whereNotNull('pickup_delivery_date')
             ->whereBetween('pickup_delivery_date', [Carbon::now()->startOfDay(), Carbon::now()->addDay()->endOfDay()])
             ->whereNotIn('status', ['delivered', 'canceled'])
@@ -169,7 +280,7 @@ class HomeController extends Controller
             ->get();
             
         // Overdue deliveries - orders that passed delivery date but not delivered
-        $overdueDeliveries = Order::with(['customer', 'products'])
+        $overdueDeliveries = $this->orders()->with(['customer', 'products'])
             ->whereNotNull('pickup_delivery_date')
             ->where('pickup_delivery_date', '<', Carbon::now())
             ->whereNotIn('status', ['delivered', 'cancel'])

@@ -89,26 +89,6 @@ class OrderController extends Controller
     }
 
     /**
-     * Display a listing of the resource.
-     */
-    public function index()
-    {
-        $orders = Order::with(['customer', 'user'])->latest()->paginate(10);
-        return view('orders.index', compact('orders'));
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        $customers = Customer::all();
-        $products = Product::where('stock', '>', 0)->get();
-        $users = User::all();
-        return view('orders.create', compact('customers', 'products', 'users'));
-    }
-
-    /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
@@ -204,119 +184,6 @@ class OrderController extends Controller
             return redirect()->back()
                 ->withInput()
                 ->with('error', 'Error creating order: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(Order $order)
-    {
-        $order->load(['customer', 'user', 'products']);
-        return view('orders.show', compact('order'));
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Order $order)
-    {
-        $order->load('products');
-        $customers = Customer::all();
-        $products = Product::all();
-        $users = User::all();
-        return view('orders.edit', compact('order', 'customers', 'products', 'users'));
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, Order $order)
-    {
-        // Begin transaction
-        DB::beginTransaction();
-
-        try {
-            $validator = Validator::make($request->all(), [
-                'customer_id' => 'required|exists:customers,id',
-                'user_id' => 'required|exists:users,id',
-                'order_placed_by' => 'nullable|string|max:255',
-                'order_date' => 'required|date',
-                'order_time' => 'nullable|date_format:H:i',
-                'status' => 'required|in:new,preparing,ready,delivered,cancel',
-                'delivery_type' => 'required|in:delivery,self_collect',
-                'pickup_delivery_date' => 'required|date',
-                'pickup_delivery_time' => 'required|date_format:H:i',
-                'remarks' => 'nullable|string',
-                'products' => 'nullable|array',
-                'products.*.id' => 'nullable|exists:products,id',
-                'products.*.quantity' => 'nullable|integer|min:1',
-            ]);
-
-            if ($validator->fails()) {
-                return redirect()->back()
-                    ->withErrors($validator)
-                    ->withInput();
-            }
-
-            // Update order details
-            $order->update([
-                'customer_id' => $request->customer_id,
-                'user_id' => $request->user_id,
-                'order_placed_by' => $request->order_placed_by,
-                'order_date' => $request->order_date,
-                'order_time' => $request->order_time,
-                'status' => $request->status,
-                'delivery_type' => $request->delivery_type,
-                'pickup_delivery_date' => $request->pickup_delivery_date,
-                'pickup_delivery_time' => $request->pickup_delivery_time,
-                'remarks' => $request->remarks,
-            ]);
-
-            // If products are being updated
-            if ($request->has('products')) {
-                // First, return stock for all current products
-                foreach ($order->products as $existingProduct) {
-                    $product = Product::findOrFail($existingProduct->id);
-                    $product->stock += $existingProduct->pivot->quantity;
-                    $product->save();
-                }
-
-                // Clear existing products
-                $order->products()->detach();
-
-                // Add new products and decrease stock
-                foreach ($request->products as $productData) {
-                    $product = Product::findOrFail($productData['id']);
-
-                    // Check if enough stock
-                    if ($product->stock < $productData['quantity']) {
-                        throw new \Exception("Not enough stock for product: {$product->name}. Available: {$product->stock}");
-                    }
-
-                    // Decrease stock
-                    $product->stock -= $productData['quantity'];
-                    $product->save();
-
-                    // Create single record with actual quantity
-                    $order->products()->attach($product->id, [
-                        'quantity' => $productData['quantity'],
-                        'batch_number' => $productData['batch_number'] ?? null,
-                        'patient_name' => $productData['patient_name'] ?? null,
-                        'remarks' => $productData['remarks'] ?? null,
-                    ]);
-                }
-            }
-
-            DB::commit();
-
-            return redirect()->route('orderdetails', $order->id)
-                ->with('success', 'Order updated successfully.');
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return redirect()->back()
-                ->withInput()
-                ->with('error', 'Error updating order: ' . $e->getMessage());
         }
     }
 
@@ -579,7 +446,7 @@ class OrderController extends Controller
     {
         $customers = Customer::all();
         // Pickup items (Blood Tube etc.) live in the same table but are never ordered.
-        $products = Product::forOrders()->where('stock', '>', 0)->get();
+        $products = Product::forOrders()->active()->where('stock', '>', 0)->get();
         $dispatchers = User::all();
         $blockedDates = BlockedDate::getBlockedDatesArray();
         $blockedDatesWithReasons = BlockedDate::getBlockedDatesWithReasons();
@@ -1775,6 +1642,10 @@ class OrderController extends Controller
     {
         $request->validate([
             'status' => 'required|in:new,preparing,ready,delivered,cancel',
+            // Cancelling needs a reason, same as a pickup.
+            'cancel_reason' => 'required_if:status,cancel|nullable|string|max:1000',
+        ], [
+            'cancel_reason.required_if' => 'Please enter a reason for cancelling this order.',
         ]);
 
         // Begin transaction
@@ -1804,6 +1675,12 @@ class OrderController extends Controller
                 if (!$order->item_ready_at) {
                     $order->item_ready_at = now();
                 }
+            }
+
+            if ($request->status === 'cancel' && $order->status !== 'cancel') {
+                $order->cancel_reason = $request->cancel_reason;
+                $order->cancelled_by = $user->username;
+                $order->cancelled_at = now();
             }
 
             if ($request->status === 'delivered' && $order->status !== 'delivered') {

@@ -24,6 +24,11 @@ class ProductController extends Controller
             });
         }
         
+        // Filter by Active / Inactive
+        if (in_array($request->get('status'), ['active', 'inactive'], true)) {
+            $query->where('is_active', $request->get('status') === 'active');
+        }
+
         // Filter by what the product is used for (Order / Pickup)
         if (array_key_exists($request->get('usage_type'), Product::USAGE_TYPES)) {
             $query->where('usage_type', $request->get('usage_type'));
@@ -45,14 +50,6 @@ class ProductController extends Controller
         
         $products = $query->latest()->paginate(10);
         return view('settings.product', compact('products'));
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        return view('products.create');
     }
 
 
@@ -89,6 +86,7 @@ class ProductController extends Controller
             // Sent as a hidden 0 plus the checkbox, so an unticked box still
             // arrives as a value.
             'requires_patient_details' => $pickupSkip . '|nullable|boolean',
+            'is_active'                => 'nullable|boolean',
         ];
     }
 
@@ -106,6 +104,7 @@ class ProductController extends Controller
             // list on the order side.
             return [
                 'usage_type'               => Product::USAGE_PICKUP,
+                'is_active'                => (bool) ($validated['is_active'] ?? true),
                 'name'                     => $validated['name'],
                 'description'              => $validated['description'],
                 'price'                    => 0,
@@ -117,6 +116,7 @@ class ProductController extends Controller
 
         return [
             'usage_type'               => Product::USAGE_ORDER,
+            'is_active'                => (bool) ($validated['is_active'] ?? true),
             'name'                     => $validated['name'],
             'description'              => $validated['description'],
             'price'                    => $validated['price'],
@@ -146,29 +146,6 @@ class ProductController extends Controller
     }
 
     /**
-     * Display the specified resource.
-     */
-    public function show(Product $product)
-    {
-        // Check if the request wants JSON
-        if (request()->expectsJson() || request()->ajax()) {
-            return response()->json($product);
-        }
-        
-        // Otherwise show the HTML view
-        $product->load('orders');
-        return view('products.show', compact('product'));
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Product $product)
-    {
-        return view('products.edit', compact('product'));
-    }
-
-    /**
      * Update the specified resource in storage.
      */
     public function update(Request $request, Product $product)
@@ -192,11 +169,28 @@ class ProductController extends Controller
      */
     public function destroy(Product $product)
     {
-        // pickup_items.product_id is ON DELETE RESTRICT, so deleting a product
-        // already used on a pickup would fail with a database error.
-        if (\App\Models\PickupItem::where('product_id', $product->id)->exists()) {
+        // A product that appears on any order or pickup cannot be deleted.
+        // order_product.product_id is ON DELETE CASCADE, so deleting the product
+        // silently strips the item from past orders and they end up showing
+        // "No products". pickup_items.product_id is ON DELETE RESTRICT, which
+        // would instead fail with a database error.
+        $orderCount = \Illuminate\Support\Facades\DB::table('order_product')
+            ->where('product_id', $product->id)
+            ->count();
+        $pickupCount = \App\Models\PickupItem::where('product_id', $product->id)->count();
+
+        if ($orderCount > 0 || $pickupCount > 0) {
+            $used = [];
+            if ($orderCount > 0) {
+                $used[] = $orderCount . ' order' . ($orderCount > 1 ? 's' : '');
+            }
+            if ($pickupCount > 0) {
+                $used[] = $pickupCount . ' pickup' . ($pickupCount > 1 ? 's' : '');
+            }
+
             return redirect()->route('products.index')
-                ->with('error', 'This product is used on existing pickups and cannot be deleted.');
+                ->with('error', 'This product is used on ' . implode(' and ', $used)
+                    . ' and cannot be deleted. Deleting it would remove the item from those records.');
         }
 
         $product->delete();

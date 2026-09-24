@@ -590,6 +590,20 @@
                 }
             @endphp
 
+            @if($order->status === 'cancel' && $order->cancel_reason)
+                <div class="alert alert-danger mb-0">
+                    <i class="ri-close-circle-line me-2 align-middle"></i>
+                    <strong>Order cancelled</strong>
+                    @if($order->cancelled_by)
+                        by {{ $order->cancelled_by }}
+                    @endif
+                    @if($order->cancelled_at)
+                        on {{ $order->cancelled_at->format('d M, Y h:i A') }}
+                    @endif
+                    <div class="mt-1" style="white-space: pre-line;">Reason: {{ $order->cancel_reason }}</div>
+                </div>
+            @endif
+
             @if($order->status != 'delivered' && $order->status != 'cancel')
                 <div class="text-center">
                     @if($order->status === 'new')
@@ -1729,6 +1743,11 @@
                         <div class="alert alert-warning mb-3">
                             <i class="ri-information-line me-2"></i> Are you sure you want to cancel this order? This action
                             cannot be undone.
+                        </div>
+                        <div class="mb-0">
+                            <label for="cancel_reason" class="form-label">Reason <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="cancel_reason" name="cancel_reason" rows="3"
+                                      placeholder="Why is this order being cancelled?" maxlength="1000" required></textarea>
                         </div>
                         <input type="hidden" name="status" value="cancel">
                     </div>

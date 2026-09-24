@@ -151,7 +151,7 @@ class PickupController extends Controller
     public function create()
     {
         $customers = Customer::orderBy('name')->get();
-        $products = Product::forPickups()->orderBy('name')->get();
+        $products = Product::forPickups()->active()->orderBy('name')->get();
         $blockedDates = BlockedDate::getBlockedDatesArray();
 
         return view('pickups.newpickup', compact('customers', 'products', 'blockedDates'));
@@ -337,9 +337,9 @@ class PickupController extends Controller
             $status = 'all';
         }
 
+        // Newest reference first (PU-2026-0007, 0006, ...), matching how Order
+        // History lists by order number.
         $pickups = $query
-            ->orderByDesc('pickup_date')
-            ->orderByDesc('pickup_time')
             ->orderByDesc('id')
             ->paginate(15)
             ->withQueryString();

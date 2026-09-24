@@ -84,6 +84,14 @@
                         </div>
                         <!--end col-->
                         <div class="col-xxl-2 col-sm-4">
+                            <select class="form-select" name="status">
+                                <option value="">All Products</option>
+                                <option value="active" @selected(request('status') === 'active')>Active only</option>
+                                <option value="inactive" @selected(request('status') === 'inactive')>Inactive only</option>
+                            </select>
+                        </div>
+                        <!--end col-->
+                        <div class="col-xxl-2 col-sm-4">
                             <select class="form-select" name="usage_type">
                                 <option value="">All Types</option>
                                 @foreach (\App\Models\Product::USAGE_TYPES as $typeKey => $typeLabel)
@@ -138,6 +146,7 @@
                                 <th class="sort" data-sort="id">ID</th>
                                 <th class="sort" data-sort="name">Name</th>
                                 <th class="sort" data-sort="usage_type">Type</th>
+                                <th class="sort" data-sort="status">Status</th>
                                 <th class="sort" data-sort="description">Description</th>
                                 @if(auth()->user()->role == 'superadmin')
                                 <th class="sort" data-sort="price">Price</th>
@@ -161,6 +170,13 @@
                                         <span class="badge bg-info-subtle text-info">Pickup</span>
                                     @else
                                         <span class="badge bg-success-subtle text-success">Order</span>
+                                    @endif
+                                </td>
+                                <td class="status">
+                                    @if($product->is_active)
+                                        <span class="badge bg-success">Active</span>
+                                    @else
+                                        <span class="badge bg-secondary">Inactive</span>
                                     @endif
                                 </td>
                                 <td class="description">{{ $product->description }}</td>
@@ -208,6 +224,17 @@
                                                         @endforeach
                                                     </select>
                                                     <div class="form-text">Order products appear on New Order. Pickup items appear on New Pickup only and have no price, stock or COA.</div>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Status</label>
+                                                    <input type="hidden" name="is_active" value="0">
+                                                    <div class="form-check form-switch">
+                                                        <input class="form-check-input" type="checkbox" role="switch"
+                                                               id="edit-is-active-{{ $product->id }}" name="is_active" value="1"
+                                                               @checked($product->is_active)>
+                                                        <label class="form-check-label" for="edit-is-active-{{ $product->id }}">Active</label>
+                                                    </div>
+                                                    <div class="form-text">Switch off for a product no longer in use. It stops appearing on New Order and New Pickup, but stays here and keeps its history on past records.</div>
                                                 </div>
                                                 <div class="mb-3">
                                                     <label for="edit-name-{{ $product->id }}" class="form-label">Name</label>
@@ -319,7 +346,7 @@
                             <!-- End Delete Product Modal -->
                             @empty
                             <tr>
-                                <td colspan="{{ auth()->user()->role == 'superadmin' ? '7' : '5' }}" class="text-center">No products found</td>
+                                <td colspan="{{ auth()->user()->role == 'superadmin' ? '8' : '6' }}" class="text-center">No products found</td>
                             </tr>
                             @endforelse
                         </tbody>
@@ -364,6 +391,16 @@
                             @endforeach
                         </select>
                         <div class="form-text">Order products appear on New Order. Pickup items appear on New Pickup only and have no price, stock or COA.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <input type="hidden" name="is_active" value="0">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="is_active" name="is_active" value="1"
+                                   @checked(old('is_active', true))>
+                            <label class="form-check-label" for="is_active">Active</label>
+                        </div>
+                        <div class="form-text">Switch off for a product no longer in use. It stops appearing on New Order and New Pickup, but stays here and keeps its history on past records.</div>
                     </div>
                     <div class="mb-3">
                         <label for="name" class="form-label">Name</label>
