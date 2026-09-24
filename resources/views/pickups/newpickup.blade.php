@@ -191,7 +191,7 @@
                             <div class="tab-pane fade" id="pills-pickup" role="tabpanel" aria-labelledby="pills-pickup-tab">
                                 <div>
                                     <h5 class="mb-1">Pickup Details</h5>
-                                    <p class="text-muted mb-4">What to collect, where and when</p>
+                                    <p class="text-muted mb-4">What to collect, where and when. All items in one pickup must be for the same department.</p>
                                 </div>
 
                                 @php
@@ -214,7 +214,7 @@
                                                 <select class="form-select item-product" name="items[{{ $i }}][product_id]" required>
                                                     <option value="">Select item...</option>
                                                     @foreach($products as $product)
-                                                        <option value="{{ $product->id }}" @selected((string) ($line['product_id'] ?? '') === (string) $product->id)>{{ $product->name }}</option>
+                                                        <option value="{{ $product->id }}" data-department="{{ $product->receiving_department }}" @selected((string) ($line['product_id'] ?? '') === (string) $product->id)>{{ $product->name }}</option>
                                                     @endforeach
                                                 </select>
                                                 <div class="invalid-feedback">Please select an item</div>
@@ -322,7 +322,7 @@
                     <select class="form-select item-product" name="items[__INDEX__][product_id]" required>
                         <option value="">Select item...</option>
                         @foreach($products as $product)
-                            <option value="{{ $product->id }}">{{ $product->name }}</option>
+                            <option value="{{ $product->id }}" data-department="{{ $product->receiving_department }}">{{ $product->name }}</option>
                         @endforeach
                     </select>
                     <div class="invalid-feedback">Please select an item</div>
@@ -484,6 +484,18 @@ document.addEventListener('DOMContentLoaded', function () {
         if (pickupInvalid) {
             e.preventDefault();
             pickupInvalid.focus();
+            return;
+        }
+        // One department per pickup. The server checks this too.
+        const departments = new Set();
+        itemsWrap.querySelectorAll('.item-product').forEach(function (sel) {
+            const opt = sel.options[sel.selectedIndex];
+            if (opt && opt.value && opt.dataset.department) departments.add(opt.dataset.department);
+        });
+        if (departments.size > 1) {
+            e.preventDefault();
+            alert('A pickup can only hold items for one department (' + Array.from(departments).join(' and ')
+                + '). Create a separate pickup for each department.');
             return;
         }
         const btn = document.getElementById('savePickupBtn');

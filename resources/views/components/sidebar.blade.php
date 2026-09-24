@@ -42,6 +42,9 @@
                     </a>
                 </li>
 
+                {{-- Order section - hidden for pickup-only departments (Genomics),
+                     whatever their role. The routes are closed as well. --}}
+                @if(Auth::user()->canAccessOrders())
                 <li class="menu-title"><span data-key="t-order">Order</span></li>
                 
                 {{-- New Order - Available for Medical Affairs, Business Development, admin, and superadmin --}}
@@ -61,29 +64,38 @@
                         <i class="las la-history"></i> <span data-key="t-order-history">Order History</span>
                     </a>
                 </li>
+                @endif
 
                 {{-- Pickup - every authenticated user can request a pickup.
                      Pickup History is scoped in PickupController (MA/BD see own). --}}
                 @php
                     // Badge on Pickup History: what is waiting for this user.
                     //   Dispatcher      -> New + On the Way (to take / to collect)
-                    //   Receiving dept  -> Picked Up (on the way in)
+                    //   Receiving dept  -> Picked Up for its own items (Cell Lab / Genomics)
                     //   admin/superadmin-> all three
-                    $pickupBadgeStatuses = [];
+                    $pickupBadgeCount = 0;
                     $sidebarUser = auth()->user();
                     if ($sidebarUser) {
                         $isPickupAdmin = in_array($sidebarUser->role, ['admin', 'superadmin'], true);
-                        if ($isPickupAdmin || $sidebarUser->department === \App\Models\Pickup::DESPATCH_DEPARTMENT) {
-                            $pickupBadgeStatuses[] = \App\Models\Pickup::STATUS_NEW;
-                            $pickupBadgeStatuses[] = \App\Models\Pickup::STATUS_ON_THE_WAY;
-                        }
-                        if ($isPickupAdmin || in_array($sidebarUser->department, \App\Models\Pickup::RECEIVING_DEPARTMENTS, true)) {
-                            $pickupBadgeStatuses[] = \App\Models\Pickup::STATUS_PICKED_UP;
+                        $isDespatch = $sidebarUser->department === \App\Models\Pickup::DESPATCH_DEPARTMENT;
+                        $isReceiving = in_array($sidebarUser->department, \App\Models\Pickup::RECEIVING_DEPARTMENTS, true);
+
+                        if ($isPickupAdmin || $isDespatch || $isReceiving) {
+                            $pickupBadgeCount = \App\Models\Pickup::where(function ($q) use ($isPickupAdmin, $isDespatch, $isReceiving, $sidebarUser) {
+                                if ($isPickupAdmin || $isDespatch) {
+                                    $q->orWhereIn('status', [\App\Models\Pickup::STATUS_NEW, \App\Models\Pickup::STATUS_ON_THE_WAY]);
+                                }
+                                if ($isPickupAdmin) {
+                                    $q->orWhere('status', \App\Models\Pickup::STATUS_PICKED_UP);
+                                } elseif ($isReceiving) {
+                                    $q->orWhere(function ($r) use ($sidebarUser) {
+                                        $r->where('status', \App\Models\Pickup::STATUS_PICKED_UP)
+                                          ->where('receiving_department', $sidebarUser->department);
+                                    });
+                                }
+                            })->count();
                         }
                     }
-                    $pickupBadgeCount = $pickupBadgeStatuses
-                        ? \App\Models\Pickup::whereIn('status', $pickupBadgeStatuses)->count()
-                        : 0;
                 @endphp
                 <li class="menu-title"><span data-key="t-pickup">Pickup</span></li>
                 <li class="nav-item">
@@ -117,23 +129,28 @@
                     </a>
                 </li>
                 {{-- Customer - open to every authenticated user. Staff need to
-                     look up a customer and see what orders have gone to them. --}}
+                     look up a customer and see what orders have gone to them.
+                     Not for users (non-admin) in a pickup-only department. --}}
+                @if(Auth::user()->canAccessCustomers())
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="{{ route('customers.index') }}">
                         <i class="las la-users"></i> <span data-key="t-customer">Customer</span>
                     </a>
                 </li>
+                @endif
                 @if(Auth::user()->role == 'admin' || Auth::user()->role == 'superadmin')
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="{{ route('products.index') }}">
                         <i class="las la-box-open"></i> <span data-key="t-product">Product</span>
                     </a>
                 </li>
+                @if(Auth::user()->canManageBlockedDates())
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="{{ route('blocked-dates.index') }}">
                         <i class="las la-calendar-times"></i> <span data-key="t-blocked-dates">Blocked Dates</span>
                     </a>
                 </li>
+                @endif
                 @if(Auth::user()->role == 'superadmin')
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="{{ route('logs.index') }}">

@@ -61,9 +61,6 @@
                                 <a href="{{ route('customers.create') }}" class="btn btn-success add-btn">
                                     <i class="ri-add-line align-bottom me-1"></i> Add Customer
                                 </a>
-                                <button type="button" class="btn btn-secondary">
-                                    <i class="ri-file-download-line align-bottom me-1"></i> Import
-                                </button>
                                 <button class="btn btn-soft-danger" id="remove-actions">
                                     <i class="ri-delete-bin-2-line"></i>
                                 </button>

@@ -87,6 +87,13 @@ class ProductController extends Controller
             // arrives as a value.
             'requires_patient_details' => $pickupSkip . '|nullable|boolean',
             'is_active'                => 'nullable|boolean',
+            // Pickup items only: which department receives them at MGRC. It
+            // decides who gets the Picked Up email and who marks Received.
+            'receiving_department'     => [
+                'exclude_unless:usage_type,' . Product::USAGE_PICKUP,
+                'required',
+                \Illuminate\Validation\Rule::in(\App\Models\Pickup::RECEIVING_DEPARTMENTS),
+            ],
         ];
     }
 
@@ -111,6 +118,7 @@ class ProductController extends Controller
                 'stock'                    => 0,
                 'coa_template'             => 'none',
                 'requires_patient_details' => false,
+                'receiving_department'     => $validated['receiving_department'],
             ];
         }
 
@@ -123,6 +131,7 @@ class ProductController extends Controller
             'stock'                    => $validated['stock'],
             'coa_template'             => $validated['coa_template'] ?? '',
             'requires_patient_details' => (bool) ($validated['requires_patient_details'] ?? false),
+            'receiving_department'     => null,
         ];
     }
 

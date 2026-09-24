@@ -189,6 +189,8 @@
         </div>
 
         <!-- Orders Section -->
+        {{-- Hidden for pickup-only departments (Genomics): order pages are closed to them. --}}
+        @if(Auth::user()->canAccessOrders())
         <div class="card">
             <div class="card-header">
                 <div class="d-flex align-items-center">
@@ -278,6 +280,7 @@
                 </div>
             </div>
         </div>
+        @endif
     </div>
 
     <div class="col-xl-3">

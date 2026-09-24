@@ -63,8 +63,6 @@
                                 id="create-btn" data-bs-target="#addProductModal">
                                 <i class="ri-add-line align-bottom me-1"></i> Add Product
                             </button>
-                            <button type="button" class="btn btn-secondary"><i
-                                    class="ri-file-download-line align-bottom me-1"></i> Import</button>
                             <button class="btn btn-soft-danger" id="remove-actions"><i
                                     class="ri-delete-bin-2-line"></i></button>
                         </div>
@@ -168,6 +166,7 @@
                                 <td class="usage_type">
                                     @if($product->isPickupItem())
                                         <span class="badge bg-info-subtle text-info">Pickup</span>
+                                        <div class="text-muted fs-11 mt-1">{{ $product->receiving_department ?: 'No department set' }}</div>
                                     @else
                                         <span class="badge bg-success-subtle text-success">Order</span>
                                     @endif
@@ -244,6 +243,19 @@
                                                     <label for="edit-description-{{ $product->id }}" class="form-label">Description</label>
                                                     <textarea class="form-control" id="edit-description-{{ $product->id }}" name="description" rows="3" required>{{ $product->description }}</textarea>
                                                 </div>
+                                                <div class="js-pickup-only">
+                                                <div class="mb-3">
+                                                    <label for="edit-receiving-department-{{ $product->id }}" class="form-label">Receiving Department</label>
+                                                    <select class="form-select" id="edit-receiving-department-{{ $product->id }}" name="receiving_department" required>
+                                                        <option value="" disabled @selected(!$product->receiving_department)>— Select a department —</option>
+                                                        @foreach (\App\Models\Pickup::RECEIVING_DEPARTMENTS as $receivingDept)
+                                                            <option value="{{ $receivingDept }}" @selected($product->receiving_department === $receivingDept)>{{ $receivingDept }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                    <div class="form-text">This department gets the Picked Up email and marks the pickup Received.</div>
+                                                </div>
+                                                </div>
+                                                <!-- end js-pickup-only -->
                                                 <div class="js-order-only">
                                                 <div class="mb-3">
                                                     <label for="edit-price-{{ $product->id }}" class="form-label">Price</label>
@@ -410,6 +422,19 @@
                         <label for="description" class="form-label">Description</label>
                         <textarea class="form-control" id="description" name="description" rows="3" required>{{ old('description') }}</textarea>
                     </div>
+                    <div class="js-pickup-only">
+                    <div class="mb-3">
+                        <label for="receiving_department" class="form-label">Receiving Department</label>
+                        <select class="form-select" id="receiving_department" name="receiving_department" required>
+                            <option value="" disabled @selected(!old('receiving_department'))>— Select a department —</option>
+                            @foreach (\App\Models\Pickup::RECEIVING_DEPARTMENTS as $receivingDept)
+                                <option value="{{ $receivingDept }}" @selected(old('receiving_department') === $receivingDept)>{{ $receivingDept }}</option>
+                            @endforeach
+                        </select>
+                        <div class="form-text">This department gets the Picked Up email and marks the pickup Received.</div>
+                    </div>
+                    </div>
+                    <!-- end js-pickup-only -->
                     <div class="js-order-only">
                     <div class="mb-3">
                         <label for="price" class="form-label">Price</label>
@@ -488,7 +513,8 @@
             });
         }
 
-        // Type = Pickup hides Price, Stock, COA Template and Order Form Behaviour.
+        // Type = Pickup hides Price, Stock, COA Template and Order Form Behaviour,
+        // and shows Receiving Department. Type = Order does the opposite.
         // Hidden fields are also disabled so their "required" does not block
         // submit and they are not posted; the controller sets fixed values.
         //
@@ -499,6 +525,7 @@
         document.querySelectorAll('.js-usage-type').forEach(function (select) {
             const container = select.closest('.modal-body');
             const orderOnly = container ? container.querySelector('.js-order-only') : null;
+            const pickupOnly = container ? container.querySelector('.js-pickup-only') : null;
             if (!orderOnly) return;
 
             const apply = function () {
@@ -507,6 +534,12 @@
                 orderOnly.querySelectorAll('input, select, textarea').forEach(function (el) {
                     el.disabled = isPickup;
                 });
+                if (pickupOnly) {
+                    pickupOnly.style.display = isPickup ? '' : 'none';
+                    pickupOnly.querySelectorAll('input, select, textarea').forEach(function (el) {
+                        el.disabled = !isPickup;
+                    });
+                }
             };
 
             select.addEventListener('change', apply);

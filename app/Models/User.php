@@ -22,6 +22,14 @@ class User extends Authenticatable
     public const DEPT_QUALITY_ASSURANCE = 'Quality Assurance';
 
     /**
+     * Departments that only work on pickups. They have no access to New Order,
+     * Order History, order details or Blocked Dates. Their admins can still
+     * open Product and Customer; their users cannot open Customer.
+     * superadmin is never restricted, whatever department it is in.
+     */
+    public const PICKUP_ONLY_DEPARTMENTS = ['Genomics'];
+
+    /**
      * Case-insensitive department match, so a row saved with different casing
      * does not silently lose access.
      */
@@ -38,6 +46,39 @@ class User extends Authenticatable
     public function isQualityAssurance(): bool
     {
         return $this->isDepartment(self::DEPT_QUALITY_ASSURANCE);
+    }
+
+    public function isPickupOnly(): bool
+    {
+        if ($this->role === 'superadmin') {
+            return false;
+        }
+
+        foreach (self::PICKUP_ONLY_DEPARTMENTS as $department) {
+            if ($this->isDepartment($department)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** New Order, Order History, order details, PRF and COA pages. */
+    public function canAccessOrders(): bool
+    {
+        return !$this->isPickupOnly();
+    }
+
+    /** Customer pages: everyone, except users (not admins) in a pickup-only department. */
+    public function canAccessCustomers(): bool
+    {
+        return !$this->isPickupOnly() || $this->role === 'admin';
+    }
+
+    /** Blocked Dates: admin and superadmin, but not admins in a pickup-only department. */
+    public function canManageBlockedDates(): bool
+    {
+        return in_array($this->role, ['admin', 'superadmin'], true) && !$this->isPickupOnly();
     }
 
     /**

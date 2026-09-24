@@ -49,6 +49,7 @@ class Pickup extends Model
         'time_sensitive',
         'remarks',
         'status',
+        'receiving_department',
     ];
 
     protected $casts = [
@@ -66,11 +67,18 @@ class Pickup extends Model
     public const DESPATCH_DEPARTMENT = 'Dispatcher';
 
     /**
-     * Department that takes the blood tubes in at MGRC and marks a pickup
-     * Received. admin and superadmin can always do it as well.
-     * CONFIRM WITH MANAGEMENT: change this list if it is not Cell Lab.
+     * Departments that can take pickup items in at MGRC. Each pickup product
+     * is set to one of these in Product (products.receiving_department), and
+     * the pickup copies it on creation (pickups.receiving_department).
+     *
+     * That department alone gets the Picked Up email and marks the pickup
+     * Received. admin and superadmin can always mark Received as well.
+     * A pickup holds items for one department only; mixed requests are
+     * refused on New Pickup.
+     *
+     * To add a department: add it here. It then appears in the Product form.
      */
-    public const RECEIVING_DEPARTMENTS = ['Cell Lab'];
+    public const RECEIVING_DEPARTMENTS = ['Cell Lab', 'Genomics'];
 
     /** Folder under storage/app/public and public/storage for pickup photos. */
     public const PHOTO_DIR = 'pickup_photos';

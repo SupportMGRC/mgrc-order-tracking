@@ -1,6 +1,11 @@
 @extends('layouts.master')
 
 @section('content')
+    @php
+        // Pickup-only departments (Genomics) see the dashboard, but order pages
+        // are closed to them, so order links render as plain text here.
+        $canOpenOrders = Auth::user()->canAccessOrders();
+    @endphp
     <!-- Dashboard Content Container -->
     <div id="dashboard-content" class="dashboard-content-container">
     <!-- start page title -->
@@ -44,7 +49,9 @@
                     <div class="d-flex align-items-end justify-content-between mt-4">
                         <div>
                             <h4 class="fs-22 fw-semibold ff-secondary mb-4"><span class="counter-value" data-target="{{ $todayNewCount }}">{{ $todayNewCount }}</span></h4>
+                            @if($canOpenOrders)
                             <a href="{{ route('orderhistory', ['status' => 'new']) }}" class="text-decoration-underline">View all new orders</a>
+                            @endif
                         </div>
                         <div class="avatar-sm flex-shrink-0">
                             <span class="avatar-title bg-soft-info rounded fs-3">
@@ -67,7 +74,9 @@
                     <div class="d-flex align-items-end justify-content-between mt-4">
                         <div>
                             <h4 class="fs-22 fw-semibold ff-secondary mb-4"><span class="counter-value" data-target="{{ $todayPreparingCount }}">{{ $todayPreparingCount }}</span></h4>
+                            @if($canOpenOrders)
                             <a href="{{ route('orderhistory', ['status' => 'preparing']) }}" class="text-decoration-underline">View preparing orders</a>
+                            @endif
                         </div>
                         <div class="avatar-sm flex-shrink-0">
                             <span class="avatar-title bg-soft-warning rounded fs-3">
@@ -90,7 +99,9 @@
                     <div class="d-flex align-items-end justify-content-between mt-4">
                         <div>
                             <h4 class="fs-22 fw-semibold ff-secondary mb-4"><span class="counter-value" data-target="{{ $todayReadyCount }}">{{ $todayReadyCount }}</span></h4>
+                            @if($canOpenOrders)
                             <a href="{{ route('orderhistory', ['status' => 'ready']) }}" class="text-decoration-underline">View ready orders</a>
+                            @endif
                         </div>
                         <div class="avatar-sm flex-shrink-0">
                             <span class="avatar-title bg-soft-primary rounded fs-3">
@@ -113,7 +124,9 @@
                     <div class="d-flex align-items-end justify-content-between mt-4">
                         <div>
                             <h4 class="fs-22 fw-semibold ff-secondary mb-4"><span class="counter-value" data-target="{{ $todayDeliveredCount }}">{{ $todayDeliveredCount }}</span></h4>
+                            @if($canOpenOrders)
                             <a href="{{ route('orderhistory', ['status' => 'delivered']) }}" class="text-decoration-underline">View delivered orders</a>
+                            @endif
                         </div>
                         <div class="avatar-sm flex-shrink-0">
                             <span class="avatar-title bg-soft-success rounded fs-3">
@@ -210,9 +223,13 @@
                                         <div class="flex-grow-1 ms-2">
                                             <div class="d-flex align-items-center justify-content-between">
                                                 <h6 class="mb-1 fs-13">
+                                                    @if($canOpenOrders)
                                                     <a href="{{ route('orderdetails', $delivery->id) }}" class="text-dark">
                                                         Order #{{ $delivery->id }}
                                                     </a>
+                                                    @else
+                                                        Order #{{ $delivery->id }}
+                                                    @endif
                                                 </h6>
                                                 @if($delivery->time_sensitive)
                                                     <span class="badge bg-danger">Time Sensitive</span>
@@ -268,9 +285,13 @@
                                         <div class="flex-grow-1 ms-2">
                                             <div class="d-flex align-items-center justify-content-between">
                                                 <h6 class="mb-1 fs-13">
+                                                    @if($canOpenOrders)
                                                     <a href="{{ route('orderdetails', $overdue->id) }}" class="text-dark">
                                                         Order #{{ $overdue->id }}
                                                     </a>
+                                                    @else
+                                                        Order #{{ $overdue->id }}
+                                                    @endif
                                                     <span class="text-danger fs-11 ms-2">
                                                         <i class="ri-error-warning-line"></i> OVERDUE
                                                     </span>
@@ -615,6 +636,7 @@
             var calendarEl = document.getElementById('delivery-calendar');
             var calendarEvents = @json($calendarEvents);
             var orderDetailsBaseUrl = @json(url('/orderdetails'));
+            var canOpenOrders = @json($canOpenOrders);
             var pickupDetailsBaseUrl = @json(url('/pickupdetails'));
             
             var calendar = new FullCalendar.Calendar(calendarEl, {
@@ -630,10 +652,13 @@
                 fixedWeekCount: false,
                 events: calendarEvents,
                 eventClick: function(info) {
-                    // Orders and pickups share the calendar, so send each to its own page
-                    var baseUrl = info.event.extendedProps.record_type === 'pickup'
-                        ? pickupDetailsBaseUrl
-                        : orderDetailsBaseUrl;
+                    // Orders and pickups share the calendar, so send each to its own page.
+                    // Pickup-only departments cannot open orders: order events do nothing.
+                    var isPickup = info.event.extendedProps.record_type === 'pickup';
+                    if (!isPickup && !canOpenOrders) {
+                        return;
+                    }
+                    var baseUrl = isPickup ? pickupDetailsBaseUrl : orderDetailsBaseUrl;
                     window.location.href = baseUrl + '/' + info.event.id;
                 },
                 eventDidMount: function(info) {

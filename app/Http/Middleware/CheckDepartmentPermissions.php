@@ -58,6 +58,26 @@ class CheckDepartmentPermissions
                     return redirect()->route('dashboard')->with('error', 'Only Medical Affairs, Business Development departments, and Administrators can access the new order page.');
                 }
                 break;
+
+            // Pickup-only departments (Genomics). 403 rather than a redirect,
+            // same as EnsureUserRole: the page exists, access is refused.
+            case 'orders':
+                if (!$user->canAccessOrders()) {
+                    abort(403, 'Unauthorized access');
+                }
+                break;
+
+            case 'customers':
+                if (!$user->canAccessCustomers()) {
+                    abort(403, 'Unauthorized access');
+                }
+                break;
+
+            case 'blocked-dates':
+                if (!$user->canManageBlockedDates()) {
+                    abort(403, 'Unauthorized access');
+                }
+                break;
         }
 
         return $next($request);

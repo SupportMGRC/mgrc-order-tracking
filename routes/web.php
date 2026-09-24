@@ -61,14 +61,18 @@ Route::middleware(['auth'])->group(function () {
     // Open to every authenticated user: staff look up a customer to see what
     // orders have been sent to them, and add new customers the same way they
     // already can from the New Order form.
+    // Exception: users (not admins) in a pickup-only department (Genomics)
+    // have no Customer page. See User::canAccessCustomers().
     //
     // Delete stays admin-only. orders.customer_id is ON DELETE CASCADE, so
     // removing a customer also removes every order attached to them, with no
     // undo. That is not something to expose on a page everyone can reach.
-    Route::resource('customers', CustomerController::class)->except(['destroy']);
-    Route::delete('customers/{customer}', [CustomerController::class, 'destroy'])
-        ->name('customers.destroy')
-        ->middleware('role:admin');
+    Route::middleware('department.permission:customers')->group(function () {
+        Route::resource('customers', CustomerController::class)->except(['destroy']);
+        Route::delete('customers/{customer}', [CustomerController::class, 'destroy'])
+            ->name('customers.destroy')
+            ->middleware('role:admin');
+    });
 
     // Product routes. Gated at the route so the URL itself is closed, not just
     // the sidebar link — superadmin passes through 'role:admin' automatically.
@@ -80,38 +84,78 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('role:admin');
 
     // Order routes
-    // Order pages live on their own routes (/orderhistory, /orderdetails, /neworder).
-    // Only the two resource actions still wired to a form are kept: store() for
-    // the legacy Create Order modal in Order History, destroy() for Delete Order.
-    // Paths avoid /orders and /orders/{id}: a GET to those returned a 405
-    // "method not allowed" debug page instead of a plain 404.
-    Route::post('/orders/store', [OrderController::class, 'store'])->name('orders.store');
-    Route::delete('/orders/{order}/delete', [OrderController::class, 'destroy'])->name('orders.destroy');
-    Route::post('/orders/{order}/batch', [OrderController::class, 'updateBatch'])->name('orders.batch');
-    Route::post('/orders/{order}/delivery', [OrderController::class, 'updateDelivery'])->name('orders.delivery')->middleware('department.permission:mark-delivered');
-    Route::get('/orders/{order}/batch/edit', [OrderController::class, 'editBatchInfo'])->name('orders.batch.edit');
-    Route::post('/orders/{order}/batch/update', [OrderController::class, 'updateBatchInfo'])->name('orders.batch.update');
-    Route::patch('/orders/{order}/status', [OrderController::class, 'updateStatus'])->name('orders.update.status');
+    // Every order page and action sits in this group. Pickup-only departments
+    // (Genomics) are refused here, whatever their role. See User::canAccessOrders().
+    Route::middleware('department.permission:orders')->group(function () {
+        // Order pages live on their own routes (/orderhistory, /orderdetails, /neworder).
+        // Only the two resource actions still wired to a form are kept: store() for
+        // the legacy Create Order modal in Order History, destroy() for Delete Order.
+        // Paths avoid /orders and /orders/{id}: a GET to those returned a 405
+        // "method not allowed" debug page instead of a plain 404.
+        Route::post('/orders/store', [OrderController::class, 'store'])->name('orders.store');
+        Route::delete('/orders/{order}/delete', [OrderController::class, 'destroy'])->name('orders.destroy');
+        Route::post('/orders/{order}/batch', [OrderController::class, 'updateBatch'])->name('orders.batch');
+        Route::post('/orders/{order}/delivery', [OrderController::class, 'updateDelivery'])->name('orders.delivery')->middleware('department.permission:mark-delivered');
+        Route::get('/orders/{order}/batch/edit', [OrderController::class, 'editBatchInfo'])->name('orders.batch.edit');
+        Route::post('/orders/{order}/batch/update', [OrderController::class, 'updateBatchInfo'])->name('orders.batch.update');
+        Route::patch('/orders/{order}/status', [OrderController::class, 'updateStatus'])->name('orders.update.status');
 
-    // Additional route with middleware for marking orders as ready
-    Route::patch('/orders/{order}/mark-ready', [OrderController::class, 'markReady'])->name('orders.mark.ready')->middleware('department.permission:mark-ready');
+        // Additional route with middleware for marking orders as ready
+        Route::patch('/orders/{order}/mark-ready', [OrderController::class, 'markReady'])->name('orders.mark.ready')->middleware('department.permission:mark-ready');
 
-    // New route for updating individual product ready status
-    Route::patch('/orders/{order}/products/{product}/ready', [OrderController::class, 'updateProductReadyStatus'])->name('orders.product.ready');
+        // New route for updating individual product ready status
+        Route::patch('/orders/{order}/products/{product}/ready', [OrderController::class, 'updateProductReadyStatus'])->name('orders.product.ready');
 
-    // Legacy routes - keeping them for backward compatibility
-    Route::get('/neworder', [OrderController::class, 'newOrder'])->name('neworder')->middleware('department.permission:view-new-order');
-    Route::post('/neworder', [OrderController::class, 'storeNewOrder'])->name('neworder.store')->middleware('department.permission:view-new-order');
+        // Legacy routes - keeping them for backward compatibility
+        Route::get('/neworder', [OrderController::class, 'newOrder'])->name('neworder')->middleware('department.permission:view-new-order');
+        Route::post('/neworder', [OrderController::class, 'storeNewOrder'])->name('neworder.store')->middleware('department.permission:view-new-order');
 
-    // Customer API route for AJAX
-    // Removed: /api/customers/{id} returned a full customer record as raw JSON
-    // with no role check. No caller existed anywhere in the codebase, so it was
-    // dead from an unfinished feature. Restore from git history if something
-    // outside the repo turns out to need it.
+        // Customer API route for AJAX
+        // Removed: /api/customers/{id} returned a full customer record as raw JSON
+        // with no role check. No caller existed anywhere in the codebase, so it was
+        // dead from an unfinished feature. Restore from git history if something
+        // outside the repo turns out to need it.
 
+        Route::get('/orderhistory', [OrderController::class, 'history'])->name('orderhistory');
+        Route::get('/orderdetails/{order}', [OrderController::class, 'orderDetails'])->name('orderdetails');
 
-    Route::get('/orderhistory', [OrderController::class, 'history'])->name('orderhistory');
-    Route::get('/orderdetails/{order}', [OrderController::class, 'orderDetails'])->name('orderdetails');
+        // PRF routes - for displaying and printing PRF forms
+        Route::get('/orders/{order}/prf', [PRFController::class, 'show'])->name('orders.prf');
+        Route::get('/orders/{order}/prf/print', [PRFController::class, 'print'])->name('orders.prf.print');
+
+        // COA routes - unified view for displaying and editing Certificate of Analysis
+        // Both routes now use the same coa-editor.blade.php view with toggle edit mode
+        Route::get('/orders/{order}/coa/{product}', [OrderController::class, 'showCOA'])->name('orders.coa');
+        Route::get('/orders/{order}/coa/{product}/edit', [OrderController::class, 'editCOA'])->name('orders.coa.edit');
+        Route::post('/orders/{order}/coa/{product}/save', [OrderController::class, 'saveCOA'])->name('orders.coa.save');
+
+        // COA enhancement: template selection + morphology image upload
+        Route::post('/orders/{order}/coa/{product}/template', [OrderController::class, 'chooseCoaTemplate'])->name('orders.coa.template');
+        Route::post('/orders/{order}/coa/{product}/morphology', [OrderController::class, 'uploadCoaMorphology'])->name('orders.coa.morphology');
+
+        // COA supplied by QC for products that have no generated template.
+        Route::post('/orders/{order}/coa/{product}/document', [OrderController::class, 'uploadCoaDocument'])->name('orders.coa.document');
+
+        Route::post('order-batch-update/{id}', [OrderController::class, 'updateBatch'])->name('orders.update.batch');
+
+        Route::post('/orders/{order}/upload-photo', [OrderController::class, 'uploadOrderPhoto'])->name('orders.upload.photo');
+
+        Route::delete('/orders/{order}/delete-photo', [OrderController::class, 'deleteOrderPhoto'])->name('orders.delete.photo');
+
+        Route::delete('/orders/{order}/delete-photo/{filename}', [OrderController::class, 'deleteSpecificOrderPhoto'])->name('orders.delete.specific.photo');
+
+        // Delivery Photo Routes
+        Route::post('/orders/{order}/upload-delivery-photo', [OrderController::class, 'uploadDeliveryPhoto'])->name('orders.upload.delivery-photo');
+        Route::delete('/orders/{order}/delete-delivery-photo/{filename}', [OrderController::class, 'deleteDeliveryPhoto'])->name('orders.delete.delivery-photo');
+
+        Route::get('/orders/{order}/mark-ready-link', [OrderController::class, 'markReadyLink'])->name('orders.mark.ready.link');
+
+        // Order delivery date/time update route
+        Route::patch('/orders/{id}/delivery-datetime', [OrderController::class, 'updateDeliveryDateTime'])->name('orders.delivery.datetime.update');
+
+        // Order signature route
+        Route::post('/orders/{order}/signature', [OrderController::class, 'saveSignature'])->name('orders.signature');
+    });
 
     // Pickup routes - any authenticated user can request a pickup.
     // History and details are scoped in PickupController (MA/BD see own only).
@@ -124,59 +168,24 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/pickupdetails/{pickup}/received', [PickupController::class, 'markReceived'])->name('pickups.received');
     Route::post('/pickupdetails/{pickup}/cancel', [PickupController::class, 'cancel'])->name('pickups.cancel');
 
-    // PRF routes - for displaying and printing PRF forms
-    Route::get('/orders/{order}/prf', [PRFController::class, 'show'])->name('orders.prf');
-    Route::get('/orders/{order}/prf/print', [PRFController::class, 'print'])->name('orders.prf.print');
-
-    // COA routes - unified view for displaying and editing Certificate of Analysis
-    // Both routes now use the same coa-editor.blade.php view with toggle edit mode
-    Route::get('/orders/{order}/coa/{product}', [OrderController::class, 'showCOA'])->name('orders.coa');
-    Route::get('/orders/{order}/coa/{product}/edit', [OrderController::class, 'editCOA'])->name('orders.coa.edit');
-    Route::post('/orders/{order}/coa/{product}/save', [OrderController::class, 'saveCOA'])->name('orders.coa.save');
-
-    // COA enhancement: template selection + morphology image upload
-    Route::post('/orders/{order}/coa/{product}/template', [OrderController::class, 'chooseCoaTemplate'])->name('orders.coa.template');
-    Route::post('/orders/{order}/coa/{product}/morphology', [OrderController::class, 'uploadCoaMorphology'])->name('orders.coa.morphology');
-
-    // COA supplied by QC for products that have no generated template.
-    Route::post('/orders/{order}/coa/{product}/document', [OrderController::class, 'uploadCoaDocument'])->name('orders.coa.document');
-
     Route::get('/calendar', [HomeController::class, 'index'])->name('dashboard');
     Route::post('/dashboard/verify-password', [HomeController::class, 'verifyPassword'])->name('dashboard.verify.password');
     Route::post('/dashboard/lock', [HomeController::class, 'lockDashboard'])->name('dashboard.lock');
-
-    Route::post('order-batch-update/{id}', [OrderController::class, 'updateBatch'])->name('orders.update.batch');
-
-
 
     // Profile Routes
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
 
-    Route::post('/orders/{order}/upload-photo', [OrderController::class, 'uploadOrderPhoto'])->name('orders.upload.photo');
-
-    Route::delete('/orders/{order}/delete-photo', [OrderController::class, 'deleteOrderPhoto'])->name('orders.delete.photo');
-
-    Route::delete('/orders/{order}/delete-photo/{filename}', [OrderController::class, 'deleteSpecificOrderPhoto'])->name('orders.delete.specific.photo');
-
-    // Delivery Photo Routes
-    Route::post('/orders/{order}/upload-delivery-photo', [OrderController::class, 'uploadDeliveryPhoto'])->name('orders.upload.delivery-photo');
-    Route::delete('/orders/{order}/delete-delivery-photo/{filename}', [OrderController::class, 'deleteDeliveryPhoto'])->name('orders.delete.delivery-photo');
-
-    Route::get('/orders/{order}/mark-ready-link', [OrderController::class, 'markReadyLink'])->name('orders.mark.ready.link');
-
-    // Order delivery date/time update route
-    Route::patch('/orders/{id}/delivery-datetime', [OrderController::class, 'updateDeliveryDateTime'])->name('orders.delivery.datetime.update');
-
-    // Order signature route
-    Route::post('/orders/{order}/signature', [OrderController::class, 'saveSignature'])->name('orders.signature');
-
     // Blocked Dates Management Routes
-    Route::get('/settings/blocked-dates', [BlockedDateController::class, 'index'])->name('blocked-dates.index');
-    Route::post('/settings/blocked-dates', [BlockedDateController::class, 'store'])->name('blocked-dates.store');
-    Route::put('/settings/blocked-dates/{blockedDate}', [BlockedDateController::class, 'update'])->name('blocked-dates.update');
-    Route::patch('/settings/blocked-dates/{blockedDate}/toggle', [BlockedDateController::class, 'toggle'])->name('blocked-dates.toggle');
-    Route::delete('/settings/blocked-dates/{blockedDate}', [BlockedDateController::class, 'destroy'])->name('blocked-dates.destroy');
+    // BlockedDateController also limits these to admin/superadmin. The route
+    // middleware adds the pickup-only department rule (Genomics admins).
+    Route::middleware('department.permission:blocked-dates')->group(function () {
+        Route::get('/settings/blocked-dates', [BlockedDateController::class, 'index'])->name('blocked-dates.index');
+        Route::post('/settings/blocked-dates', [BlockedDateController::class, 'store'])->name('blocked-dates.store');
+        Route::put('/settings/blocked-dates/{blockedDate}', [BlockedDateController::class, 'update'])->name('blocked-dates.update');
+        Route::patch('/settings/blocked-dates/{blockedDate}/toggle', [BlockedDateController::class, 'toggle'])->name('blocked-dates.toggle');
+        Route::delete('/settings/blocked-dates/{blockedDate}', [BlockedDateController::class, 'destroy'])->name('blocked-dates.destroy');
+    });
 
     // API route for getting blocked dates (accessible to all authenticated users)
     Route::get('/api/blocked-dates', [BlockedDateController::class, 'api'])->name('blocked-dates.api');

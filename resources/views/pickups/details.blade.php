@@ -170,6 +170,7 @@
             <div class="card">
                 <div class="card-header">
                     <h5 class="card-title mb-0">Pickup {{ $pickup->reference_no }}</h5>
+                    <p class="text-muted mb-0 mt-1">Receiving department: <span class="fw-medium">{{ $pickup->receiving_department ?: '-' }}</span></p>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">

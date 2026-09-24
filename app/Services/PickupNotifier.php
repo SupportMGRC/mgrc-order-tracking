@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\Mail;
  *
  *   new         -> requester (confirmation) + Dispatcher department
  *   on_the_way  -> requester + Dispatcher department
- *   picked_up   -> requester + Dispatcher department + receiving department
+ *   picked_up   -> requester + Dispatcher department + the pickup's receiving
+ *                  department (Cell Lab or Genomics, from the items)
  *   received    -> requester + Dispatcher department
  *   cancelled   -> requester + Dispatcher department
  *
@@ -102,9 +103,14 @@ class PickupNotifier
 
         $list = $requester->merge($despatchers);
 
-        // Receiving department also hears when tubes are on their way in.
+        // The receiving department also hears when items are on their way in.
+        // Only the department the items belong to, not every receiving department.
         if ($event === Pickup::STATUS_PICKED_UP) {
-            $list = $list->merge($this->department(Pickup::RECEIVING_DEPARTMENTS));
+            if (!empty($pickup->receiving_department)) {
+                $list = $list->merge($this->department([$pickup->receiving_department]));
+            } else {
+                Log::warning("Pickup {$pickup->reference_no}: no receiving department set, Picked Up email not sent to any receiving department.");
+            }
         }
 
         return $list;

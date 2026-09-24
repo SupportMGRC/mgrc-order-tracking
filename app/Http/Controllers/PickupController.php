@@ -53,9 +53,18 @@ class PickupController extends Controller
         return Auth::user()->department === Pickup::DESPATCH_DEPARTMENT || $this->isAdmin();
     }
 
-    private function canReceive(): bool
+    /**
+     * Only the department the pickup's items belong to (set per product in
+     * Product, copied onto the pickup when it is created), or admin/superadmin.
+     */
+    private function canReceive(Pickup $pickup): bool
     {
-        return in_array(Auth::user()->department, Pickup::RECEIVING_DEPARTMENTS, true) || $this->isAdmin();
+        if ($this->isAdmin()) {
+            return true;
+        }
+
+        return !empty($pickup->receiving_department)
+            && Auth::user()->isDepartment($pickup->receiving_department);
     }
 
     /**
@@ -79,7 +88,7 @@ class PickupController extends Controller
         return [
             'on_the_way' => $pickup->status === Pickup::STATUS_NEW && $this->canDespatch(),
             'picked_up'  => $pickup->status === Pickup::STATUS_ON_THE_WAY && $this->canDespatch(),
-            'received'   => $pickup->status === Pickup::STATUS_PICKED_UP && $this->canReceive(),
+            'received'   => $pickup->status === Pickup::STATUS_PICKED_UP && $this->canReceive($pickup),
             'cancel'     => $this->canCancel($pickup),
         ];
     }
@@ -213,6 +222,31 @@ class PickupController extends Controller
 
         $data = $validator->validated();
 
+        // One receiving department per pickup, taken from the items. Every
+        // pickup item must have a department set in Product.
+        $lineProducts = Product::whereIn('id', collect($data['items'])->pluck('product_id')->unique())
+            ->get(['id', 'name', 'receiving_department']);
+
+        $unassigned = $lineProducts->filter(fn (Product $p) => empty($p->receiving_department));
+        if ($unassigned->isNotEmpty()) {
+            return redirect()->back()->withInput()->with(
+                'error',
+                'No receiving department is set for: ' . $unassigned->pluck('name')->implode(', ')
+                    . '. Ask an admin to set it in Product.'
+            );
+        }
+
+        $departments = $lineProducts->pluck('receiving_department')->unique()->values();
+        if ($departments->count() > 1) {
+            return redirect()->back()->withInput()->with(
+                'error',
+                'A pickup can only hold items for one department. This request has items for '
+                    . $departments->implode(' and ') . '. Create a separate pickup for each department.'
+            );
+        }
+
+        $receivingDepartment = $departments->first();
+
         DB::beginTransaction();
 
         try {
@@ -245,6 +279,7 @@ class PickupController extends Controller
                 'time_sensitive' => $request->boolean('time_sensitive'),
                 'remarks'        => $data['remarks'] ?? null,
                 'status'         => Pickup::STATUS_NEW,
+                'receiving_department' => $receivingDepartment,
             ]));
 
             $pickup->reference_no = Pickup::makeReference($pickup->id, $pickup->created_at);
@@ -469,8 +504,9 @@ class PickupController extends Controller
      */
     public function markReceived(Request $request, Pickup $pickup)
     {
-        if (!$this->canReceive()) {
-            return redirect()->back()->with('error', 'Only the receiving department or an admin can mark a pickup as Received.');
+        if (!$this->canReceive($pickup)) {
+            return redirect()->back()->with('error', 'Only the ' . ($pickup->receiving_department ?: 'receiving')
+                . ' department or an admin can mark this pickup as Received.');
         }
 
         $pickedUpAt = $pickup->picked_up_at ? $pickup->picked_up_at->format('Y-m-d H:i') : null;

@@ -23,6 +23,7 @@ class Product extends Model
         'requires_patient_details',
         'usage_type',
         'is_active',
+        'receiving_department',
     ];
 
     /**
