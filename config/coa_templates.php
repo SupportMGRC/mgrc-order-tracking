@@ -8,6 +8,10 @@
 | One entry per Certificate of Analysis template:
 |
 |   pdf          blank template in public/assets/pdf/
+|   certificate_pages
+|                pages printed on MGRC certificate paper (inside the gold
+|                border). Every other page prints at its designed size, centred
+|                on plain A4. Also drives the Printing note in the editor.
 |   editable     fields QC may fill in, in display order
 |   coordinates  where each value is drawn
 |   products     product names this template applies to (the live mapping
@@ -20,16 +24,34 @@
 |
 |   x          left edge, % of page width      (align 'left')
 |   cx         centre,    % of page width      (align 'center')
+|   right      right edge, % of page width     (align 'right')
 |   y          BASELINE,  % of page height     (always)
 |   font_size  points, at the template's own 540 x 780 scale
-|   font       'Calibri', 'Calibri-Bold', 'Mistral'
-|   align      'left' (default) or 'center'
+|   font       'Calibri', 'Calibri-Bold', or 'HerrVonMuellerhoff' for the
+|              signature. That font is bundled in public/assets/fonts. Mistral,
+|              used before, is an Office font that cannot be shipped, so it
+|              only ever rendered on PCs that happened to have Office.
+|   align      'left' (default), 'center' or 'right'
+|   color      text colour, default black. The signature block is navy
+|              #17375E, the same as the printed labels around it.
 |   dx, dy     fine nudge in POINTS. dx + is right, dy + is down. Use these to
 |              settle a value rather than re-measuring a whole template.
 |   max_w      optional width budget, % of page. If the value is wider the font
-|              is stepped down until it fits. Set on coa_number, whose length
-|              varies per batch and which would otherwise run over the right
-|              rule and off the certificate border.
+|              is stepped down until it fits. Set on coa_number (label and
+|              number together) and on the signature.
+|   suffix, suffix_sup
+|              drawn after the value: viable_cell_count prints '25 x 10' with a
+|              superscript '6' or '9', so QC types only the number. The
+|              superscript size and lift match the one QC's templates printed.
+|
+| coa_number is drawn as a group: the bold navy 'label', a 'gap' in points,
+| then the number, right-aligned so the number always ends at 'right'. This
+| matches QC's right-aligned text box. The label used to be printed on the
+| PDF, which could not move with the length of the number, so it was removed
+| from every base PDF.
+|
+| signatory_name is the printed name under the signature rule. Both it and
+| the signature come from the name stored when the COA is submitted.
 |
 | morphology_slot keys:
 |
@@ -50,8 +72,9 @@
 | lets QC pick the wording per order from the COA editor. Quality staff may
 | switch within a group; moving an order to another group stays superadmin.
 |
-| Measured from the blank PDFs by work/measure.py. Do not hand-edit: if a
-| template is revised, re-run the measurement and regenerate this file.
+| Coordinates were measured from the blank PDFs (text baselines read with
+| pdfplumber). If a template is revised, re-measure rather than nudging by
+| eye; dx/dy are there for small settling only.
 */
 
 return [
@@ -63,12 +86,14 @@ return [
         'page_width' => 540.0,
         'page_height' => 780.0,
         'coord_schema' => 2,
-        'editable' => ['coa_number', 'patient_name', 'batch_number', 'product_date', 'signature_date', 'immuno_cd73', 'immuno_cd90', 'immuno_cd105', 'immuno_negative'],
+        'certificate_pages' => [1],
+        'editable' => ['coa_number', 'patient_name', 'batch_number', 'product_date', 'viable_cell_count', 'signature_date', 'immuno_cd73', 'immuno_cd90', 'immuno_cd105', 'immuno_negative'],
         'field_labels' => [
             'coa_number' => 'COA No.',
             'patient_name' => 'Patient Name',
             'batch_number' => 'Batch Number',
             'product_date' => 'Date',
+            'viable_cell_count' => 'Viable Cell Count',
             'signature_date' => 'Signature Date',
             'immuno_cd73' => 'CD73+ (%)',
             'immuno_cd90' => 'CD90+ (%)',
@@ -79,12 +104,16 @@ return [
         'coordinates' => [
             'page1' => [
                 'coa_number' => [
-                    'x' => 71.68,
+                    'align' => 'right',
+                    'right' => 92.37,
                     'y' => 18.073,
-                    'max_w' => 22.667,
                     'font_size' => 6.96,
                     'font' => 'Calibri',
-                    'align' => 'left',
+                    'label' => 'COA No:',
+                    'label_font' => 'Calibri-Bold',
+                    'label_color' => '#17375E',
+                    'gap' => 6.5,
+                    'max_w' => 40.0,
                 ],
                 'patient_name' => [
                     'x' => 42.493,
@@ -107,30 +136,54 @@ return [
                     'font' => 'Calibri',
                     'align' => 'left',
                 ],
+                'viable_cell_count' => [
+                    'x' => 42.493,
+                    'y' => 36.764,
+                    'font_size' => 9.96,
+                    'font' => 'Calibri',
+                    'align' => 'left',
+                    'suffix' => ' x 10',
+                    'suffix_sup' => '6',
+                ],
                 'signature_date' => [
                     'x' => 46.82,
                     'y' => 85.664,
                     'font_size' => 11.04,
                     'font' => 'Calibri-Bold',
                     'align' => 'left',
+                    'color' => '#17375E',
                     'dx' => 1.5,
                 ],
                 'signature' => [
                     'cx' => 50.369,
                     'y' => 79.703,
-                    'font_size' => 20.04,
-                    'font' => 'Mistral',
+                    'font_size' => 24.0,
+                    'font' => 'HerrVonMuellerhoff',
                     'align' => 'center',
+                    'color' => '#17375E',
+                    'max_w' => 26.26,
+                ],
+                'signatory_name' => [
+                    'cx' => 50.369,
+                    'y' => 82.279,
+                    'font_size' => 11.04,
+                    'font' => 'Calibri-Bold',
+                    'align' => 'center',
+                    'color' => '#17375E',
                 ],
             ],
             'page2' => [
                 'coa_number' => [
-                    'x' => 74.063,
+                    'align' => 'right',
+                    'right' => 94.759,
                     'y' => 8.081,
-                    'max_w' => 20.722,
                     'font_size' => 6.96,
                     'font' => 'Calibri',
-                    'align' => 'left',
+                    'label' => 'COA No:',
+                    'label_font' => 'Calibri-Bold',
+                    'label_color' => '#17375E',
+                    'gap' => 6.5,
+                    'max_w' => 45.0,
                 ],
                 'immuno_cd73' => [
                     'cx' => 64.459,
@@ -184,6 +237,7 @@ return [
         'page_width' => 540.0,
         'page_height' => 780.0,
         'coord_schema' => 2,
+        'certificate_pages' => [1],
         'editable' => ['coa_number', 'patient_name', 'batch_number', 'product_date', 'viable_cell_count', 'signature_date', 'immuno_cd73', 'immuno_cd90', 'immuno_cd105', 'immuno_negative'],
         'field_labels' => [
             'coa_number' => 'COA No.',
@@ -201,13 +255,16 @@ return [
         'coordinates' => [
             'page1' => [
                 'coa_number' => [
-                    'x' => 66.53,
+                    'align' => 'right',
+                    'right' => 92.556,
                     'y' => 18.11,
-                    'max_w' => 27.817,
                     'font_size' => 6.96,
                     'font' => 'Calibri',
-                    'align' => 'left',
-                    'dx' => 2.0,
+                    'label' => 'COA No:',
+                    'label_font' => 'Calibri-Bold',
+                    'label_color' => '#17375E',
+                    'gap' => 6.5,
+                    'max_w' => 40.0,
                 ],
                 'patient_name' => [
                     'x' => 42.959,
@@ -236,32 +293,55 @@ return [
                     'font_size' => 9.96,
                     'font' => 'Calibri',
                     'align' => 'left',
+                    'suffix' => ' x 10',
+                    'suffix_sup' => '6',
                 ],
+                // 'Date:' is drawn with the date and the pair centred under
+                // the signature, as QC's centred text box does. The label was
+                // printed centred on its own on this PDF, so a filled-in date
+                // sat off to the right; it was removed from the PDF.
                 'signature_date' => [
-                    'x' => 52.031,
+                    'align' => 'center',
+                    'cx' => 49.731,
                     'y' => 93.09,
                     'font_size' => 11.04,
                     'font' => 'Calibri-Bold',
-                    'align' => 'left',
-                    'dx' => 1.5,
+                    'color' => '#17375E',
+                    'label' => 'Date:',
+                    'label_font' => 'Calibri-Bold',
+                    'label_color' => '#17375E',
+                    'gap' => 2.3,
                 ],
                 'signature' => [
                     'cx' => 49.725,
                     'y' => 87.036,
-                    'font_size' => 20.04,
-                    'font' => 'Mistral',
+                    'font_size' => 24.0,
+                    'font' => 'HerrVonMuellerhoff',
                     'align' => 'center',
+                    'color' => '#17375E',
+                    'max_w' => 26.26,
+                ],
+                'signatory_name' => [
+                    'cx' => 49.725,
+                    'y' => 89.705,
+                    'font_size' => 11.04,
+                    'font' => 'Calibri-Bold',
+                    'align' => 'center',
+                    'color' => '#17375E',
                 ],
             ],
             'page2' => [
                 'coa_number' => [
-                    'x' => 66.326,
+                    'align' => 'right',
+                    'right' => 94.759,
                     'y' => 8.037,
-                    'max_w' => 28.459,
                     'font_size' => 6.96,
                     'font' => 'Calibri',
-                    'align' => 'left',
-                    'dx' => 2.0,
+                    'label' => 'COA No:',
+                    'label_font' => 'Calibri-Bold',
+                    'label_color' => '#17375E',
+                    'gap' => 6.5,
+                    'max_w' => 45.0,
                 ],
                 'immuno_cd73' => [
                     'cx' => 18.685,
@@ -314,6 +394,7 @@ return [
         'page_width' => 540.0,
         'page_height' => 780.0,
         'coord_schema' => 2,
+        'certificate_pages' => [1],
         'editable' => ['coa_number', 'batch_number', 'product_date', 'viable_cell_count', 'signature_date', 'immuno_cd73', 'immuno_cd90', 'immuno_cd105', 'immuno_negative'],
         'field_labels' => [
             'coa_number' => 'COA No.',
@@ -330,13 +411,16 @@ return [
         'coordinates' => [
             'page1' => [
                 'coa_number' => [
-                    'x' => 66.53,
+                    'align' => 'right',
+                    'right' => 92.556,
                     'y' => 18.11,
-                    'max_w' => 27.817,
                     'font_size' => 6.96,
                     'font' => 'Calibri',
-                    'align' => 'left',
-                    'dx' => 2.0,
+                    'label' => 'COA No:',
+                    'label_font' => 'Calibri-Bold',
+                    'label_color' => '#17375E',
+                    'gap' => 6.5,
+                    'max_w' => 40.0,
                 ],
                 'batch_number' => [
                     'x' => 42.959,
@@ -358,32 +442,55 @@ return [
                     'font_size' => 9.96,
                     'font' => 'Calibri',
                     'align' => 'left',
+                    'suffix' => ' x 10',
+                    'suffix_sup' => '6',
                 ],
+                // 'Date:' is drawn with the date and the pair centred under
+                // the signature, as QC's centred text box does. The label was
+                // printed centred on its own on this PDF, so a filled-in date
+                // sat off to the right; it was removed from the PDF.
                 'signature_date' => [
-                    'x' => 52.031,
+                    'align' => 'center',
+                    'cx' => 49.731,
                     'y' => 93.09,
                     'font_size' => 11.04,
                     'font' => 'Calibri-Bold',
-                    'align' => 'left',
-                    'dx' => 1.5,
+                    'color' => '#17375E',
+                    'label' => 'Date:',
+                    'label_font' => 'Calibri-Bold',
+                    'label_color' => '#17375E',
+                    'gap' => 2.3,
                 ],
                 'signature' => [
                     'cx' => 49.725,
                     'y' => 87.036,
-                    'font_size' => 20.04,
-                    'font' => 'Mistral',
+                    'font_size' => 24.0,
+                    'font' => 'HerrVonMuellerhoff',
                     'align' => 'center',
+                    'color' => '#17375E',
+                    'max_w' => 26.26,
+                ],
+                'signatory_name' => [
+                    'cx' => 49.725,
+                    'y' => 89.705,
+                    'font_size' => 11.04,
+                    'font' => 'Calibri-Bold',
+                    'align' => 'center',
+                    'color' => '#17375E',
                 ],
             ],
             'page2' => [
                 'coa_number' => [
-                    'x' => 66.326,
+                    'align' => 'right',
+                    'right' => 94.759,
                     'y' => 8.037,
-                    'max_w' => 28.459,
                     'font_size' => 6.96,
                     'font' => 'Calibri',
-                    'align' => 'left',
-                    'dx' => 2.0,
+                    'label' => 'COA No:',
+                    'label_font' => 'Calibri-Bold',
+                    'label_color' => '#17375E',
+                    'gap' => 6.5,
+                    'max_w' => 45.0,
                 ],
                 'immuno_cd73' => [
                     'cx' => 18.685,
@@ -433,6 +540,7 @@ return [
         'page_width' => 540.0,
         'page_height' => 780.0,
         'coord_schema' => 2,
+        'certificate_pages' => [1],
         'editable' => ['coa_number', 'patient_name', 'product_date', 'viable_cell_count', 'signature_date'],
         'field_labels' => [
             'coa_number' => 'COA No.',
@@ -445,12 +553,16 @@ return [
         'coordinates' => [
             'page1' => [
                 'coa_number' => [
-                    'x' => 80.75,
+                    'align' => 'right',
+                    'right' => 92.556,
                     'y' => 18.073,
-                    'max_w' => 13.596,
                     'font_size' => 6.96,
                     'font' => 'Calibri',
-                    'align' => 'left',
+                    'label' => 'COA No:',
+                    'label_font' => 'Calibri-Bold',
+                    'label_color' => '#17375E',
+                    'gap' => 6.5,
+                    'max_w' => 40.0,
                 ],
                 'patient_name' => [
                     'x' => 41.854,
@@ -472,6 +584,8 @@ return [
                     'font_size' => 9.96,
                     'font' => 'Calibri',
                     'align' => 'left',
+                    'suffix' => ' x 10',
+                    'suffix_sup' => '9',
                 ],
                 'signature_date' => [
                     'x' => 48.067,
@@ -479,23 +593,38 @@ return [
                     'font_size' => 11.04,
                     'font' => 'Calibri-Bold',
                     'align' => 'left',
+                    'color' => '#17375E',
                 ],
                 'signature' => [
                     'cx' => 50.939,
                     'y' => 87.554,
-                    'font_size' => 20.04,
-                    'font' => 'Mistral',
+                    'font_size' => 24.0,
+                    'font' => 'HerrVonMuellerhoff',
                     'align' => 'center',
+                    'color' => '#17375E',
+                    'max_w' => 26.26,
+                ],
+                'signatory_name' => [
+                    'cx' => 50.939,
+                    'y' => 90.191,
+                    'font_size' => 11.04,
+                    'font' => 'Calibri-Bold',
+                    'align' => 'center',
+                    'color' => '#17375E',
                 ],
             ],
             'page2' => [
                 'coa_number' => [
-                    'x' => 82.952,
+                    'align' => 'right',
+                    'right' => 94.759,
                     'y' => 8.081,
-                    'max_w' => 11.833,
                     'font_size' => 6.96,
                     'font' => 'Calibri',
-                    'align' => 'left',
+                    'label' => 'COA No:',
+                    'label_font' => 'Calibri-Bold',
+                    'label_color' => '#17375E',
+                    'gap' => 6.5,
+                    'max_w' => 45.0,
                 ],
                 'morphology_slot' => [
                     'x' => 6.183,
@@ -517,6 +646,7 @@ return [
         'page_width' => 540.0,
         'page_height' => 780.0,
         'coord_schema' => 2,
+        'certificate_pages' => [1],
         'editable' => ['coa_number', 'patient_name', 'product_date', 'viable_cell_count', 'signature_date'],
         'field_labels' => [
             'coa_number' => 'COA No.',
@@ -529,12 +659,16 @@ return [
         'coordinates' => [
             'page1' => [
                 'coa_number' => [
-                    'x' => 80.928,
+                    'align' => 'right',
+                    'right' => 92.556,
                     'y' => 18.073,
-                    'max_w' => 13.419,
                     'font_size' => 6.96,
                     'font' => 'Calibri',
-                    'align' => 'left',
+                    'label' => 'COA No:',
+                    'label_font' => 'Calibri-Bold',
+                    'label_color' => '#17375E',
+                    'gap' => 6.5,
+                    'max_w' => 40.0,
                 ],
                 'patient_name' => [
                     'x' => 42.493,
@@ -556,6 +690,8 @@ return [
                     'font_size' => 9.96,
                     'font' => 'Calibri',
                     'align' => 'left',
+                    'suffix' => ' x 10',
+                    'suffix_sup' => '9',
                 ],
                 'signature_date' => [
                     'x' => 45.578,
@@ -563,24 +699,39 @@ return [
                     'font_size' => 11.04,
                     'font' => 'Calibri-Bold',
                     'align' => 'left',
+                    'color' => '#17375E',
                     'dx' => 1.5,
                 ],
                 'signature' => [
                     'cx' => 49.724,
                     'y' => 87.022,
-                    'font_size' => 20.04,
-                    'font' => 'Mistral',
+                    'font_size' => 24.0,
+                    'font' => 'HerrVonMuellerhoff',
                     'align' => 'center',
+                    'color' => '#17375E',
+                    'max_w' => 26.26,
+                ],
+                'signatory_name' => [
+                    'cx' => 49.724,
+                    'y' => 89.69,
+                    'font_size' => 11.04,
+                    'font' => 'Calibri-Bold',
+                    'align' => 'center',
+                    'color' => '#17375E',
                 ],
             ],
             'page2' => [
                 'coa_number' => [
-                    'x' => 83.13,
+                    'align' => 'right',
+                    'right' => 94.759,
                     'y' => 8.081,
-                    'max_w' => 11.656,
                     'font_size' => 6.96,
                     'font' => 'Calibri',
-                    'align' => 'left',
+                    'label' => 'COA No:',
+                    'label_font' => 'Calibri-Bold',
+                    'label_color' => '#17375E',
+                    'gap' => 6.5,
+                    'max_w' => 45.0,
                 ],
                 'morphology_slot' => [
                     'x' => 6.183,
@@ -602,6 +753,7 @@ return [
         'page_width' => 540.0,
         'page_height' => 780.0,
         'coord_schema' => 2,
+        'certificate_pages' => [],
         'editable' => ['coa_number', 'batch_number', 'mfg_date', 'expiry_date', 'signature_date'],
         'field_labels' => [
             'coa_number' => 'COA No.',
@@ -614,12 +766,16 @@ return [
         'coordinates' => [
             'page1' => [
                 'coa_number' => [
-                    'x' => 78.35,
+                    'align' => 'right',
+                    'right' => 92.556,
                     'y' => 18.073,
-                    'max_w' => 15.996,
                     'font_size' => 6.96,
                     'font' => 'Calibri',
-                    'align' => 'left',
+                    'label' => 'COA No:',
+                    'label_font' => 'Calibri-Bold',
+                    'label_color' => '#17375E',
+                    'gap' => 6.5,
+                    'max_w' => 40.0,
                 ],
                 'batch_number' => [
                     'x' => 42.493,
@@ -648,24 +804,39 @@ return [
                     'font_size' => 11.04,
                     'font' => 'Calibri-Bold',
                     'align' => 'left',
+                    'color' => '#17375E',
                     'dx' => 1.5,
                 ],
                 'signature' => [
                     'cx' => 49.724,
                     'y' => 87.022,
-                    'font_size' => 20.04,
-                    'font' => 'Mistral',
+                    'font_size' => 24.0,
+                    'font' => 'HerrVonMuellerhoff',
                     'align' => 'center',
+                    'color' => '#17375E',
+                    'max_w' => 26.26,
+                ],
+                'signatory_name' => [
+                    'cx' => 49.724,
+                    'y' => 89.69,
+                    'font_size' => 11.04,
+                    'font' => 'Calibri-Bold',
+                    'align' => 'center',
+                    'color' => '#17375E',
                 ],
             ],
             'page2' => [
                 'coa_number' => [
-                    'x' => 79.241,
+                    'align' => 'right',
+                    'right' => 94.759,
                     'y' => 8.081,
-                    'max_w' => 15.544,
                     'font_size' => 6.96,
                     'font' => 'Calibri',
-                    'align' => 'left',
+                    'label' => 'COA No:',
+                    'label_font' => 'Calibri-Bold',
+                    'label_color' => '#17375E',
+                    'gap' => 6.5,
+                    'max_w' => 45.0,
                 ],
             ],
         ],
@@ -678,6 +849,7 @@ return [
         'page_width' => 540.0,
         'page_height' => 780.0,
         'coord_schema' => 2,
+        'certificate_pages' => [],
         'editable' => ['coa_number', 'batch_number', 'mfg_date', 'expiry_date', 'signature_date'],
         'field_labels' => [
             'coa_number' => 'COA No.',
@@ -690,12 +862,16 @@ return [
         'coordinates' => [
             'page1' => [
                 'coa_number' => [
-                    'x' => 78.128,
+                    'align' => 'right',
+                    'right' => 92.556,
                     'y' => 18.073,
-                    'max_w' => 16.219,
                     'font_size' => 6.96,
                     'font' => 'Calibri',
-                    'align' => 'left',
+                    'label' => 'COA No:',
+                    'label_font' => 'Calibri-Bold',
+                    'label_color' => '#17375E',
+                    'gap' => 6.5,
+                    'max_w' => 40.0,
                 ],
                 'batch_number' => [
                     'x' => 42.493,
@@ -724,24 +900,39 @@ return [
                     'font_size' => 11.04,
                     'font' => 'Calibri-Bold',
                     'align' => 'left',
+                    'color' => '#17375E',
                     'dx' => 1.5,
                 ],
                 'signature' => [
                     'cx' => 49.724,
                     'y' => 87.022,
-                    'font_size' => 20.04,
-                    'font' => 'Mistral',
+                    'font_size' => 24.0,
+                    'font' => 'HerrVonMuellerhoff',
                     'align' => 'center',
+                    'color' => '#17375E',
+                    'max_w' => 26.26,
+                ],
+                'signatory_name' => [
+                    'cx' => 49.724,
+                    'y' => 89.69,
+                    'font_size' => 11.04,
+                    'font' => 'Calibri-Bold',
+                    'align' => 'center',
+                    'color' => '#17375E',
                 ],
             ],
             'page2' => [
                 'coa_number' => [
-                    'x' => 80.463,
+                    'align' => 'right',
+                    'right' => 94.759,
                     'y' => 8.081,
-                    'max_w' => 14.322,
                     'font_size' => 6.96,
                     'font' => 'Calibri',
-                    'align' => 'left',
+                    'label' => 'COA No:',
+                    'label_font' => 'Calibri-Bold',
+                    'label_color' => '#17375E',
+                    'gap' => 6.5,
+                    'max_w' => 45.0,
                 ],
             ],
         ],
@@ -754,6 +945,7 @@ return [
         'page_width' => 540.0,
         'page_height' => 780.0,
         'coord_schema' => 2,
+        'certificate_pages' => [],
         'editable' => ['coa_number', 'batch_number', 'mfg_date', 'expiry_date', 'signature_date'],
         'field_labels' => [
             'coa_number' => 'COA No.',
@@ -766,12 +958,16 @@ return [
         'coordinates' => [
             'page1' => [
                 'coa_number' => [
-                    'x' => 77.039,
+                    'align' => 'right',
+                    'right' => 92.556,
                     'y' => 18.073,
-                    'max_w' => 17.307,
                     'font_size' => 6.96,
                     'font' => 'Calibri',
-                    'align' => 'left',
+                    'label' => 'COA No:',
+                    'label_font' => 'Calibri-Bold',
+                    'label_color' => '#17375E',
+                    'gap' => 6.5,
+                    'max_w' => 40.0,
                 ],
                 'batch_number' => [
                     'x' => 42.493,
@@ -800,24 +996,39 @@ return [
                     'font_size' => 11.04,
                     'font' => 'Calibri-Bold',
                     'align' => 'left',
+                    'color' => '#17375E',
                     'dx' => 1.5,
                 ],
                 'signature' => [
                     'cx' => 49.724,
                     'y' => 87.022,
-                    'font_size' => 20.04,
-                    'font' => 'Mistral',
+                    'font_size' => 24.0,
+                    'font' => 'HerrVonMuellerhoff',
                     'align' => 'center',
+                    'color' => '#17375E',
+                    'max_w' => 26.26,
+                ],
+                'signatory_name' => [
+                    'cx' => 49.724,
+                    'y' => 89.69,
+                    'font_size' => 11.04,
+                    'font' => 'Calibri-Bold',
+                    'align' => 'center',
+                    'color' => '#17375E',
                 ],
             ],
             'page2' => [
                 'coa_number' => [
-                    'x' => 79.063,
+                    'align' => 'right',
+                    'right' => 94.759,
                     'y' => 8.081,
-                    'max_w' => 15.722,
                     'font_size' => 6.96,
                     'font' => 'Calibri',
-                    'align' => 'left',
+                    'label' => 'COA No:',
+                    'label_font' => 'Calibri-Bold',
+                    'label_color' => '#17375E',
+                    'gap' => 6.5,
+                    'max_w' => 45.0,
                 ],
             ],
         ],
@@ -830,6 +1041,7 @@ return [
         'page_width' => 540.0,
         'page_height' => 780.0,
         'coord_schema' => 2,
+        'certificate_pages' => [],
         'editable' => ['coa_number', 'batch_number', 'mfg_date', 'expiry_date', 'signature_date'],
         'field_labels' => [
             'coa_number' => 'COA No.',
@@ -842,12 +1054,16 @@ return [
         'coordinates' => [
             'page1' => [
                 'coa_number' => [
-                    'x' => 80.172,
+                    'align' => 'right',
+                    'right' => 92.556,
                     'y' => 18.073,
-                    'max_w' => 14.174,
                     'font_size' => 6.96,
                     'font' => 'Calibri',
-                    'align' => 'left',
+                    'label' => 'COA No:',
+                    'label_font' => 'Calibri-Bold',
+                    'label_color' => '#17375E',
+                    'gap' => 6.5,
+                    'max_w' => 40.0,
                 ],
                 'batch_number' => [
                     'x' => 42.493,
@@ -876,24 +1092,39 @@ return [
                     'font_size' => 11.04,
                     'font' => 'Calibri-Bold',
                     'align' => 'left',
+                    'color' => '#17375E',
                     'dx' => 1.5,
                 ],
                 'signature' => [
                     'cx' => 49.724,
                     'y' => 87.022,
-                    'font_size' => 20.04,
-                    'font' => 'Mistral',
+                    'font_size' => 24.0,
+                    'font' => 'HerrVonMuellerhoff',
                     'align' => 'center',
+                    'color' => '#17375E',
+                    'max_w' => 26.26,
+                ],
+                'signatory_name' => [
+                    'cx' => 49.724,
+                    'y' => 89.69,
+                    'font_size' => 11.04,
+                    'font' => 'Calibri-Bold',
+                    'align' => 'center',
+                    'color' => '#17375E',
                 ],
             ],
             'page2' => [
                 'coa_number' => [
-                    'x' => 82.374,
+                    'align' => 'right',
+                    'right' => 94.759,
                     'y' => 8.081,
-                    'max_w' => 12.411,
                     'font_size' => 6.96,
                     'font' => 'Calibri',
-                    'align' => 'left',
+                    'label' => 'COA No:',
+                    'label_font' => 'Calibri-Bold',
+                    'label_color' => '#17375E',
+                    'gap' => 6.5,
+                    'max_w' => 45.0,
                 ],
             ],
         ],

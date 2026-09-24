@@ -13,6 +13,9 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Carbon;
 use App\Models\BlockedDate;
+use App\Models\CoaEditRequest;
+use App\Mail\CoaEditRequestNotification;
+use Illuminate\Support\Facades\Mail;
 use App\Services\ActivityLogger;
 use App\Services\CoaTemplateService;
 
@@ -86,6 +89,25 @@ class OrderController extends Controller
                 $q->orWhereRaw('LOWER(TRIM(order_placed_by)) = ?', [$fullName]);
             }
         });
+    }
+
+    /**
+     * Whether the logged-in user may open this order. Medical Affairs and
+     * Business Development (below admin) see only the orders they placed;
+     * everyone else with order access sees all of them.
+     */
+    private function currentUserMaySeeOrder(Order $order): bool
+    {
+        if (!$this->restrictedToOwnOrders()) {
+            return true;
+        }
+
+        $user = Auth::user();
+        $fullName = strtolower(trim($user->first_name . ' ' . $user->last_name));
+        $placedBy = strtolower(trim((string) $order->order_placed_by));
+
+        return $order->user_id == $user->id
+            || ($fullName !== '' && $placedBy === $fullName);
     }
 
     /**
@@ -861,40 +883,54 @@ class OrderController extends Controller
     public function orderDetails(Order $order)
     {
         $order->load(['customer', 'user', 'products']);
-        if ($this->restrictedToOwnOrders()) {
+
+        if (!$this->currentUserMaySeeOrder($order)) {
             $user = Auth::user();
-            $fullName = strtolower(trim($user->first_name . ' ' . $user->last_name));
-            $placedBy = strtolower(trim((string) $order->order_placed_by));
+            Log::warning('User attempted to access an order they did not place', [
+                'user_id' => $user->id,
+                'username' => $user->username,
+                'department' => $user->department,
+                'order_id' => $order->id,
+                'order_user_id' => $order->user_id,
+                'order_placed_by' => $order->order_placed_by,
+            ]);
 
-            $canAccess = $order->user_id == $user->id
-                || ($fullName !== '' && $placedBy === $fullName);
-
-            if (!$canAccess) {
-                Log::warning('User attempted to access an order they did not place', [
-                    'user_id' => $user->id,
-                    'username' => $user->username,
-                    'department' => $user->department,
-                    'order_id' => $order->id,
-                    'order_user_id' => $order->user_id,
-                    'order_placed_by' => $order->order_placed_by,
-                ]);
-
-                return redirect()->route('orderhistory')
-                    ->with('error', 'You can only view orders that you have placed.');
-            }
+            return redirect()->route('orderhistory')
+                ->with('error', 'You can only view orders that you have placed.');
         }
 
-        return view('orders.orderdetails', compact('order'));
+        // Order lines with a COA edit request waiting for the HOD, so the COA
+        // column can flag them.
+        $pendingCoaEdits = CoaEditRequest::pending()
+            ->where('order_id', $order->id)
+            ->pluck('product_id')
+            ->all();
+
+        return view('orders.orderdetails', compact('order', 'pendingCoaEdits'));
     }
 
     /**
      * Display the Certificate of Analysis (COA) page for a specific product in an order.
+     *
+     * Everyone with order access may open it read-only; Medical Affairs and
+     * Business Development only for their own orders. Quality Control fills
+     * it in and submits it, after which it is locked for everyone until the
+     * COA approver (QC HOD) approves a request to edit.
      */
     public function showCOA(Order $order, Product $product, CoaTemplateService $coa)
     {
-        if (!$coa->userMayAccess(auth()->user())) {
-            return redirect()->route('orderdetails', $order->id)
-                ->with('error', 'Only the Quality Control and Quality Assurance departments can open a COA.');
+        $user = auth()->user();
+
+        if (!$coa->userMayAccess($user)) {
+            return redirect()->route('dashboard')
+                ->with('error', 'You do not have access to COAs.');
+        }
+
+        // Same rule as Order Details. Without it the COA of another person's
+        // order could be opened by typing its link.
+        if (!$this->currentUserMaySeeOrder($order)) {
+            return redirect()->route('orderhistory')
+                ->with('error', 'You can only view COAs for orders that you have placed.');
         }
 
         // Load necessary relationships
@@ -925,7 +961,7 @@ class OrderController extends Controller
 
         // Only superadmin can pick COA on the spot if not set
         if ($templateKey === null) {
-            if (auth()->user()->role !== 'superadmin') {
+            if ($user->role !== 'superadmin') {
                 return redirect()->route('orderdetails', $order->id)
                     ->with('error', 'No COA template set for ' . $product->name
                         . '. Please ask a system administrator to set one in Product Management.');
@@ -937,6 +973,23 @@ class OrderController extends Controller
                 'templates' => $coa->options(),
             ]);
         }
+
+        $pivot     = $orderProduct->pivot;
+        $submitted = $coa->isSubmitted($pivot);
+
+        $requests = CoaEditRequest::forLine($order->id, $product->id)
+            ->with(['requester', 'decider'])
+            ->get();
+        $pendingRequest = $requests->first(fn ($r) => $r->isPending());
+        $lastDecided    = $requests->first(fn ($r) => !$r->isPending());
+
+        $submittedBy = $pivot->coa_submitted_by ? User::find($pivot->coa_submitted_by) : null;
+
+        // Before submission the preview signs with whoever is filling it in.
+        // After submission it is the stored name, the same for every reader.
+        $signatoryName = $submitted
+            ? (string) $pivot->coa_signatory_name
+            : ($coa->userMayEdit($user) ? $user->fullName() : '');
 
         return view('orders.coa-editor', [
             'order'        => $order,
@@ -951,9 +1004,22 @@ class OrderController extends Controller
             'coaValues'    => $this->coaValues($orderProduct),
             'variants'     => $coa->variantsFor($templateKey),
             'morphologyMaxMb' => intdiv(self::MORPHOLOGY_MAX_KB, 1024),
-            // Quality Assurance opens this page read-only: the write controls
-            // are hidden below and the matching routes reject them anyway.
-            'canEdit'      => $coa->userMayEdit(auth()->user()),
+            'certificatePages' => $coa->certificatePages($templateKey),
+
+            // Submit-and-lock state
+            'submitted'      => $submitted,
+            'submittedBy'    => $submittedBy,
+            'submittedAt'    => $pivot->coa_submitted_at ? Carbon::parse($pivot->coa_submitted_at) : null,
+            'signatoryName'  => $signatoryName,
+            'pendingRequest' => $pendingRequest,
+            'lastDecided'    => $lastDecided,
+
+            // Permissions. canEdit is false for everyone once submitted.
+            'canEdit'        => $coa->userMayEdit($user) && !$submitted,
+            'canPrint'       => $user->canPrintCoa(),
+            'canDownload'    => $submitted || $user->canDownloadDraftCoa(),
+            'canRequestEdit' => $submitted && $user->canRequestCoaEdit(),
+            'canDecideEdit'  => $user->canApproveCoaEdit(),
         ]);
     }
 
@@ -981,6 +1047,10 @@ class OrderController extends Controller
         if (!$coa->userMayEdit(auth()->user())) {
             return redirect()->route('orderdetails', $order->id)
                 ->with('error', 'Only the Quality Control department can change the COA template.');
+        }
+
+        if ($this->coaLineSubmitted($order, $product, $coa)) {
+            return back()->with('error', 'This COA has been submitted and is locked. Request an edit to change it.');
         }
 
         $key = $request->input('coa_template');
@@ -1033,7 +1103,13 @@ class OrderController extends Controller
     }
 
     /**
-     * Save the COA field data.
+     * Submit the COA.
+     *
+     * Every field the template shows must be filled in (and the morphology
+     * image uploaded, where the template has one). On success the line is
+     * locked: who submitted it, when, and the name used for the signature are
+     * stored, and nobody can change it again until the COA approver (QC HOD)
+     * approves a request to edit.
      *
      * Only the fields the chosen template actually exposes are written, so a
      * stale form cannot introduce values that do not belong on the certificate.
@@ -1041,10 +1117,12 @@ class OrderController extends Controller
     public function saveCOA(Request $request, Order $order, Product $product, CoaTemplateService $coa)
     {
         try {
-            if (!$coa->userMayEdit(auth()->user())) {
+            $user = auth()->user();
+
+            if (!$coa->userMayEdit($user)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Only the Quality Control department can save a COA.'
+                    'message' => 'Only the Quality Control department can submit a COA.'
                 ], 403);
             }
 
@@ -1056,6 +1134,13 @@ class OrderController extends Controller
                     'success' => false,
                     'message' => 'Product not found in this order.'
                 ], 404);
+            }
+
+            if ($coa->isSubmitted($orderProduct->pivot)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This COA has already been submitted and is locked. Reload the page to see it.'
+                ], 409);
             }
 
             $templateKey = $coa->resolveForOrderLine($order, $product);
@@ -1083,46 +1168,86 @@ class OrderController extends Controller
                 'immuno_negative'   => 'coa_immuno_negative',
             ];
 
+            $labels = $coa->fieldLabels($templateKey);
+
+            // The COA number is posted as qc_document_number, the column it
+            // has always been stored in (it also shows in the QC Doc column).
+            $posted = function (string $field) use ($request) {
+                $key = $field === 'coa_number' ? 'qc_document_number' : $field;
+                return trim((string) $request->input($key, ''));
+            };
+
+            // A submitted COA cannot be corrected without HOD approval, so a
+            // blank field is refused here rather than locked in.
+            $missing = [];
+            foreach ($coa->editableFields($templateKey) as $field) {
+                if ($posted($field) === '') {
+                    $missing[] = $labels[$field] ?? ucfirst(str_replace('_', ' ', $field));
+                }
+            }
+            if ($coa->acceptsMorphologyImage($templateKey) && empty($orderProduct->pivot->coa_morphology_image)) {
+                $missing[] = 'Morphology of Cells Image';
+            }
+            if (!empty($missing)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Please fill in every field before submitting. Missing: ' . implode(', ', $missing) . '.',
+                    'missing' => $missing,
+                ], 422);
+            }
+
+            $now = now();
             $update = [
-                'coa_template'   => $templateKey,
-                'coa_updated_by' => auth()->id(),
-                'coa_updated_at' => now(),
+                'coa_template'       => $templateKey,
+                'updated_at'         => $now,
+                'coa_updated_by'     => $user->id,
+                'coa_updated_at'     => $now,
+                'coa_submitted_by'   => $user->id,
+                'coa_submitted_at'   => $now,
+                'coa_signatory_name' => $user->fullName(),
             ];
 
             foreach ($coa->editableFields($templateKey) as $field) {
-                if (isset($columns[$field]) && $request->has($field)) {
-                    $update[$columns[$field]] = $request->input($field);
+                if ($field === 'coa_number') {
+                    // prepared_by is deliberately NOT accepted here: no COA
+                    // template prints it, so the COA editor must not touch it.
+                    $update['qc_document_number'] = $posted($field);
+                } elseif (isset($columns[$field])) {
+                    $update[$columns[$field]] = $posted($field);
                 }
-            }
-
-            // qc_document_number predates this feature and is the column the
-            // COA number is stored in, so keep accepting it.
-            // prepared_by is deliberately NOT accepted here: no COA template
-            // prints it, so the COA editor must not touch it. It stays editable
-            // on the Batch Information form.
-            if ($request->has('qc_document_number')) {
-                $update['qc_document_number'] = $request->input('qc_document_number');
             }
 
             // Snapshot before the write so the audit entry can show old -> new.
             $before = $orderProduct->pivot->getAttributes();
 
-            $order->products()->updateExistingPivot($product->id, $update);
+            // Written only while the line is still unsubmitted, so two QC
+            // staff pressing Submit at the same moment cannot both win.
+            $written = DB::table('order_product')
+                ->where('id', $orderProduct->pivot->id)
+                ->whereNull('coa_submitted_at')
+                ->update($update);
+
+            if ($written === 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This COA has just been submitted by someone else. Reload the page to see it.'
+                ], 409);
+            }
 
             ActivityLogger::recordCoaChange(
                 $order,
                 $before,
                 array_merge($before, $update),
                 $product->name,
-                'Updated COA'
+                'Submitted COA'
             );
 
             return response()->json([
                 'success' => true,
-                'message' => 'COA data saved successfully.'
+                'message' => 'COA submitted. It is now locked.'
             ]);
         } catch (\Exception $e) {
-            \Log::error('Error saving COA data', [
+            \Log::error('Error submitting COA', [
                 'order_id' => $order->id,
                 'product_id' => $product->id,
                 'error' => $e->getMessage()
@@ -1130,9 +1255,209 @@ class OrderController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error saving COA data: ' . $e->getMessage()
+                'message' => 'Error submitting COA: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Ask for a submitted COA to be unlocked. Quality Control only; one
+     * pending request per order line. The COA approvers are emailed.
+     */
+    public function requestCoaEdit(Request $request, Order $order, Product $product, CoaTemplateService $coa)
+    {
+        $user = auth()->user();
+
+        if (!$user->canRequestCoaEdit()) {
+            return back()->with('error', 'Only the Quality Control department can request to edit a COA.');
+        }
+
+        $orderProduct = $order->products()->where('product_id', $product->id)->first();
+
+        if (!$orderProduct) {
+            return redirect()->route('orderdetails', $order->id)
+                ->with('error', 'Product not found in this order.');
+        }
+
+        if (!$coa->isSubmitted($orderProduct->pivot)) {
+            return redirect()->route('orders.coa', [$order->id, $product->id])
+                ->with('error', 'This COA has not been submitted, so it can be edited directly.');
+        }
+
+        if (CoaEditRequest::pending()->forLine($order->id, $product->id)->exists()) {
+            return redirect()->route('orders.coa', [$order->id, $product->id])
+                ->with('error', 'A request to edit this COA is already waiting for approval.');
+        }
+
+        $validated = $request->validate([
+            'reason' => 'required|string|max:1000',
+        ], [
+            'reason.required' => 'Please give a reason for the edit.',
+        ]);
+
+        $editRequest = CoaEditRequest::create([
+            'order_id'     => $order->id,
+            'product_id'   => $product->id,
+            'requested_by' => $user->id,
+            'reason'       => trim($validated['reason']),
+            'status'       => CoaEditRequest::STATUS_PENDING,
+        ]);
+
+        ActivityLogger::recordCoaEvent(
+            $order,
+            $product->name,
+            'Requested to edit submitted COA',
+            ['edit_request' => ['old' => null, 'new' => 'Request #' . $editRequest->id . ': ' . $editRequest->reason]]
+        );
+
+        // Email the COA approvers. A mail failure must not lose the request:
+        // it is already saved and shows on the COA page and in Order Details.
+        $approvers = User::where('coa_approver', true)
+            ->whereNotNull('email')
+            ->get();
+
+        foreach ($approvers as $approver) {
+            try {
+                Mail::to($approver->email)->send(
+                    new CoaEditRequestNotification($editRequest, $order, $product, $user, $approver)
+                );
+            } catch (\Throwable $e) {
+                Log::error('COA edit request email failed', [
+                    'request_id' => $editRequest->id,
+                    'approver'   => $approver->email,
+                    'error'      => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return redirect()->route('orders.coa', [$order->id, $product->id])
+            ->with('success', 'Request sent. The COA stays locked until the HOD approves it.');
+    }
+
+    /**
+     * Approve a request to edit. Every COA value on the line is cleared and
+     * the lock is released, so Quality Control fills it in again from scratch.
+     *
+     * Patient name and batch number are order data shared with Order Details
+     * and the batch form, so they are kept.
+     */
+    public function approveCoaEdit(Order $order, Product $product, CoaEditRequest $coaEditRequest, CoaTemplateService $coa)
+    {
+        $user = auth()->user();
+
+        if (!$user->canApproveCoaEdit()) {
+            return back()->with('error', 'Only the COA approver (QC HOD) can approve a request to edit.');
+        }
+
+        if ((int) $coaEditRequest->order_id !== (int) $order->id
+            || (int) $coaEditRequest->product_id !== (int) $product->id) {
+            abort(404);
+        }
+
+        if (!$coaEditRequest->isPending()) {
+            return redirect()->route('orders.coa', [$order->id, $product->id])
+                ->with('error', 'This request has already been decided.');
+        }
+
+        $orderProduct = $order->products()->where('product_id', $product->id)->first();
+
+        if (!$orderProduct) {
+            return redirect()->route('orderdetails', $order->id)
+                ->with('error', 'Product not found in this order.');
+        }
+
+        $before = $orderProduct->pivot->getAttributes();
+        $oldImage = $orderProduct->pivot->coa_morphology_image;
+
+        $clear = array_fill_keys(CoaTemplateService::CLEARED_ON_UNLOCK, null);
+        $clear['coa_updated_by'] = $user->id;
+        $clear['coa_updated_at'] = now();
+
+        DB::transaction(function () use ($order, $product, $clear, $coaEditRequest, $user) {
+            $order->products()->updateExistingPivot($product->id, $clear);
+
+            $coaEditRequest->update([
+                'status'     => CoaEditRequest::STATUS_APPROVED,
+                'decided_by' => $user->id,
+                'decided_at' => now(),
+            ]);
+        });
+
+        // The micrograph goes with the rest of the COA. The audit entry below
+        // keeps its file name.
+        if ($oldImage) {
+            foreach ([
+                public_path('storage/coa_morphology/' . $oldImage),
+                storage_path('app/public/coa_morphology/' . $oldImage),
+            ] as $path) {
+                if (file_exists($path)) {
+                    @unlink($path);
+                }
+            }
+        }
+
+        $requester = $coaEditRequest->requester;
+
+        ActivityLogger::recordCoaChange(
+            $order,
+            $before,
+            array_merge($before, $clear),
+            $product->name,
+            'Approved edit request #' . $coaEditRequest->id
+                . ($requester ? ' from ' . $requester->fullName() : '')
+                . ' and cleared COA'
+        );
+
+        return redirect()->route('orders.coa', [$order->id, $product->id])
+            ->with('success', 'Request approved. The COA has been cleared and can be filled in again.');
+    }
+
+    /**
+     * Reject a request to edit. The COA stays locked as it is.
+     */
+    public function rejectCoaEdit(Order $order, Product $product, CoaEditRequest $coaEditRequest)
+    {
+        $user = auth()->user();
+
+        if (!$user->canApproveCoaEdit()) {
+            return back()->with('error', 'Only the COA approver (QC HOD) can reject a request to edit.');
+        }
+
+        if ((int) $coaEditRequest->order_id !== (int) $order->id
+            || (int) $coaEditRequest->product_id !== (int) $product->id) {
+            abort(404);
+        }
+
+        if (!$coaEditRequest->isPending()) {
+            return redirect()->route('orders.coa', [$order->id, $product->id])
+                ->with('error', 'This request has already been decided.');
+        }
+
+        $coaEditRequest->update([
+            'status'     => CoaEditRequest::STATUS_REJECTED,
+            'decided_by' => $user->id,
+            'decided_at' => now(),
+        ]);
+
+        ActivityLogger::recordCoaEvent(
+            $order,
+            $product->name,
+            'Rejected edit request #' . $coaEditRequest->id,
+            ['edit_request' => ['old' => 'pending', 'new' => 'rejected']]
+        );
+
+        return redirect()->route('orders.coa', [$order->id, $product->id])
+            ->with('success', 'Request rejected. The COA stays locked.');
+    }
+
+    /**
+     * Whether this order line's COA has been submitted (and so is locked).
+     */
+    private function coaLineSubmitted(Order $order, Product $product, CoaTemplateService $coa): bool
+    {
+        $line = $order->products()->where('product_id', $product->id)->first();
+
+        return $line ? $coa->isSubmitted($line->pivot) : false;
     }
 
     /**
@@ -1242,6 +1567,13 @@ class OrderController extends Controller
                     'success' => false,
                     'message' => 'Only the Quality Control department can upload a morphology image.'
                 ], 403);
+            }
+
+            if ($this->coaLineSubmitted($order, $product, $coa)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This COA has been submitted and is locked. Request an edit to change it.'
+                ], 409);
             }
 
             $request->validate([

@@ -14,6 +14,30 @@ class CoaTemplateService
     /** Sentinel meaning "this product never gets a COA". */
     public const NONE = 'none';
 
+    /**
+     * Order-line columns wiped when a request to edit a submitted COA is
+     * approved: every COA value plus the lock itself. Patient name and batch
+     * number are not here: they are order data shared with Order Details and
+     * the batch form, and only pre-fill the COA.
+     */
+    public const CLEARED_ON_UNLOCK = [
+        'qc_document_number',
+        'coa_number',
+        'coa_product_date',
+        'coa_mfg_date',
+        'coa_expiry_date',
+        'coa_viable_cell_count',
+        'coa_signature_date',
+        'coa_immuno_cd73',
+        'coa_immuno_cd90',
+        'coa_immuno_cd105',
+        'coa_immuno_negative',
+        'coa_morphology_image',
+        'coa_submitted_by',
+        'coa_submitted_at',
+        'coa_signatory_name',
+    ];
+
     /** All configured templates, keyed by template id. */
     public function all(): array
     {
@@ -179,8 +203,7 @@ class CoaTemplateService
     }
 
     /**
-     * May open the COA editor, print and download. Quality Control, Quality
-     * Assurance and superadmins.
+     * May open the COA page. Everyone with order access; see User::canViewCoa().
      */
     public function userMayAccess(?User $user): bool
     {
@@ -188,9 +211,9 @@ class CoaTemplateService
     }
 
     /**
-     * May write: save fields, switch template, upload morphology or attach a
-     * COA PDF. Quality Control and superadmins only — Quality Assurance is
-     * read-only by design, so it can audit a certificate without altering it.
+     * May write: submit fields, switch template, upload morphology or attach a
+     * COA PDF. Quality Control and superadmins only. Once a COA is submitted
+     * nobody may change it (see isSubmitted()) until an edit is approved.
      */
     public function userMayEdit(?User $user): bool
     {
@@ -210,6 +233,23 @@ class CoaTemplateService
         return $this->get($key)['field_labels'] ?? [];
     }
 
+
+    /**
+     * Pages of this template printed on certificate paper (1-based). Every
+     * other page prints on plain A4 at its designed size.
+     */
+    public function certificatePages(?string $key): array
+    {
+        return array_values(array_map('intval', $this->get($key)['certificate_pages'] ?? []));
+    }
+
+    /**
+     * Whether an order line's COA has been submitted, and so is locked.
+     */
+    public function isSubmitted($pivot): bool
+    {
+        return $pivot !== null && !empty($pivot->coa_submitted_at);
+    }
 
     public function acceptsMorphologyImage(?string $key): bool
     {

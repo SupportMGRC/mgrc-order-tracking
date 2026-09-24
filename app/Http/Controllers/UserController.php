@@ -127,6 +127,8 @@ class UserController extends Controller
                 'designation' => $request->designation,
                 'role' => $request->role ?? 'user',
                 'department' => $request->department,
+                // Only superadmins reach store(), so the tick box is theirs.
+                'coa_approver' => $request->boolean('coa_approver'),
             ]);
 
             // If this is an AJAX request, return JSON response
@@ -259,6 +261,8 @@ class UserController extends Controller
             if ($isSuperadmin) {
                 $userData['role'] = $request->role ?? 'user';
                 $userData['department'] = $request->department;
+                // COA approver (QC HOD) is superadmin-only, like role.
+                $userData['coa_approver'] = $request->boolean('coa_approver');
             }
 
             // Only update password if provided

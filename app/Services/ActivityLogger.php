@@ -150,6 +150,10 @@ class ActivityLogger
             'coa_immuno_cd105',
             'coa_immuno_negative',
             'coa_morphology_image',
+            // Submit-and-lock: who submitted it, when, and the signature name.
+            'coa_submitted_by',
+            'coa_submitted_at',
+            'coa_signatory_name',
             // A COA uploaded by QC rather than generated. The file itself is
             // deleted when replaced, so this log is the only record of what
             // was attached before.
@@ -169,6 +173,40 @@ class ActivityLogger
             return;
         }
 
+        try {
+            $user = Auth::user();
+
+            ActivityLog::create([
+                'user_id'       => $user?->id,
+                'user_name'     => $user?->username ?? 'System',
+                'user_role'     => $user?->role,
+                'action'        => 'updated',
+                'subject_type'  => \App\Models\Order::class,
+                'subject_id'    => $order->getKey(),
+                'subject_label' => 'Order #' . $order->getKey()
+                                    . ($productName ? ' (' . $productName . ' COA)' : ' (COA)'),
+                'description'   => $summary . ' on Order #' . $order->getKey()
+                                    . ($productName ? ' — ' . $productName : ''),
+                'changes'       => $changes,
+                'ip_address'    => request()->ip(),
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    /**
+     * Record a COA workflow event that does not change the certificate itself,
+     * such as a request to edit or a rejected request. Always written, unlike
+     * recordCoaChange(), which skips an entry with no field changes.
+     *
+     * @param  \App\Models\Order  $order
+     * @param  string|null         $productName
+     * @param  string              $summary      leading phrase for the description
+     * @param  array               $changes      ['key' => ['old' => .., 'new' => ..]]
+     */
+    public static function recordCoaEvent($order, ?string $productName, string $summary, array $changes = []): void
+    {
         try {
             $user = Auth::user();
 

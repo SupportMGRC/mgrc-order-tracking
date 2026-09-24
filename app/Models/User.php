@@ -15,8 +15,9 @@ class User extends Authenticatable
      * Departments with a stake in the COA workflow.
      *
      * Quality Control produces certificates. Quality Assurance checks them and
-     * is deliberately read-only: it may open and print a COA but never save,
-     * switch template or upload artwork.
+     * is read-only: it may open, print and download a COA but never submit,
+     * switch template or upload artwork. Everyone else with order access may
+     * view and download.
      */
     public const DEPT_QUALITY_CONTROL   = 'Quality Control';
     public const DEPT_QUALITY_ASSURANCE = 'Quality Assurance';
@@ -82,9 +83,32 @@ class User extends Authenticatable
     }
 
     /**
-     * May open the COA editor, print and download.
+     * May open a COA read-only. Everyone who can open orders: MA and BD are
+     * limited to their own orders by OrderController, and pickup-only
+     * departments (Genomics) have no order access at all.
      */
     public function canViewCoa(): bool
+    {
+        return $this->canAccessOrders();
+    }
+
+    /**
+     * May fill in and submit a COA, switch template or upload morphology.
+     * Superadmin keeps this for support, but a submitted COA is locked for
+     * everyone, superadmin included.
+     */
+    public function canEditCoa(): bool
+    {
+        return $this->role === 'superadmin'
+            || $this->isQualityControl();
+    }
+
+    /**
+     * May print a COA. Printing produces the official copy on certificate
+     * paper, so it stays with Quality Control, Quality Assurance and
+     * superadmin. Everyone else downloads a softcopy.
+     */
+    public function canPrintCoa(): bool
     {
         return $this->role === 'superadmin'
             || $this->isQualityControl()
@@ -92,12 +116,43 @@ class User extends Authenticatable
     }
 
     /**
-     * May save fields, switch template, upload morphology or attach a COA PDF.
+     * May download a COA that Quality Control has not submitted yet. Others
+     * only get the download once it is submitted, so a draft cannot reach a
+     * client.
      */
-    public function canEditCoa(): bool
+    public function canDownloadDraftCoa(): bool
+    {
+        return $this->canEditCoa();
+    }
+
+    /**
+     * May ask for a submitted COA to be unlocked. Quality Control only,
+     * including whoever submitted it.
+     */
+    public function canRequestCoaEdit(): bool
+    {
+        return $this->isQualityControl();
+    }
+
+    /**
+     * May approve or reject an unlock request: the COA approver (QC HOD),
+     * set by superadmin in User Management, or a superadmin as backup.
+     */
+    public function canApproveCoaEdit(): bool
     {
         return $this->role === 'superadmin'
-            || $this->isQualityControl();
+            || (bool) $this->coa_approver;
+    }
+
+    /**
+     * First and last name, as printed on a COA. Falls back to the username
+     * for an account with no name filled in.
+     */
+    public function fullName(): string
+    {
+        $name = trim(preg_replace('/\s+/', ' ', ($this->first_name ?? '') . ' ' . ($this->last_name ?? '')));
+
+        return $name !== '' ? $name : (string) $this->username;
     }
 
     /**
@@ -114,6 +169,7 @@ class User extends Authenticatable
         'role',
         'department',
         'designation',
+        'coa_approver',
         'receive_new_order_emails',
         'receive_order_ready_emails',
     ];
@@ -138,6 +194,7 @@ class User extends Authenticatable
         'password' => 'hashed',
         'receive_new_order_emails' => 'boolean',
         'receive_order_ready_emails' => 'boolean',
+        'coa_approver' => 'boolean',
     ];
 
     /**

@@ -127,11 +127,18 @@ Route::middleware(['auth'])->group(function () {
         // Both routes now use the same coa-editor.blade.php view with toggle edit mode
         Route::get('/orders/{order}/coa/{product}', [OrderController::class, 'showCOA'])->name('orders.coa');
         Route::get('/orders/{order}/coa/{product}/edit', [OrderController::class, 'editCOA'])->name('orders.coa.edit');
+        // Save = Submit: fills in the COA and locks it.
         Route::post('/orders/{order}/coa/{product}/save', [OrderController::class, 'saveCOA'])->name('orders.coa.save');
 
         // COA enhancement: template selection + morphology image upload
         Route::post('/orders/{order}/coa/{product}/template', [OrderController::class, 'chooseCoaTemplate'])->name('orders.coa.template');
         Route::post('/orders/{order}/coa/{product}/morphology', [OrderController::class, 'uploadCoaMorphology'])->name('orders.coa.morphology');
+
+        // Submitted COAs are locked. QC asks to edit; the COA approver (QC HOD)
+        // or a superadmin approves (clears the COA) or rejects.
+        Route::post('/orders/{order}/coa/{product}/edit-request', [OrderController::class, 'requestCoaEdit'])->name('orders.coa.edit-request');
+        Route::post('/orders/{order}/coa/{product}/edit-request/{coaEditRequest}/approve', [OrderController::class, 'approveCoaEdit'])->name('orders.coa.edit-request.approve');
+        Route::post('/orders/{order}/coa/{product}/edit-request/{coaEditRequest}/reject', [OrderController::class, 'rejectCoaEdit'])->name('orders.coa.edit-request.reject');
 
         // COA supplied by QC for products that have no generated template.
         Route::post('/orders/{order}/coa/{product}/document', [OrderController::class, 'uploadCoaDocument'])->name('orders.coa.document');

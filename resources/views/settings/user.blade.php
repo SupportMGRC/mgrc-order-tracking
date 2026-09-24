@@ -122,6 +122,9 @@
                                             <p class="text-muted mb-0">{{ $user->designation }}</p>
                                             <p class="text-muted fs-12 mb-0">{{ $user->email }}</p>
                                             <p class="badge bg-light text-primary fs-12 mb-3">{{ $user->department }}</p>
+                                            @if($user->coa_approver)
+                                                <p class="badge bg-warning-subtle text-warning fs-12 mb-3 ms-1">COA approver</p>
+                                            @endif
                                         </div>
                                         <div class="hstack gap-2 justify-content-center">
                                             <a href="{{ route('users.index', ['modal' => 'edit', 'id' => $user->id, 'page' => request('page')]) }}"
@@ -316,6 +319,16 @@
                                                 </div>
 
                                                 <div class="mb-3">
+                                                    <div class="form-check">
+                                                        <input type="hidden" name="coa_approver" value="0">
+                                                        <input class="form-check-input" type="checkbox" id="coa_approver"
+                                                            name="coa_approver" value="1" {{ old('coa_approver') ? 'checked' : '' }}>
+                                                        <label class="form-check-label" for="coa_approver">COA approver (HOD)</label>
+                                                    </div>
+                                                    <div class="form-text">Can approve or reject requests to edit a submitted COA. Set for the QC HOD.</div>
+                                                </div>
+
+                                                <div class="mb-3">
                                                     <label for="password" class="form-label">Password</label>
                                                     <input type="password" class="form-control" id="password" name="password"
                                                         placeholder="Enter password" required>
@@ -444,6 +457,16 @@
                                                         <option value="admin" {{ old('role', $editUser->role) == 'admin' ? 'selected' : '' }}>Admin</option>
                                                         <option value="superadmin" {{ old('role', $editUser->role) == 'superadmin' ? 'selected' : '' }}>Super Admin</option>
                                                     </select>
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <div class="form-check">
+                                                        <input type="hidden" name="coa_approver" value="0">
+                                                        <input class="form-check-input" type="checkbox" id="edit-coa_approver"
+                                                            name="coa_approver" value="1" {{ old('coa_approver', $editUser->coa_approver) ? 'checked' : '' }}>
+                                                        <label class="form-check-label" for="edit-coa_approver">COA approver (HOD)</label>
+                                                    </div>
+                                                    <div class="form-text">Can approve or reject requests to edit a submitted COA. Set for the QC HOD.</div>
                                                 </div>
                                                 @else
                                                 {{-- Shown for reference only. These are not inputs at all, so nothing

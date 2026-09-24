@@ -1208,11 +1208,16 @@
                                         </td>
                                         <td class="d-none d-md-table-cell">
                                             @php
-                                                // Quality Control and Quality Assurance of any role, plus
-                                                // superadmin, may open a COA. Only Quality Control and
-                                                // superadmin may upload or replace one.
+                                                // Everyone who can open this order may open its COA
+                                                // (read-only unless Quality Control). Only Quality Control
+                                                // and superadmin may fill in, upload or replace one.
                                                 $mayUseCoa  = Auth::user()->canViewCoa();
                                                 $mayEditCoa = Auth::user()->canEditCoa();
+
+                                                // A request to edit a submitted COA is waiting for the HOD.
+                                                // Flagged for the people who act on it.
+                                                $coaEditPending = in_array($product->id, $pendingCoaEdits ?? [])
+                                                    && ($mayEditCoa || Auth::user()->canApproveCoaEdit());
 
                                                 // 'none' means this product never gets a generated COA.
                                                 // null means not configured yet: the editor asks which template to use.
@@ -1228,8 +1233,13 @@
                                                     <i class="ri-file-text-line align-middle"></i>
                                                     <span class="d-none d-lg-inline ms-1">COA</span>
                                                 </a>
+                                                @if($coaEditPending)
+                                                    <span class="badge bg-warning text-dark d-block mt-1" title="A request to edit this COA is waiting for HOD approval">
+                                                        <i class="ri-time-line align-middle"></i> Pending edit request
+                                                    </span>
+                                                @endif
                                             @elseif($product->pivot->coa_required && $productHasCoa)
-                                                {{-- Required, but this user is not in Quality Control or Quality Assurance --}}
+                                                {{-- Required, but this user has no order access (not reachable from Order Details) --}}
                                                 <span class="text-muted">-</span>
                                             @elseif($product->pivot->coa_required && !$productHasCoa)
                                                 {{-- No template for this product: QC supplies the certificate. --}}
