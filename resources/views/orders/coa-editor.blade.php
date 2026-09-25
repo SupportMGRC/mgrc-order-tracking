@@ -394,9 +394,11 @@
                                 @else
                                     All pages: plain A4 paper. This COA does not use certificate paper.<br>
                                 @endif
-                                In the print dialog set <strong>Margins&nbsp;=&nbsp;None</strong> and
-                                <strong>Scale&nbsp;=&nbsp;100%</strong>, and turn off &ldquo;Fit to page&rdquo;.
-                                The pages are already sized for the paper, so any other setting will shift or shrink them.
+                                Print with the default settings first.<br>
+                                If the print comes out shifted or smaller than expected, print again with
+                                <strong>Margins&nbsp;=&nbsp;None</strong>, <strong>Scale&nbsp;=&nbsp;100%</strong>
+                                and &ldquo;Fit to page&rdquo; turned off. The pages are already sized for the
+                                paper, so these settings keep everything in place.
                             </small>
                         </div>
                     @endif
