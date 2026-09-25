@@ -1055,7 +1055,7 @@ class OrderController extends Controller
 
         $key = $request->input('coa_template');
 
-        if (!$coa->exists($key)) {
+        if (!$coa->exists($key) || $coa->isLegacy($key)) {
             return back()->with('error', 'Please choose a valid COA template.');
         }
 

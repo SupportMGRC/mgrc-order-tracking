@@ -184,6 +184,7 @@
                     <label class="form-label mb-1 small fw-semibold">Change COA template for this order line</label>
                     <select name="coa_template" class="form-select form-select-sm">
                         @foreach(config('coa_templates') as $k => $t)
+                            @continue(!empty($t['legacy_replaced_by']))
                             <option value="{{ $k }}" @selected($k === $templateKey)>{{ $t['label'] }}</option>
                         @endforeach
                     </select>
@@ -807,41 +808,49 @@ const PRINT_SCALE = 3.0;
    Each page is placed one of two ways, set per template in
    config/coa_templates.php ('certificate_pages'):
 
-   certificate  MGRC certificate paper carries a printed gold border; nothing
-                may cross it. The inner edge of that border, measured from a
-                200 dpi scan of a blank sheet and squared up on A4:
+   certificate  MGRC certificate paper has a printed gold border with large
+                ornaments in the four corners. The artwork's own white margins
+                are not wanted inside that border, so it is the CONTENT that is
+                fitted, not the page: the area that holds ink on every
+                certificate template (logo to page number, table edge to table
+                edge), measured from the base PDFs:
 
-                    x 40.42 -> 554.86      (514.44 wide)
-                    y 35.39 -> 806.51      (771.12 tall)
+                    x 34.5 -> 509.0,  y 47.5 -> 748.5   (artwork points)
 
-                The artwork is WIDER than the frame (540 > 514.44), so it is
-                scaled to fit the frame and centred inside it. Page 1 of the
-                cell templates (MSC P2, MSC P3, NK, NKT).
+                scaled by PAPER.cert.scale and centred on PAPER.cert.centre.
+                At 0.98 that puts the content at x 65 -> 530, y 76 -> 764 on
+                the sheet: the logo and address clear the top ornaments, the
+                stamps end inside the right border and the REV / page number
+                sit above the bottom ornaments (checked on a scan of the
+                printed paper). Page 1 of MSC P2, MSC P3, NK, NKT.
 
-   plain        plain A4: the artwork at its designed size (100%), centred.
-                About 11 mm white above and below and 10 mm at the sides, so
-                no office printer clips the contact strip at the bottom of
-                page 2. Every other page.
+   plain        plain A4: the artwork at 104%, centred. About 5 mm white at
+                the top and bottom and 6 mm at the sides, just outside the
+                ~4 mm most office printers cannot print, so the contact strip
+                at the bottom of page 2 is not clipped. Every other page.
 
    Placement is expressed in absolute millimetres in the print stylesheet. vh
    units are not dependable inside a print context — an earlier version sized
    by 100vh and the printed sheets came out at roughly 107%.
 
    TUNING — change these numbers only, then reprint:
-     PAPER.clearance   gap left between the artwork and the gold rule, in pt
-     PAPER.shiftX/Y    + moves right / down, - moves left / up (1 mm = 2.835 pt)
-                       (certificate pages only)
+     PAPER.cert.scale     bigger = content closer to the corner ornaments
+     PAPER.cert.centre    where the middle of the content lands, in pt
+                          (1 mm = 2.835 pt; + x moves right, + y moves down)
+     PAPER.plainScale     plain A4 pages
 
    Print with Margins = None and Scale = 100%, or the browser resizes the sheet
-   again on top of this.
+   again on top of this (a test print came out ~7% small that way).
 ──────────────────────────────────────────────────────────────────────────────*/
 const PAPER = {
     w: 595.28,                                          // A4 portrait, points
     h: 841.89,
-    frame: { x: 40.42, y: 35.39, w: 514.44, h: 771.12 },// inner edge of the gold rule
-    clearance: 4.0,
-    shiftX: 0,
-    shiftY: 0,
+    cert: {
+        content: { x0: 34.5, x1: 509.0, y0: 47.5, y1: 748.5 },
+        scale: 0.98,
+        centre: { x: 297.64, y: 420.0 },
+    },
+    plainScale: 1.04,
 };
 
 function isCertificatePage(pageNo) {
@@ -853,18 +862,19 @@ function paperPlacement(pageNo) {
     const aw = COA.pageWidth, ah = COA.pageHeight;
 
     if (isCertificatePage(pageNo)) {
-        const f = PAPER.frame, c = PAPER.clearance;
-        const s = Math.min((f.w - 2 * c) / aw, (f.h - 2 * c) / ah);
+        const c = PAPER.cert, b = c.content, s = c.scale;
+        const midX = (b.x0 + b.x1) / 2, midY = (b.y0 + b.y1) / 2;
         return {
             scale: s,
-            x: f.x + (f.w - aw * s) / 2 + PAPER.shiftX,
-            y: f.y + (f.h - ah * s) / 2 + PAPER.shiftY,
+            x: c.centre.x - midX * s,
+            y: c.centre.y - midY * s,
             w: aw * s,
             h: ah * s,
         };
     }
 
-    return { scale: 1, x: (PAPER.w - aw) / 2, y: (PAPER.h - ah) / 2, w: aw, h: ah };
+    const s = PAPER.plainScale;
+    return { scale: s, x: (PAPER.w - aw * s) / 2, y: (PAPER.h - ah * s) / 2, w: aw * s, h: ah * s };
 }
 
 // Build the CSS font string for a coordinate entry.

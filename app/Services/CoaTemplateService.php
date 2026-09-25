@@ -61,7 +61,38 @@ class CoaTemplateService
      */
     public function options(): array
     {
-        return array_map(fn ($t) => $t['label'], $this->all());
+        return array_map(fn ($t) => $t['label'], $this->selectable());
+    }
+
+    /**
+     * Templates that may be chosen for a new COA: everything except retired
+     * (legacy) templates.
+     */
+    public function selectable(): array
+    {
+        return array_filter($this->all(), fn ($t) => empty($t['legacy_replaced_by']));
+    }
+
+    /**
+     * A retired template, kept only so COAs already submitted on it still
+     * show exactly as they were signed.
+     */
+    public function isLegacy(?string $key): bool
+    {
+        return !empty($this->get($key)['legacy_replaced_by']);
+    }
+
+    /**
+     * The template that replaces a retired one: the default member of its
+     * replacement variant group. Any other key is returned unchanged.
+     */
+    public function successor(?string $key): ?string
+    {
+        if (!$this->isLegacy($key)) {
+            return $key;
+        }
+
+        return $this->groupDefaultKey($this->get($key)['legacy_replaced_by']);
     }
 
     /**
@@ -86,7 +117,7 @@ class CoaTemplateService
     {
         $out = [];
 
-        foreach ($this->all() as $key => $tpl) {
+        foreach ($this->selectable() as $key => $tpl) {
             $group = $tpl['variant_group'] ?? null;
 
             if ($group === null) {
@@ -112,6 +143,9 @@ class CoaTemplateService
      */
     public function canonicalProductValue(?string $key): ?string
     {
+        // A product still saved on a retired template shows as its successor.
+        $key = $this->successor($key);
+
         $group = $this->variantGroup($key);
 
         return $group ? $this->groupDefaultKey($group) : $key;
@@ -196,10 +230,14 @@ class CoaTemplateService
         $line = $order->products()->where('product_id', $product->id)->first();
 
         if ($line && $this->exists($line->pivot->coa_template)) {
-            return $line->pivot->coa_template;
+            $key = $line->pivot->coa_template;
+
+            // A COA submitted on a retired template keeps it, so the signed
+            // certificate never changes. An unsubmitted one moves on.
+            return $this->isSubmitted($line->pivot) ? $key : $this->successor($key);
         }
 
-        return $this->exists($product->coa_template) ? $product->coa_template : null;
+        return $this->exists($product->coa_template) ? $this->successor($product->coa_template) : null;
     }
 
     /**
