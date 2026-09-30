@@ -903,7 +903,8 @@ class OrderController extends Controller
         // column can flag them.
         $pendingCoaEdits = CoaEditRequest::pending()
             ->where('order_id', $order->id)
-            ->pluck('product_id')
+            ->pluck('order_product_id')
+            ->map(fn ($id) => (int) $id)
             ->all();
 
         return view('orders.orderdetails', compact('order', 'pendingCoaEdits'));
@@ -917,7 +918,7 @@ class OrderController extends Controller
      * it in and submits it, after which it is locked for everyone until the
      * COA approver (QC HOD) approves a request to edit.
      */
-    public function showCOA(Order $order, Product $product, CoaTemplateService $coa)
+    public function showCOA(Order $order, int $line, CoaTemplateService $coa)
     {
         $user = auth()->user();
 
@@ -936,14 +937,15 @@ class OrderController extends Controller
         // Load necessary relationships
         $order->load(['customer', 'user', 'products']);
 
-        // Get the pivot data for this specific product
-        $orderProduct = $order->products()->where('product_id', $product->id)->first();
+        // This order line: the product with its own pivot row.
+        $product = $this->coaLine($order, $line);
 
-        // Check if the product exists in this order
-        if (!$orderProduct) {
+        if (!$product) {
             return redirect()->route('orderdetails', $order->id)
                 ->with('error', 'Product not found in this order.');
         }
+
+        $orderProduct = $product;
 
         // Check if COA is required for this product
         if (!$orderProduct->pivot->coa_required) {
@@ -957,7 +959,7 @@ class OrderController extends Controller
                 ->with('error', 'This product does not have a COA.');
         }
 
-        $templateKey = $coa->resolveForOrderLine($order, $product);
+        $templateKey = $coa->resolveForOrderLine($product);
 
         // Only superadmin can pick COA on the spot if not set
         if ($templateKey === null) {
@@ -970,6 +972,7 @@ class OrderController extends Controller
             return view('orders.coa-choose-template', [
                 'order'     => $order,
                 'product'   => $product,
+                'lineId'    => $product->pivot->id,
                 'templates' => $coa->options(),
             ]);
         }
@@ -977,7 +980,7 @@ class OrderController extends Controller
         $pivot     = $orderProduct->pivot;
         $submitted = $coa->isSubmitted($pivot);
 
-        $requests = CoaEditRequest::forLine($order->id, $product->id)
+        $requests = CoaEditRequest::forLine($pivot->id)
             ->with(['requester', 'decider'])
             ->get();
         $pendingRequest = $requests->first(fn ($r) => $r->isPending());
@@ -995,6 +998,7 @@ class OrderController extends Controller
             'order'        => $order,
             'product'      => $product,
             'orderProduct' => $orderProduct,
+            'lineId'       => $pivot->id,
             'templateKey'  => $templateKey,
             'template'     => $coa->get($templateKey),
             'pdfUrl'       => $coa->pdfUrl($templateKey),
@@ -1027,9 +1031,29 @@ class OrderController extends Controller
      * Display the editable COA page. Same view as showCOA; kept so the
      * existing /edit route still resolves.
      */
-    public function editCOA(Order $order, Product $product, CoaTemplateService $coa)
+    public function editCOA(Order $order, int $line, CoaTemplateService $coa)
     {
-        return $this->showCOA($order, $product, $coa);
+        return $this->showCOA($order, $line, $coa);
+    }
+
+    /**
+     * Old COA link, keyed by product (edit request emails sent before COAs
+     * moved to one per order line). Opens that product's first line on the
+     * order, which is the line the old link always showed.
+     */
+    public function legacyCoaLink(Order $order, int $product)
+    {
+        $first = $order->products()
+            ->where('product_id', $product)
+            ->orderBy('order_product.id')
+            ->first();
+
+        if (!$first) {
+            return redirect()->route('orderdetails', $order->id)
+                ->with('error', 'Product not found in this order.');
+        }
+
+        return redirect()->route('orders.coa', [$order->id, $first->pivot->id]);
     }
 
     /**
@@ -1042,14 +1066,21 @@ class OrderController extends Controller
      *     the patient's name)
      *   - the superadmin panel, which may move it to any template at all
      */
-    public function chooseCoaTemplate(Request $request, Order $order, Product $product, CoaTemplateService $coa)
+    public function chooseCoaTemplate(Request $request, Order $order, int $line, CoaTemplateService $coa)
     {
         if (!$coa->userMayEdit(auth()->user())) {
             return redirect()->route('orderdetails', $order->id)
                 ->with('error', 'Only the Quality Control department can change the COA template.');
         }
 
-        if ($this->coaLineSubmitted($order, $product, $coa)) {
+        $product = $this->coaLine($order, $line);
+
+        if (!$product) {
+            return redirect()->route('orderdetails', $order->id)
+                ->with('error', 'Product not found in this order.');
+        }
+
+        if ($coa->isSubmitted($product->pivot)) {
             return back()->with('error', 'This COA has been submitted and is locked. Request an edit to change it.');
         }
 
@@ -1063,7 +1094,7 @@ class OrderController extends Controller
         // group. Without this the route would accept any template key from any
         // Quality user, even though the UI only ever offers the alternates.
         if (auth()->user()->role !== 'superadmin') {
-            $current = $coa->resolveForOrderLine($order, $product);
+            $current = $coa->resolveForOrderLine($product);
 
             // Nothing set on the product means nobody below superadmin gets to
             // decide. Matches the hard stop in showCOA(), and closes the route
@@ -1081,12 +1112,10 @@ class OrderController extends Controller
             }
         }
 
-        $orderProduct = $order->products()->where('product_id', $product->id)->first();
-        $before = $orderProduct ? $orderProduct->pivot->getAttributes() : [];
+        $before = $product->pivot->getAttributes();
 
-        $order->products()->updateExistingPivot($product->id, [
-            'coa_template' => $key,
-        ]);
+        // This line only, and only while it is still unsubmitted.
+        $this->updateCoaLine($order, $product, ['coa_template' => $key], true);
 
         // Which certificate an order was issued against is the single most
         // useful thing to have in the audit trail, so record it even though
@@ -1095,11 +1124,11 @@ class OrderController extends Controller
             $order,
             $before,
             array_merge($before, ['coa_template' => $key]),
-            $product->name,
+            $this->coaLineName($product),
             'Changed COA template'
         );
 
-        return redirect()->route('orders.coa', [$order->id, $product->id]);
+        return redirect()->route('orders.coa', [$order->id, $line]);
     }
 
     /**
@@ -1114,8 +1143,10 @@ class OrderController extends Controller
      * Only the fields the chosen template actually exposes are written, so a
      * stale form cannot introduce values that do not belong on the certificate.
      */
-    public function saveCOA(Request $request, Order $order, Product $product, CoaTemplateService $coa)
+    public function saveCOA(Request $request, Order $order, int $line, CoaTemplateService $coa)
     {
+        $product = null;
+
         try {
             $user = auth()->user();
 
@@ -1126,15 +1157,17 @@ class OrderController extends Controller
                 ], 403);
             }
 
-            // Get the pivot data for this specific product
-            $orderProduct = $order->products()->where('product_id', $product->id)->first();
+            // This order line: the product with its own pivot row.
+            $product = $this->coaLine($order, $line);
 
-            if (!$orderProduct) {
+            if (!$product) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Product not found in this order.'
                 ], 404);
             }
+
+            $orderProduct = $product;
 
             if ($coa->isSubmitted($orderProduct->pivot)) {
                 return response()->json([
@@ -1143,7 +1176,7 @@ class OrderController extends Controller
                 ], 409);
             }
 
-            $templateKey = $coa->resolveForOrderLine($order, $product);
+            $templateKey = $coa->resolveForOrderLine($product);
 
             if ($templateKey === null) {
                 return response()->json([
@@ -1224,6 +1257,7 @@ class OrderController extends Controller
             // staff pressing Submit at the same moment cannot both win.
             $written = DB::table('order_product')
                 ->where('id', $orderProduct->pivot->id)
+                ->where('order_id', $order->id)
                 ->whereNull('coa_submitted_at')
                 ->update($update);
 
@@ -1238,7 +1272,7 @@ class OrderController extends Controller
                 $order,
                 $before,
                 array_merge($before, $update),
-                $product->name,
+                $this->coaLineName($product),
                 'Submitted COA'
             );
 
@@ -1249,7 +1283,8 @@ class OrderController extends Controller
         } catch (\Exception $e) {
             \Log::error('Error submitting COA', [
                 'order_id' => $order->id,
-                'product_id' => $product->id,
+                'order_product_id' => $line,
+                'product_id' => $product?->id,
                 'error' => $e->getMessage()
             ]);
 
@@ -1264,7 +1299,7 @@ class OrderController extends Controller
      * Ask for a submitted COA to be unlocked. Quality Control only; one
      * pending request per order line. The COA approvers are emailed.
      */
-    public function requestCoaEdit(Request $request, Order $order, Product $product, CoaTemplateService $coa)
+    public function requestCoaEdit(Request $request, Order $order, int $line, CoaTemplateService $coa)
     {
         $user = auth()->user();
 
@@ -1272,20 +1307,20 @@ class OrderController extends Controller
             return back()->with('error', 'Only the Quality Control department can request to edit a COA.');
         }
 
-        $orderProduct = $order->products()->where('product_id', $product->id)->first();
+        $product = $this->coaLine($order, $line);
 
-        if (!$orderProduct) {
+        if (!$product) {
             return redirect()->route('orderdetails', $order->id)
                 ->with('error', 'Product not found in this order.');
         }
 
-        if (!$coa->isSubmitted($orderProduct->pivot)) {
-            return redirect()->route('orders.coa', [$order->id, $product->id])
+        if (!$coa->isSubmitted($product->pivot)) {
+            return redirect()->route('orders.coa', [$order->id, $line])
                 ->with('error', 'This COA has not been submitted, so it can be edited directly.');
         }
 
-        if (CoaEditRequest::pending()->forLine($order->id, $product->id)->exists()) {
-            return redirect()->route('orders.coa', [$order->id, $product->id])
+        if (CoaEditRequest::pending()->forLine($line)->exists()) {
+            return redirect()->route('orders.coa', [$order->id, $line])
                 ->with('error', 'A request to edit this COA is already waiting for approval.');
         }
 
@@ -1296,16 +1331,17 @@ class OrderController extends Controller
         ]);
 
         $editRequest = CoaEditRequest::create([
-            'order_id'     => $order->id,
-            'product_id'   => $product->id,
-            'requested_by' => $user->id,
+            'order_id'         => $order->id,
+            'product_id'       => $product->id,
+            'order_product_id' => $line,
+            'requested_by'     => $user->id,
             'reason'       => trim($validated['reason']),
             'status'       => CoaEditRequest::STATUS_PENDING,
         ]);
 
         ActivityLogger::recordCoaEvent(
             $order,
-            $product->name,
+            $this->coaLineName($product),
             'Requested to edit submitted COA',
             ['edit_request' => ['old' => null, 'new' => 'Request #' . $editRequest->id . ': ' . $editRequest->reason]]
         );
@@ -1330,7 +1366,7 @@ class OrderController extends Controller
             }
         }
 
-        return redirect()->route('orders.coa', [$order->id, $product->id])
+        return redirect()->route('orders.coa', [$order->id, $line])
             ->with('success', 'Request sent. The COA stays locked until the HOD approves it.');
     }
 
@@ -1341,7 +1377,7 @@ class OrderController extends Controller
      * Patient name and batch number are order data shared with Order Details
      * and the batch form, so they are kept.
      */
-    public function approveCoaEdit(Order $order, Product $product, CoaEditRequest $coaEditRequest, CoaTemplateService $coa)
+    public function approveCoaEdit(Order $order, int $line, CoaEditRequest $coaEditRequest, CoaTemplateService $coa)
     {
         $user = auth()->user();
 
@@ -1350,31 +1386,33 @@ class OrderController extends Controller
         }
 
         if ((int) $coaEditRequest->order_id !== (int) $order->id
-            || (int) $coaEditRequest->product_id !== (int) $product->id) {
+            || (int) $coaEditRequest->order_product_id !== $line) {
             abort(404);
         }
 
         if (!$coaEditRequest->isPending()) {
-            return redirect()->route('orders.coa', [$order->id, $product->id])
+            return redirect()->route('orders.coa', [$order->id, $line])
                 ->with('error', 'This request has already been decided.');
         }
 
-        $orderProduct = $order->products()->where('product_id', $product->id)->first();
+        $product = $this->coaLine($order, $line);
 
-        if (!$orderProduct) {
+        if (!$product) {
             return redirect()->route('orderdetails', $order->id)
                 ->with('error', 'Product not found in this order.');
         }
 
-        $before = $orderProduct->pivot->getAttributes();
-        $oldImage = $orderProduct->pivot->coa_morphology_image;
+        $before = $product->pivot->getAttributes();
+        $oldImage = $product->pivot->coa_morphology_image;
 
         $clear = array_fill_keys(CoaTemplateService::CLEARED_ON_UNLOCK, null);
         $clear['coa_updated_by'] = $user->id;
         $clear['coa_updated_at'] = now();
 
         DB::transaction(function () use ($order, $product, $clear, $coaEditRequest, $user) {
-            $order->products()->updateExistingPivot($product->id, $clear);
+            // This line only. The same product on another line of the order
+            // has its own COA and is not touched.
+            $this->updateCoaLine($order, $product, $clear);
 
             $coaEditRequest->update([
                 'status'     => CoaEditRequest::STATUS_APPROVED,
@@ -1384,8 +1422,9 @@ class OrderController extends Controller
         });
 
         // The micrograph goes with the rest of the COA. The audit entry below
-        // keeps its file name.
-        if ($oldImage) {
+        // keeps its file name. A file still used by another line (copied
+        // there before COAs were per line) is left in place.
+        if ($oldImage && !$this->coaFileUsedElsewhere('coa_morphology_image', $oldImage, $line)) {
             foreach ([
                 public_path('storage/coa_morphology/' . $oldImage),
                 storage_path('app/public/coa_morphology/' . $oldImage),
@@ -1402,20 +1441,20 @@ class OrderController extends Controller
             $order,
             $before,
             array_merge($before, $clear),
-            $product->name,
+            $this->coaLineName($product),
             'Approved edit request #' . $coaEditRequest->id
                 . ($requester ? ' from ' . $requester->fullName() : '')
                 . ' and cleared COA'
         );
 
-        return redirect()->route('orders.coa', [$order->id, $product->id])
+        return redirect()->route('orders.coa', [$order->id, $line])
             ->with('success', 'Request approved. The COA has been cleared and can be filled in again.');
     }
 
     /**
      * Reject a request to edit. The COA stays locked as it is.
      */
-    public function rejectCoaEdit(Order $order, Product $product, CoaEditRequest $coaEditRequest)
+    public function rejectCoaEdit(Order $order, int $line, CoaEditRequest $coaEditRequest)
     {
         $user = auth()->user();
 
@@ -1424,14 +1463,17 @@ class OrderController extends Controller
         }
 
         if ((int) $coaEditRequest->order_id !== (int) $order->id
-            || (int) $coaEditRequest->product_id !== (int) $product->id) {
+            || (int) $coaEditRequest->order_product_id !== $line) {
             abort(404);
         }
 
         if (!$coaEditRequest->isPending()) {
-            return redirect()->route('orders.coa', [$order->id, $product->id])
+            return redirect()->route('orders.coa', [$order->id, $line])
                 ->with('error', 'This request has already been decided.');
         }
+
+        $product = $this->coaLine($order, $line);
+        $lineName = $product ? $this->coaLineName($product) : null;
 
         $coaEditRequest->update([
             'status'     => CoaEditRequest::STATUS_REJECTED,
@@ -1441,23 +1483,71 @@ class OrderController extends Controller
 
         ActivityLogger::recordCoaEvent(
             $order,
-            $product->name,
+            $lineName,
             'Rejected edit request #' . $coaEditRequest->id,
             ['edit_request' => ['old' => 'pending', 'new' => 'rejected']]
         );
 
-        return redirect()->route('orders.coa', [$order->id, $product->id])
+        return redirect()->route('orders.coa', [$order->id, $line])
             ->with('success', 'Request rejected. The COA stays locked.');
     }
 
     /**
-     * Whether this order line's COA has been submitted (and so is locked).
+     * One order line: the product as loaded through the order, carrying that
+     * line's own pivot row (order_product.id = $line).
+     *
+     * COAs belong to lines, not products. The same product can be on one
+     * order more than once (two patients, or a 100B and a 50B Exosome), so a
+     * line is never looked up by product id.
      */
-    private function coaLineSubmitted(Order $order, Product $product, CoaTemplateService $coa): bool
+    private function coaLine(Order $order, int $line): ?Product
     {
-        $line = $order->products()->where('product_id', $product->id)->first();
+        return $order->products()->wherePivot('id', $line)->first();
+    }
 
-        return $line ? $coa->isSubmitted($line->pivot) : false;
+    /**
+     * Write to one order line's row and nothing else.
+     *
+     * updateExistingPivot() matches on product_id, so on an order with the
+     * same product twice it wrote to every one of those lines. This matches
+     * on the line's own id. With $unsubmittedOnly the write is skipped if the
+     * COA was submitted in the meantime.
+     */
+    private function updateCoaLine(Order $order, Product $line, array $data, bool $unsubmittedOnly = false): int
+    {
+        $query = DB::table('order_product')
+            ->where('id', $line->pivot->id)
+            ->where('order_id', $order->id);
+
+        if ($unsubmittedOnly) {
+            $query->whereNull('coa_submitted_at');
+        }
+
+        return $query->update($data + ['updated_at' => now()]);
+    }
+
+    /**
+     * Product name for the audit log, with the patient when there is one, so
+     * two lines of the same product can be told apart.
+     */
+    private function coaLineName(Product $line): string
+    {
+        $patient = trim((string) ($line->pivot->patient_name ?? ''));
+
+        return $patient !== '' ? $line->name . ' (' . $patient . ')' : $line->name;
+    }
+
+    /**
+     * Whether another order line still points at this file. Before COAs were
+     * per line, an upload could be written to every line of the same product,
+     * so an old file may be shared; it must not be deleted from under them.
+     */
+    private function coaFileUsedElsewhere(string $column, string $filename, int $exceptLine): bool
+    {
+        return DB::table('order_product')
+            ->where($column, $filename)
+            ->where('id', '!=', $exceptLine)
+            ->exists();
     }
 
     /**
@@ -1471,14 +1561,15 @@ class OrderController extends Controller
      * Deliberately separate from the generated-COA columns, so an uploaded
      * certificate can never overwrite a generated one or vice versa.
      */
-    public function uploadCoaDocument(Request $request, Order $order, Product $product, CoaTemplateService $coa)
+    public function uploadCoaDocument(Request $request, Order $order, int $line, CoaTemplateService $coa)
     {
         if (!$coa->userMayEdit(auth()->user())) {
             return redirect()->route('orderdetails', $order->id)
                 ->with('error', 'Only the Quality Control department can upload a COA.');
         }
 
-        $orderProduct = $order->products()->where('product_id', $product->id)->first();
+        $product = $this->coaLine($order, $line);
+        $orderProduct = $product;
 
         if (!$orderProduct) {
             return redirect()->route('orderdetails', $order->id)
@@ -1496,7 +1587,9 @@ class OrderController extends Controller
 
         try {
             $file = $request->file('coa_document');
-            $filename = 'coa_doc_' . $order->id . '_' . $product->id . '_' . time() . '.pdf';
+            // Order, product and line in the name, so two lines of the same
+            // product never share a file.
+            $filename = 'coa_doc_' . $order->id . '_' . $product->id . '_' . $line . '_' . time() . '.pdf';
 
             $file->storeAs('public/coa_documents', $filename);
 
@@ -1514,7 +1607,7 @@ class OrderController extends Controller
             // Replacing an existing certificate removes the old file, so the
             // activity log becomes the only record that it ever existed.
             $existing = $orderProduct->pivot->coa_document;
-            if ($existing) {
+            if ($existing && !$this->coaFileUsedElsewhere('coa_document', $existing, $line)) {
                 $oldPublic = public_path('storage/coa_documents/' . $existing);
                 if (file_exists($oldPublic)) {
                     @unlink($oldPublic);
@@ -1525,7 +1618,7 @@ class OrderController extends Controller
                 }
             }
 
-            $order->products()->updateExistingPivot($product->id, [
+            $this->updateCoaLine($order, $product, [
                 'coa_document'             => $filename,
                 'coa_document_uploaded_by' => auth()->id(),
                 'coa_document_uploaded_at' => now(),
@@ -1535,7 +1628,7 @@ class OrderController extends Controller
                 $order,
                 ['coa_document' => $existing],
                 ['coa_document' => $filename],
-                $product->name,
+                $this->coaLineName($product),
                 $existing ? 'Replaced uploaded COA' : 'Uploaded COA'
             );
 
@@ -1543,8 +1636,9 @@ class OrderController extends Controller
                 ->with('success', 'COA uploaded successfully.');
         } catch (\Exception $e) {
             Log::error('COA document upload failed', [
-                'order_id'   => $order->id,
-                'product_id' => $product->id,
+                'order_id'         => $order->id,
+                'order_product_id' => $line,
+                'product_id'       => $product->id,
                 'error'      => $e->getMessage(),
             ]);
 
@@ -1559,8 +1653,10 @@ class OrderController extends Controller
      * The image is resized to fit the slot on the certificate, so QC can
      * supply whatever the microscope produced without preparing an exact size.
      */
-    public function uploadCoaMorphology(Request $request, Order $order, Product $product, CoaTemplateService $coa)
+    public function uploadCoaMorphology(Request $request, Order $order, int $line, CoaTemplateService $coa)
     {
+        $product = null;
+
         try {
             if (!$coa->userMayEdit(auth()->user())) {
                 return response()->json([
@@ -1569,7 +1665,17 @@ class OrderController extends Controller
                 ], 403);
             }
 
-            if ($this->coaLineSubmitted($order, $product, $coa)) {
+            $product = $this->coaLine($order, $line);
+            $orderProduct = $product;
+
+            if (!$orderProduct) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Product not found in this order.'
+                ], 404);
+            }
+
+            if ($coa->isSubmitted($orderProduct->pivot)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'This COA has been submitted and is locked. Request an edit to change it.'
@@ -1580,16 +1686,7 @@ class OrderController extends Controller
                 'morphology_image' => 'required|image|mimes:jpeg,jpg,png|max:' . self::MORPHOLOGY_MAX_KB,
             ]);
 
-            $orderProduct = $order->products()->where('product_id', $product->id)->first();
-
-            if (!$orderProduct) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Product not found in this order.'
-                ], 404);
-            }
-
-            $templateKey = $coa->resolveForOrderLine($order, $product);
+            $templateKey = $coa->resolveForOrderLine($product);
 
             if (!$coa->acceptsMorphologyImage($templateKey)) {
                 return response()->json([
@@ -1599,7 +1696,9 @@ class OrderController extends Controller
             }
 
             $file = $request->file('morphology_image');
-            $filename = 'coa_' . $order->id . '_' . $product->id . '_' . time()
+            // Order, product and line in the name, so two lines of the same
+            // product never share a file.
+            $filename = 'coa_' . $order->id . '_' . $product->id . '_' . $line . '_' . time()
                 . '.' . $file->getClientOriginalExtension();
 
             $file->storeAs('public/coa_morphology', $filename);
@@ -1617,9 +1716,10 @@ class OrderController extends Controller
                 $coa->get($templateKey)['coordinates']['page2']['morphology_slot']
             );
 
-            // Remove the previous file if there was one.
+            // Remove the previous file if there was one, unless another line
+            // still points at it (copied there before COAs were per line).
             $existing = $orderProduct->pivot->coa_morphology_image;
-            if ($existing) {
+            if ($existing && !$this->coaFileUsedElsewhere('coa_morphology_image', $existing, $line)) {
                 $oldPublic = public_path('storage/coa_morphology/' . $existing);
                 if (file_exists($oldPublic)) {
                     @unlink($oldPublic);
@@ -1631,11 +1731,11 @@ class OrderController extends Controller
             }
 
             // Store just the filename; the view builds the /storage/... URL.
-            $order->products()->updateExistingPivot($product->id, [
+            $this->updateCoaLine($order, $product, [
                 'coa_morphology_image' => $filename,
                 'coa_updated_by'       => auth()->id(),
                 'coa_updated_at'       => now(),
-            ]);
+            ], true);
 
             // The previous file has already been deleted from disk by this
             // point, so the log is the only remaining record of what the
@@ -1644,7 +1744,7 @@ class OrderController extends Controller
                 $order,
                 ['coa_morphology_image' => $existing],
                 ['coa_morphology_image' => $filename],
-                $product->name,
+                $this->coaLineName($product),
                 $existing ? 'Replaced COA morphology image' : 'Uploaded COA morphology image'
             );
 
@@ -1661,7 +1761,8 @@ class OrderController extends Controller
         } catch (\Exception $e) {
             \Log::error('Error uploading COA morphology image', [
                 'order_id' => $order->id,
-                'product_id' => $product->id,
+                'order_product_id' => $line,
+                'product_id' => $product?->id,
                 'error' => $e->getMessage()
             ]);
 

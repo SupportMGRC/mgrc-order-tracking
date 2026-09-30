@@ -19,6 +19,7 @@ class CoaEditRequest extends Model
     protected $fillable = [
         'order_id',
         'product_id',
+        'order_product_id',
         'requested_by',
         'reason',
         'status',
@@ -55,11 +56,13 @@ class CoaEditRequest extends Model
         return $query->where('status', self::STATUS_PENDING);
     }
 
-    /** Requests for one order line, newest first. */
-    public function scopeForLine($query, int $orderId, int $productId)
+    /**
+     * Requests for one order line (order_product.id), newest first. Key by
+     * line, not product: the same product can be on an order twice.
+     */
+    public function scopeForLine($query, int $orderProductId)
     {
-        return $query->where('order_id', $orderId)
-            ->where('product_id', $productId)
+        return $query->where('order_product_id', $orderProductId)
             ->latest('id');
     }
 

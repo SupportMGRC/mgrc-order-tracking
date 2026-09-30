@@ -123,25 +123,30 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/orders/{order}/prf', [PRFController::class, 'show'])->name('orders.prf');
         Route::get('/orders/{order}/prf/print', [PRFController::class, 'print'])->name('orders.prf.print');
 
-        // COA routes - unified view for displaying and editing Certificate of Analysis
-        // Both routes now use the same coa-editor.blade.php view with toggle edit mode
-        Route::get('/orders/{order}/coa/{product}', [OrderController::class, 'showCOA'])->name('orders.coa');
-        Route::get('/orders/{order}/coa/{product}/edit', [OrderController::class, 'editCOA'])->name('orders.coa.edit');
+        // COA routes. A COA belongs to an order LINE (order_product.id), not
+        // to a product: the same product can be on one order more than once,
+        // for different patients, and each line has its own certificate.
+        Route::get('/orders/{order}/coa/line/{line}', [OrderController::class, 'showCOA'])->whereNumber('line')->name('orders.coa');
+        Route::get('/orders/{order}/coa/line/{line}/edit', [OrderController::class, 'editCOA'])->whereNumber('line')->name('orders.coa.edit');
         // Save = Submit: fills in the COA and locks it.
-        Route::post('/orders/{order}/coa/{product}/save', [OrderController::class, 'saveCOA'])->name('orders.coa.save');
+        Route::post('/orders/{order}/coa/line/{line}/save', [OrderController::class, 'saveCOA'])->whereNumber('line')->name('orders.coa.save');
 
-        // COA enhancement: template selection + morphology image upload
-        Route::post('/orders/{order}/coa/{product}/template', [OrderController::class, 'chooseCoaTemplate'])->name('orders.coa.template');
-        Route::post('/orders/{order}/coa/{product}/morphology', [OrderController::class, 'uploadCoaMorphology'])->name('orders.coa.morphology');
+        // Template selection + morphology image upload
+        Route::post('/orders/{order}/coa/line/{line}/template', [OrderController::class, 'chooseCoaTemplate'])->whereNumber('line')->name('orders.coa.template');
+        Route::post('/orders/{order}/coa/line/{line}/morphology', [OrderController::class, 'uploadCoaMorphology'])->whereNumber('line')->name('orders.coa.morphology');
 
         // Submitted COAs are locked. QC asks to edit; the COA approver (QC HOD)
         // or a superadmin approves (clears the COA) or rejects.
-        Route::post('/orders/{order}/coa/{product}/edit-request', [OrderController::class, 'requestCoaEdit'])->name('orders.coa.edit-request');
-        Route::post('/orders/{order}/coa/{product}/edit-request/{coaEditRequest}/approve', [OrderController::class, 'approveCoaEdit'])->name('orders.coa.edit-request.approve');
-        Route::post('/orders/{order}/coa/{product}/edit-request/{coaEditRequest}/reject', [OrderController::class, 'rejectCoaEdit'])->name('orders.coa.edit-request.reject');
+        Route::post('/orders/{order}/coa/line/{line}/edit-request', [OrderController::class, 'requestCoaEdit'])->whereNumber('line')->name('orders.coa.edit-request');
+        Route::post('/orders/{order}/coa/line/{line}/edit-request/{coaEditRequest}/approve', [OrderController::class, 'approveCoaEdit'])->whereNumber('line')->name('orders.coa.edit-request.approve');
+        Route::post('/orders/{order}/coa/line/{line}/edit-request/{coaEditRequest}/reject', [OrderController::class, 'rejectCoaEdit'])->whereNumber('line')->name('orders.coa.edit-request.reject');
 
         // COA supplied by QC for products that have no generated template.
-        Route::post('/orders/{order}/coa/{product}/document', [OrderController::class, 'uploadCoaDocument'])->name('orders.coa.document');
+        Route::post('/orders/{order}/coa/line/{line}/document', [OrderController::class, 'uploadCoaDocument'])->whereNumber('line')->name('orders.coa.document');
+
+        // Old product-based COA link (edit request emails sent before the
+        // per-line change). Opens the product's first line on the order.
+        Route::get('/orders/{order}/coa/{product}', [OrderController::class, 'legacyCoaLink'])->whereNumber('product')->name('orders.coa.legacy');
 
         Route::post('order-batch-update/{id}', [OrderController::class, 'updateBatch'])->name('orders.update.batch');
 

@@ -67,6 +67,13 @@ class Pickup extends Model
     public const DESPATCH_DEPARTMENT = 'Dispatcher';
 
     /**
+     * Also sent every pickup email the Dispatcher department gets, so Admin
+     * can remind a despatcher who has not checked email to update a pickup.
+     * Matched against users.email; to add someone, add their email here.
+     */
+    public const DESPATCH_COPY_EMAILS = ['admin@mgrc.com.my'];
+
+    /**
      * Departments that can take pickup items in at MGRC. Each pickup product
      * is set to one of these in Product (products.receiving_department), and
      * the pickup copies it on creation (pickups.receiving_department).
@@ -78,7 +85,7 @@ class Pickup extends Model
      *
      * To add a department: add it here. It then appears in the Product form.
      */
-    public const RECEIVING_DEPARTMENTS = ['Cell Lab', 'Genomics'];
+    public const RECEIVING_DEPARTMENTS = ['Cell Lab', 'Genomics', 'Quality Control'];
 
     /** Folder under storage/app/public and public/storage for pickup photos. */
     public const PHOTO_DIR = 'pickup_photos';

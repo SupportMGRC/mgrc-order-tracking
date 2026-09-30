@@ -15,9 +15,12 @@ use Illuminate\Support\Facades\Mail;
  *   new         -> requester (confirmation) + Dispatcher department
  *   on_the_way  -> requester + Dispatcher department
  *   picked_up   -> requester + Dispatcher department + the pickup's receiving
- *                  department (Cell Lab or Genomics, from the items)
+ *                  department (from the items)
  *   received    -> requester + Dispatcher department
  *   cancelled   -> requester + Dispatcher department
+ *
+ * Wherever the Dispatcher department is emailed, the users in
+ * Pickup::DESPATCH_COPY_EMAILS (Admin) get the same email.
  *
  * The person who pressed the button is not emailed about their own action,
  * except the requester, who gets a confirmation of the pickup they created.
@@ -101,7 +104,10 @@ class PickupNotifier
         $requester = $pickup->user_id ? User::whereKey($pickup->user_id)->get() : collect();
         $despatchers = $this->department([Pickup::DESPATCH_DEPARTMENT]);
 
-        $list = $requester->merge($despatchers);
+        // Admin gets a copy of every despatcher email, to follow up with them.
+        $copies = User::whereIn('email', Pickup::DESPATCH_COPY_EMAILS)->get();
+
+        $list = $requester->merge($despatchers)->merge($copies);
 
         // The receiving department also hears when items are on their way in.
         // Only the department the items belong to, not every receiving department.
@@ -121,6 +127,11 @@ class PickupNotifier
     {
         if ((int) $user->id === (int) $pickup->user_id) {
             return 'You are receiving this email because you requested this pickup in the MGRC Order Tracking system.';
+        }
+
+        if ($user->department !== Pickup::DESPATCH_DEPARTMENT
+            && in_array(strtolower((string) $user->email), array_map('strtolower', Pickup::DESPATCH_COPY_EMAILS), true)) {
+            return 'You are receiving a copy of the pickup emails sent to the Dispatcher department in the MGRC Order Tracking system.';
         }
 
         return 'You are receiving this email because you are in the ' . $user->department

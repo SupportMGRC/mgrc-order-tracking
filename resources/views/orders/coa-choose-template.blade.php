@@ -30,7 +30,7 @@
                     </p>
 
                     <form method="POST"
-                          action="{{ route('orders.coa.template', [$order->id, $product->id]) }}">
+                          action="{{ route('orders.coa.template', [$order->id, $lineId]) }}">
                         @csrf
 
                         <div class="mb-3">

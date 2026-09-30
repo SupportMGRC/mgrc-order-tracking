@@ -127,7 +127,10 @@
             <div class="card">
                 <p><span class="label">Order:</span> #{{ $order->id }}</p>
                 <p><span class="label">Product:</span> {{ $product->name }}</p>
-                @php $line = $order->products()->where('product_id', $product->id)->first(); @endphp
+                @php $line = $order->products()->wherePivot('id', $editRequest->order_product_id)->first(); @endphp
+                @if($line && $line->pivot->patient_name)
+                    <p><span class="label">Patient:</span> {{ $line->pivot->patient_name }}</p>
+                @endif
                 @if($line)
                     <p><span class="label">COA No:</span> {{ $line->pivot->qc_document_number ?: '-' }}</p>
                     <p><span class="label">Submitted By:</span> {{ $line->pivot->coa_signatory_name ?: '-' }}</p>
@@ -137,7 +140,7 @@
             <p style="font-size:13px; color:#777;">If you approve, every COA value on this order line is cleared and Quality Control fills it in again. Patient name and batch number are kept.</p>
 
             <div class="button-wrap">
-                <a href="{{ route('orders.coa', [$order->id, $product->id]) }}"
+                <a href="{{ route('orders.coa', [$order->id, $editRequest->order_product_id]) }}"
                    style="display:inline-block; background-color:#f0ad4e; color:#ffffff; text-decoration:none; padding:12px 26px; border-radius:5px; font-weight:bold; font-family:Arial, sans-serif;">
                    Open COA to Decide
                 </a>

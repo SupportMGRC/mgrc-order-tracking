@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
 
@@ -225,19 +224,26 @@ class CoaTemplateService
         return $product->coa_template !== self::NONE;
     }
 
-    public function resolveForOrderLine(Order $order, Product $product): ?string
+    /**
+     * The template for one order line.
+     *
+     * $line is the product as loaded through the order, so it carries the
+     * line's own pivot row. The same product can be on an order more than
+     * once, so the line is always passed in, never looked up by product.
+     */
+    public function resolveForOrderLine(Product $line): ?string
     {
-        $line = $order->products()->where('product_id', $product->id)->first();
+        $pivot = $line->pivot;
 
-        if ($line && $this->exists($line->pivot->coa_template)) {
-            $key = $line->pivot->coa_template;
+        if ($pivot && $this->exists($pivot->coa_template)) {
+            $key = $pivot->coa_template;
 
             // A COA submitted on a retired template keeps it, so the signed
             // certificate never changes. An unsubmitted one moves on.
-            return $this->isSubmitted($line->pivot) ? $key : $this->successor($key);
+            return $this->isSubmitted($pivot) ? $key : $this->successor($key);
         }
 
-        return $this->exists($product->coa_template) ? $this->successor($product->coa_template) : null;
+        return $this->exists($line->coa_template) ? $this->successor($line->coa_template) : null;
     }
 
     /**

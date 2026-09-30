@@ -134,7 +134,7 @@
 
             @if($canEdit && !empty($variants))
                 <form method="POST"
-                      action="{{ route('orders.coa.template', [$order->id, $product->id]) }}"
+                      action="{{ route('orders.coa.template', [$order->id, $lineId]) }}"
                       onsubmit="return confirmVariantSwitch()"
                       class="btn-group btn-group-sm" role="group"
                       aria-label="Certificate version">
@@ -178,7 +178,7 @@
 
     @if(Auth::user()->role === 'superadmin' && !$submitted)
         <div id="change-template-panel" class="mt-3 p-3 border rounded bg-light" style="display: none;">
-            <form method="POST" action="{{ route('orders.coa.template', [$order->id, $product->id]) }}" class="d-flex gap-2 align-items-end">
+            <form method="POST" action="{{ route('orders.coa.template', [$order->id, $lineId]) }}" class="d-flex gap-2 align-items-end">
                 @csrf
                 <div class="flex-grow-1">
                     <label class="form-label mb-1 small fw-semibold">Change COA template for this order line</label>
@@ -378,6 +378,17 @@
                                 <strong>Signature:</strong> added when Quality Control submits this COA.<br>
                             @endif
                             <strong>COA No.:</strong> also shows in the Order's QC Doc column.
+                            @php
+                                // Example COA No. for the certificates QC asked for.
+                                $coaNoExample = match (true) {
+                                    str_starts_with($templateKey, 'msc_') => 'MSC/26/WJ26010-P3-61/2909/I-00306',
+                                    str_starts_with($templateKey, 'nk')   => 'MGRC/NK/26/G-00029',
+                                    default                               => null,
+                                };
+                            @endphp
+                            @if($canEdit && $coaNoExample)
+                                <br><strong>COA No. format:</strong> {{ $coaNoExample }}
+                            @endif
                         </small>
                     </div>
 
@@ -442,7 +453,7 @@
                         @if($canDecideEdit)
                             <div class="d-flex gap-2">
                                 <form method="POST" class="flex-fill"
-                                      action="{{ route('orders.coa.edit-request.approve', [$order->id, $product->id, $pendingRequest->id]) }}"
+                                      action="{{ route('orders.coa.edit-request.approve', [$order->id, $lineId, $pendingRequest->id]) }}"
                                       onsubmit="return confirm('Approve this request?\n\nEvery COA value on this order line will be cleared (COA No, dates, results, morphology image and signature). Quality Control then fills it in and submits it again.\n\nPatient name and batch number are kept.');">
                                     @csrf
                                     <button type="submit" class="btn btn-success w-100">
@@ -450,7 +461,7 @@
                                     </button>
                                 </form>
                                 <form method="POST" class="flex-fill"
-                                      action="{{ route('orders.coa.edit-request.reject', [$order->id, $product->id, $pendingRequest->id]) }}"
+                                      action="{{ route('orders.coa.edit-request.reject', [$order->id, $lineId, $pendingRequest->id]) }}"
                                       onsubmit="return confirm('Reject this request? The COA stays locked as it is.');">
                                     @csrf
                                     <button type="submit" class="btn btn-outline-danger w-100">
@@ -468,7 +479,7 @@
                         @endif
 
                         @if($canRequestEdit)
-                            <form method="POST" action="{{ route('orders.coa.edit-request', [$order->id, $product->id]) }}">
+                            <form method="POST" action="{{ route('orders.coa.edit-request', [$order->id, $lineId]) }}">
                                 @csrf
                                 <div class="mb-2">
                                     <label for="edit-reason" class="form-label small mb-1">Reason</label>
@@ -534,8 +545,8 @@ window.COA = {
     canDownload: @json((bool) $canDownload),
     submitted:   @json((bool) $submitted),
     morphologyUrl: @json($coaValues['morphology_image'] ?? null),
-    uploadUrl:   @json(route('orders.coa.morphology', [$order->id, $product->id])),
-    saveUrl:     @json(route('orders.coa.save', [$order->id, $product->id])),
+    uploadUrl:   @json(route('orders.coa.morphology', [$order->id, $lineId])),
+    saveUrl:     @json(route('orders.coa.save', [$order->id, $lineId])),
     csrf:        @json(csrf_token()),
 };
 const COA = window.COA;

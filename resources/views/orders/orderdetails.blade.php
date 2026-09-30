@@ -1216,7 +1216,7 @@
 
                                                 // A request to edit a submitted COA is waiting for the HOD.
                                                 // Flagged for the people who act on it.
-                                                $coaEditPending = in_array($product->id, $pendingCoaEdits ?? [])
+                                                $coaEditPending = in_array((int) $product->pivot->id, $pendingCoaEdits ?? [], true)
                                                     && ($mayEditCoa || Auth::user()->canApproveCoaEdit());
 
                                                 // 'none' means this product never gets a generated COA.
@@ -1228,7 +1228,7 @@
                                             @endphp
 
                                             @if($product->pivot->coa_required && $productHasCoa && $mayUseCoa)
-                                                <a href="{{ route('orders.coa', ['order' => $order->id, 'product' => $product->id]) }}"
+                                                <a href="{{ route('orders.coa', ['order' => $order->id, 'line' => $product->pivot->id]) }}"
                                                     class="btn btn-sm btn-info" title="View COA">
                                                     <i class="ri-file-text-line align-middle"></i>
                                                     <span class="d-none d-lg-inline ms-1">COA</span>
@@ -1590,7 +1590,7 @@
                             </h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
-                        <form action="{{ route('orders.coa.document', ['order' => $order->id, 'product' => $product->id]) }}"
+                        <form action="{{ route('orders.coa.document', ['order' => $order->id, 'line' => $product->pivot->id]) }}"
                             method="POST" enctype="multipart/form-data">
                             @csrf
                             <div class="modal-body">
