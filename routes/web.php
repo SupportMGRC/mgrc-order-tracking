@@ -136,13 +136,20 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/orders/{order}/coa/line/{line}/morphology', [OrderController::class, 'uploadCoaMorphology'])->whereNumber('line')->name('orders.coa.morphology');
 
         // Submitted COAs are locked. QC asks to edit; the COA approver (QC HOD)
-        // or a superadmin approves (clears the COA) or rejects.
+        // or a superadmin approves (unlocks the COA) or rejects.
         Route::post('/orders/{order}/coa/line/{line}/edit-request', [OrderController::class, 'requestCoaEdit'])->whereNumber('line')->name('orders.coa.edit-request');
         Route::post('/orders/{order}/coa/line/{line}/edit-request/{coaEditRequest}/approve', [OrderController::class, 'approveCoaEdit'])->whereNumber('line')->name('orders.coa.edit-request.approve');
         Route::post('/orders/{order}/coa/line/{line}/edit-request/{coaEditRequest}/reject', [OrderController::class, 'rejectCoaEdit'])->whereNumber('line')->name('orders.coa.edit-request.reject');
 
-        // COA supplied by QC for products that have no generated template.
+        // The COA approver (QC HOD) unlocks a submitted COA without a request:
+        // Return to QC (the submitter is emailed) or Reopen (she corrects it).
+        Route::post('/orders/{order}/coa/line/{line}/unlock', [OrderController::class, 'unlockCoa'])->whereNumber('line')->name('orders.coa.unlock');
+
+        // COA supplied by QC as a file: products that have no generated
+        // template, and lines the HOD switched to an uploaded COA.
         Route::post('/orders/{order}/coa/line/{line}/document', [OrderController::class, 'uploadCoaDocument'])->whereNumber('line')->name('orders.coa.document');
+        Route::post('/orders/{order}/coa/line/{line}/document/return', [OrderController::class, 'returnCoaDocument'])->whereNumber('line')->name('orders.coa.document.return');
+        Route::post('/orders/{order}/coa/line/{line}/upload-mode', [OrderController::class, 'setCoaUploadMode'])->whereNumber('line')->name('orders.coa.upload-mode');
 
         // Old product-based COA link (edit request emails sent before the
         // per-line change). Opens the product's first line on the order.

@@ -1225,24 +1225,59 @@
 
                                                 // A certificate QC produced outside the system and uploaded.
                                                 $coaDocument = $product->pivot->coa_document ?? null;
+
+                                                // The COA approver (QC HOD) decides edits, returns COAs and
+                                                // switches a line to an uploaded COA when TRACOM has a problem.
+                                                $mayDecideCoa = Auth::user()->canApproveCoaEdit();
+                                                $coaUploadMode = !empty($product->pivot->coa_upload_mode);
+                                                $coaSubmitted = !empty($product->pivot->coa_submitted_at);
+
+                                                // Latest unlock on this line: flags a COA waiting to be
+                                                // corrected, for the people who act on it.
+                                                $coaUnlock = ($coaLastUnlock ?? collect())->get($product->pivot->id);
+                                                $coaFlagVisible = $mayEditCoa || $mayDecideCoa;
+                                                $coaTemplateFlag = null;
+                                                if ($coaFlagVisible && $coaUnlock && !$coaUploadMode && !$coaSubmitted && $coaUnlock->isTemplateUnlock()) {
+                                                    $coaTemplateFlag = $coaUnlock->kind() === \App\Models\CoaEditRequest::TYPE_RETURN ? 'returned' : 'reopened';
+                                                }
+                                                $coaUploadReturned = $coaFlagVisible && $coaUnlock && !$coaDocument
+                                                    && $coaUnlock->kind() === \App\Models\CoaEditRequest::TYPE_RETURN_UPLOAD;
                                             @endphp
 
-                                            @if($product->pivot->coa_required && $productHasCoa && $mayUseCoa)
+                                            @if($product->pivot->coa_required && $productHasCoa && !$coaUploadMode && $mayUseCoa)
                                                 <a href="{{ route('orders.coa', ['order' => $order->id, 'line' => $product->pivot->id]) }}"
                                                     class="btn btn-sm btn-info" title="View COA">
                                                     <i class="ri-file-text-line align-middle"></i>
                                                     <span class="d-none d-lg-inline ms-1">COA</span>
                                                 </a>
+                                                @if($mayDecideCoa && !$coaSubmitted)
+                                                    <button type="button" class="btn btn-sm btn-soft-secondary mt-1 mt-lg-0"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#switchCoaUploadModal{{ $product->pivot->id }}"
+                                                        title="Switch to uploaded COA (system issue)">
+                                                        <i class="ri-upload-cloud-2-line align-middle"></i>
+                                                    </button>
+                                                @endif
                                                 @if($coaEditPending)
                                                     <span class="badge bg-warning text-dark d-block mt-1" title="A request to edit this COA is waiting for HOD approval">
                                                         <i class="ri-time-line align-middle"></i> Pending edit request
                                                     </span>
                                                 @endif
-                                            @elseif($product->pivot->coa_required && $productHasCoa)
+                                                @if($coaTemplateFlag === 'returned')
+                                                    <span class="badge bg-danger d-block mt-1" title="Returned by the HOD. Correct the COA and submit it again.">
+                                                        <i class="ri-reply-line align-middle"></i> Returned for correction
+                                                    </span>
+                                                @elseif($coaTemplateFlag === 'reopened')
+                                                    <span class="badge bg-warning text-dark d-block mt-1" title="Reopened. Correct the COA and submit it again.">
+                                                        <i class="ri-lock-unlock-line align-middle"></i> Reopened
+                                                    </span>
+                                                @endif
+                                            @elseif($product->pivot->coa_required && $productHasCoa && !$coaUploadMode)
                                                 {{-- Required, but this user has no order access (not reachable from Order Details) --}}
                                                 <span class="text-muted">-</span>
-                                            @elseif($product->pivot->coa_required && !$productHasCoa)
-                                                {{-- No template for this product: QC supplies the certificate. --}}
+                                            @elseif($product->pivot->coa_required)
+                                                {{-- QC supplies the certificate as a file: the product has no
+                                                     template, or the HOD switched this line to an uploaded COA. --}}
                                                 @if($coaDocument)
                                                     <a href="{{ asset('storage/coa_documents/' . $coaDocument) }}"
                                                         target="_blank" rel="noopener"
@@ -1258,6 +1293,14 @@
                                                             <i class="ri-refresh-line align-middle"></i>
                                                         </button>
                                                     @endif
+                                                    @if($mayDecideCoa)
+                                                        <button type="button" class="btn btn-sm btn-soft-danger mt-1 mt-lg-0"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#returnCoaDocumentModal{{ $product->pivot->id }}"
+                                                            title="Return to QC">
+                                                            <i class="ri-reply-line align-middle"></i>
+                                                        </button>
+                                                    @endif
                                                 @elseif($mayEditCoa)
                                                     <button type="button" class="btn btn-sm btn-warning"
                                                         data-bs-toggle="modal"
@@ -1268,6 +1311,22 @@
                                                     </button>
                                                 @else
                                                     <span class="badge bg-warning">Awaiting QC</span>
+                                                @endif
+                                                @if($coaUploadMode && !$coaDocument && $mayDecideCoa)
+                                                    <form method="POST" class="d-inline"
+                                                          action="{{ route('orders.coa.upload-mode', ['order' => $order->id, 'line' => $product->pivot->id]) }}"
+                                                          onsubmit="return confirm('Switch {{ addslashes($product->name) }} back to the COA template?\n\nQuality Control prepares the COA in TRACOM as usual.');">
+                                                        @csrf
+                                                        <input type="hidden" name="mode" value="template">
+                                                        <button type="submit" class="btn btn-sm btn-soft-secondary mt-1 mt-lg-0" title="Switch back to the COA template">
+                                                            <i class="ri-arrow-go-back-line align-middle"></i>
+                                                        </button>
+                                                    </form>
+                                                @endif
+                                                @if($coaUploadReturned)
+                                                    <span class="badge bg-danger d-block mt-1" title="Returned by the HOD. Upload a corrected COA.">
+                                                        <i class="ri-reply-line align-middle"></i> Returned for correction
+                                                    </span>
                                                 @endif
                                             @else
                                                 <span class="badge bg-secondary">Not Required</span>
@@ -1576,9 +1635,26 @@
         </div>
         @php
             $mayUploadCoa = Auth::user()->canEditCoa();
+            $mayDecideCoaModal = Auth::user()->canApproveCoaEdit();
+            $lineNoTemplate = ($product->coa_template ?? null) === 'none';
+            $lineUploadMode = !empty($product->pivot->coa_upload_mode);
+            $lineUnlock = ($coaLastUnlock ?? collect())->get($product->pivot->id);
+            $lineReturnedUpload = $lineUnlock && !$product->pivot->coa_document
+                && $lineUnlock->kind() === \App\Models\CoaEditRequest::TYPE_RETURN_UPLOAD;
+            $linePatient = trim((string) ($product->pivot->patient_name ?? ''));
+            $lineName = $product->name . ($linePatient !== '' ? ' (' . $linePatient . ')' : '');
+
             $coaUploadAllowed = $product->pivot->coa_required
-                && ($product->coa_template ?? null) === 'none'
+                && ($lineNoTemplate || $lineUploadMode)
                 && $mayUploadCoa;
+            $coaSwitchAllowed = $product->pivot->coa_required
+                && !$lineNoTemplate && !$lineUploadMode
+                && empty($product->pivot->coa_submitted_at)
+                && $mayDecideCoaModal;
+            $coaReturnAllowed = $product->pivot->coa_required
+                && ($lineNoTemplate || $lineUploadMode)
+                && $product->pivot->coa_document
+                && $mayDecideCoaModal;
         @endphp
         @if($coaUploadAllowed)
             <div class="modal fade" id="uploadCoaDocumentModal{{ $product->pivot->id }}" tabindex="-1" aria-hidden="true">
@@ -1594,10 +1670,26 @@
                             method="POST" enctype="multipart/form-data">
                             @csrf
                             <div class="modal-body">
-                                <p class="text-muted">
-                                    <strong>{{ $product->name }}</strong> has no COA template in the system, so the
-                                    certificate is produced by QC and attached here.
-                                </p>
+                                @if($lineNoTemplate)
+                                    <p class="text-muted">
+                                        <strong>{{ $lineName }}</strong> has no COA template in the system, so the
+                                        certificate is produced by QC and attached here.
+                                    </p>
+                                @else
+                                    <p class="text-muted">
+                                        <strong>{{ $lineName }}</strong> normally uses the COA template. The HOD switched
+                                        it to an uploaded COA because of a system issue. The uploaded file is the final COA.
+                                    </p>
+                                @endif
+                                @if($lineReturnedUpload)
+                                    <div class="alert alert-danger">
+                                        <i class="ri-reply-line me-1"></i>
+                                        <strong>Returned</strong>
+                                        by {{ $lineUnlock->decider ? $lineUnlock->decider->fullName() : 'the HOD' }}
+                                        @if($lineUnlock->decided_at) on {{ $lineUnlock->decided_at->format('j M Y, g:i A') }}@endif.<br>
+                                        <strong>Reason:</strong> {{ $lineUnlock->reason }}
+                                    </div>
+                                @endif
                                 <div class="mb-2">
                                     <label for="coa_document_{{ $product->pivot->id }}" class="form-label">
                                         COA file <span class="text-danger">*</span>
@@ -1618,6 +1710,78 @@
                                 <button type="submit" class="btn btn-warning">
                                     <i class="ri-upload-cloud-2-line align-middle me-1"></i>
                                     {{ $product->pivot->coa_document ? 'Replace COA' : 'Upload COA' }}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        @endif
+        @if($coaSwitchAllowed)
+            <div class="modal fade" id="switchCoaUploadModal{{ $product->pivot->id }}" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-soft-warning">
+                            <h5 class="modal-title">Upload COA file instead?</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <form action="{{ route('orders.coa.upload-mode', ['order' => $order->id, 'line' => $product->pivot->id]) }}" method="POST">
+                            @csrf
+                            <input type="hidden" name="mode" value="upload">
+                            <div class="modal-body">
+                                <p class="mb-2"><strong>{{ $lineName }}</strong></p>
+                                <p class="text-muted mb-2">
+                                    Use this only if the COA can't be prepared in TRACOM because of a system issue.
+                                    Quality Control will see Upload instead of COA for this product.
+                                </p>
+                                <div class="alert alert-warning mb-0">
+                                    <i class="ri-alert-line me-1"></i>
+                                    Once a file is uploaded, the COA template can't be used for this product.
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-warning">
+                                    <i class="ri-upload-cloud-2-line align-middle me-1"></i> Switch to Upload
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        @endif
+        @if($coaReturnAllowed)
+            @php
+                $uploadedBy = $product->pivot->coa_document_uploaded_by
+                    ? \App\Models\User::find($product->pivot->coa_document_uploaded_by)
+                    : null;
+            @endphp
+            <div class="modal fade" id="returnCoaDocumentModal{{ $product->pivot->id }}" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-soft-danger">
+                            <h5 class="modal-title">Return to QC</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <form action="{{ route('orders.coa.document.return', ['order' => $order->id, 'line' => $product->pivot->id]) }}" method="POST">
+                            @csrf
+                            <div class="modal-body">
+                                <p class="mb-2"><strong>{{ $lineName }}</strong></p>
+                                <p class="text-muted mb-2">
+                                    The uploaded COA is removed from the order and
+                                    {{ $uploadedBy ? $uploadedBy->fullName() : 'the staff who uploaded it' }}
+                                    is emailed the reason to upload a corrected COA.
+                                </p>
+                                <label for="return_reason_{{ $product->pivot->id }}" class="form-label">
+                                    Reason <span class="text-danger">*</span>
+                                </label>
+                                <textarea id="return_reason_{{ $product->pivot->id }}" name="reason" rows="3" maxlength="1000"
+                                          class="form-control" placeholder="What needs to be corrected?" required></textarea>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-danger">
+                                    <i class="ri-reply-line align-middle me-1"></i> Return to QC
                                 </button>
                             </div>
                         </form>

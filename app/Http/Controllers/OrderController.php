@@ -15,6 +15,7 @@ use Illuminate\Support\Carbon;
 use App\Models\BlockedDate;
 use App\Models\CoaEditRequest;
 use App\Mail\CoaEditRequestNotification;
+use App\Mail\CoaReturnedNotification;
 use Illuminate\Support\Facades\Mail;
 use App\Services\ActivityLogger;
 use App\Services\CoaTemplateService;
@@ -907,7 +908,18 @@ class OrderController extends Controller
             ->map(fn ($id) => (int) $id)
             ->all();
 
-        return view('orders.orderdetails', compact('order', 'pendingCoaEdits'));
+        // Latest decided unlock per order line (approved request, return to QC,
+        // reopen, or a returned upload), so the COA column can flag a line
+        // that is waiting to be corrected.
+        $coaLastUnlock = CoaEditRequest::where('order_id', $order->id)
+            ->where('status', CoaEditRequest::STATUS_APPROVED)
+            ->with('decider')
+            ->orderByDesc('id')
+            ->get()
+            ->unique('order_product_id')
+            ->keyBy('order_product_id');
+
+        return view('orders.orderdetails', compact('order', 'pendingCoaEdits', 'coaLastUnlock'));
     }
 
     /**
@@ -959,6 +971,27 @@ class OrderController extends Controller
                 ->with('error', 'This product does not have a COA.');
         }
 
+        // The HOD switched this line to an uploaded COA. The template can't
+        // be used for it any more, including from an old link or bookmark.
+        if ($coa->isUploadMode($orderProduct->pivot)) {
+            $uploader = $orderProduct->pivot->coa_document_uploaded_by
+                ? User::find($orderProduct->pivot->coa_document_uploaded_by)
+                : null;
+            $uploadedAt = $orderProduct->pivot->coa_document_uploaded_at
+                ? Carbon::parse($orderProduct->pivot->coa_document_uploaded_at)
+                : null;
+
+            $message = $orderProduct->pivot->coa_document
+                ? 'This COA was uploaded as a file'
+                    . ($uploader ? ' by ' . $uploader->fullName() : '')
+                    . ($uploadedAt ? ' on ' . $uploadedAt->format('j M Y') : '')
+                    . '. The COA template can\'t be used for ' . $product->name . '.'
+                : 'The HOD switched ' . $product->name . ' to an uploaded COA, so the COA template can\'t be used. '
+                    . 'Quality Control uploads the COA from this page.';
+
+            return redirect()->route('orderdetails', $order->id)->with('error', $message);
+        }
+
         $templateKey = $coa->resolveForOrderLine($product);
 
         // Only superadmin can pick COA on the spot if not set
@@ -985,6 +1018,13 @@ class OrderController extends Controller
             ->get();
         $pendingRequest = $requests->first(fn ($r) => $r->isPending());
         $lastDecided    = $requests->first(fn ($r) => !$r->isPending());
+
+        // Unlocks of this template COA (approved requests, returns to QC and
+        // HOD reopens), newest first. The latest drives the reopened banner;
+        // the count shows on the banner once it is submitted again.
+        $templateUnlocks = $requests->filter(fn ($r) => $r->isTemplateUnlock())->values();
+        $lastUnlock      = $templateUnlocks->first();
+        $mayDecide       = $user->canApproveCoaEdit();
 
         $submittedBy = $pivot->coa_submitted_by ? User::find($pivot->coa_submitted_by) : null;
 
@@ -1017,13 +1057,19 @@ class OrderController extends Controller
             'signatoryName'  => $signatoryName,
             'pendingRequest' => $pendingRequest,
             'lastDecided'    => $lastDecided,
+            'lastUnlock'     => $lastUnlock,
+            'unlockCount'    => $templateUnlocks->count(),
 
             // Permissions. canEdit is false for everyone once submitted.
+            // A COA approver corrects a submitted COA directly (Return to QC
+            // or Reopen), so the request form is for other QC staff only.
             'canEdit'        => $coa->userMayEdit($user) && !$submitted,
             'canPrint'       => $user->canPrintCoa(),
             'canDownload'    => $submitted || $user->canDownloadDraftCoa(),
-            'canRequestEdit' => $submitted && $user->canRequestCoaEdit(),
-            'canDecideEdit'  => $user->canApproveCoaEdit(),
+            'canRequestEdit' => $submitted && $user->canRequestCoaEdit() && !$mayDecide,
+            'canDecideEdit'  => $mayDecide,
+            'canCorrect'     => $submitted && $mayDecide && !$pendingRequest,
+            'canReopenSelf'  => $submitted && $mayDecide && !$pendingRequest && $coa->userMayEdit($user),
         ]);
     }
 
@@ -1082,6 +1128,11 @@ class OrderController extends Controller
 
         if ($coa->isSubmitted($product->pivot)) {
             return back()->with('error', 'This COA has been submitted and is locked. Request an edit to change it.');
+        }
+
+        if ($coa->isUploadMode($product->pivot)) {
+            return redirect()->route('orderdetails', $order->id)
+                ->with('error', 'This product uses an uploaded COA, so the COA template can\'t be used.');
         }
 
         $key = $request->input('coa_template');
@@ -1173,6 +1224,13 @@ class OrderController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'This COA has already been submitted and is locked. Reload the page to see it.'
+                ], 409);
+            }
+
+            if ($coa->isUploadMode($orderProduct->pivot)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The HOD switched this product to an uploaded COA, so the COA template can\'t be submitted.'
                 ], 409);
             }
 
@@ -1334,9 +1392,10 @@ class OrderController extends Controller
             'order_id'         => $order->id,
             'product_id'       => $product->id,
             'order_product_id' => $line,
+            'type'             => CoaEditRequest::TYPE_REQUEST,
             'requested_by'     => $user->id,
-            'reason'       => trim($validated['reason']),
-            'status'       => CoaEditRequest::STATUS_PENDING,
+            'reason'           => trim($validated['reason']),
+            'status'           => CoaEditRequest::STATUS_PENDING,
         ]);
 
         ActivityLogger::recordCoaEvent(
@@ -1371,11 +1430,9 @@ class OrderController extends Controller
     }
 
     /**
-     * Approve a request to edit. Every COA value on the line is cleared and
-     * the lock is released, so Quality Control fills it in again from scratch.
-     *
-     * Patient name and batch number are order data shared with Order Details
-     * and the batch form, so they are kept.
+     * Approve a request to edit. The lock and the signature are removed and
+     * every value QC entered is kept, so QC corrects the wrong field and
+     * submits again.
      */
     public function approveCoaEdit(Order $order, int $line, CoaEditRequest $coaEditRequest, CoaTemplateService $coa)
     {
@@ -1402,32 +1459,306 @@ class OrderController extends Controller
                 ->with('error', 'Product not found in this order.');
         }
 
-        $before = $product->pivot->getAttributes();
-        $oldImage = $product->pivot->coa_morphology_image;
+        $requester = $coaEditRequest->requester;
 
-        $clear = array_fill_keys(CoaTemplateService::CLEARED_ON_UNLOCK, null);
-        $clear['coa_updated_by'] = $user->id;
-        $clear['coa_updated_at'] = now();
-
-        DB::transaction(function () use ($order, $product, $clear, $coaEditRequest, $user) {
-            // This line only. The same product on another line of the order
-            // has its own COA and is not touched.
-            $this->updateCoaLine($order, $product, $clear);
-
-            $coaEditRequest->update([
+        $this->unlockTemplateCoa($order, $product, $user, function (array $previous) use ($coaEditRequest, $user) {
+            $coaEditRequest->update($previous + [
                 'status'     => CoaEditRequest::STATUS_APPROVED,
                 'decided_by' => $user->id,
                 'decided_at' => now(),
             ]);
+
+            return $coaEditRequest;
+        }, 'Approved edit request #' . $coaEditRequest->id
+            . ($requester ? ' from ' . $requester->fullName() : '')
+            . ' and unlocked COA');
+
+        return redirect()->route('orders.coa', [$order->id, $line])
+            ->with('success', 'Request approved. The COA is unlocked for Quality Control to correct and submit again.');
+    }
+
+    /**
+     * The COA approver (QC HOD) unlocks a submitted COA without a request.
+     *
+     *   action=return  Return to QC: the staff who submitted it is emailed
+     *                  the reason and corrects it.
+     *   action=reopen  Reopen: the HOD corrects it herself (e.g. no QC staff
+     *                  available). Needs COA edit rights as well.
+     *
+     * Either way the values are kept and the lock and signature removed; the
+     * next person to submit signs it.
+     */
+    public function unlockCoa(Request $request, Order $order, int $line, CoaTemplateService $coa)
+    {
+        $user = auth()->user();
+
+        if (!$user->canApproveCoaEdit()) {
+            return back()->with('error', 'Only the COA approver (QC HOD) can return or reopen a COA.');
+        }
+
+        $validated = $request->validate([
+            'action' => 'required|in:return,reopen',
+            'reason' => 'required|string|max:1000',
+        ], [
+            'reason.required' => 'Please give a reason.',
+        ]);
+
+        $action = $validated['action'];
+
+        if ($action === 'reopen' && !$coa->userMayEdit($user)) {
+            return back()->with('error', 'Only Quality Control can correct a COA. Use Return to QC instead.');
+        }
+
+        $product = $this->coaLine($order, $line);
+
+        if (!$product) {
+            return redirect()->route('orderdetails', $order->id)
+                ->with('error', 'Product not found in this order.');
+        }
+
+        if (!$coa->isSubmitted($product->pivot)) {
+            return redirect()->route('orders.coa', [$order->id, $line])
+                ->with('error', 'This COA has not been submitted, so it can be edited directly.');
+        }
+
+        if (CoaEditRequest::pending()->forLine($line)->exists()) {
+            return redirect()->route('orders.coa', [$order->id, $line])
+                ->with('error', 'A request to edit this COA is waiting. Approve or reject it instead.');
+        }
+
+        $submitterId = $product->pivot->coa_submitted_by;
+        $reason = trim($validated['reason']);
+        $type = $action === 'return' ? CoaEditRequest::TYPE_RETURN : CoaEditRequest::TYPE_REOPEN;
+
+        $unlock = $this->unlockTemplateCoa($order, $product, $user, function (array $previous) use ($order, $product, $line, $user, $reason, $type) {
+            return CoaEditRequest::create($previous + [
+                'order_id'         => $order->id,
+                'product_id'       => $product->id,
+                'order_product_id' => $line,
+                'type'             => $type,
+                'requested_by'     => $user->id,
+                'reason'           => $reason,
+                'status'           => CoaEditRequest::STATUS_APPROVED,
+                'decided_by'       => $user->id,
+                'decided_at'       => now(),
+            ]);
+        }, ($action === 'return' ? 'Returned COA to QC' : 'Reopened COA') . ': ' . $reason);
+
+        if ($action === 'return') {
+            $this->sendCoaReturnedEmail($unlock, $order, $product, $submitterId, $user, false);
+
+            return redirect()->route('orders.coa', [$order->id, $line])
+                ->with('success', 'COA returned to QC. The staff who submitted it has been emailed.');
+        }
+
+        return redirect()->route('orders.coa', [$order->id, $line])
+            ->with('success', 'COA reopened. Correct it and submit it again.');
+    }
+
+    /**
+     * Remove the lock and signature from a submitted template COA, keep every
+     * value, and record the unlock. $record receives the previous submitter
+     * fields and returns the CoaEditRequest row it wrote.
+     */
+    private function unlockTemplateCoa(Order $order, Product $product, User $user, callable $record, string $summary): CoaEditRequest
+    {
+        $pivot  = $product->pivot;
+        $before = $pivot->getAttributes();
+
+        $previous = [
+            'previous_signatory_name' => $pivot->coa_signatory_name,
+            'previous_submitted_at'   => $pivot->coa_submitted_at,
+        ];
+
+        $clear = array_fill_keys(CoaTemplateService::CLEARED_ON_REOPEN, null);
+        $clear['coa_updated_by'] = $user->id;
+        $clear['coa_updated_at'] = now();
+
+        $unlock = DB::transaction(function () use ($order, $product, $clear, $record, $previous) {
+            // This line only. The same product on another line of the order
+            // has its own COA and is not touched.
+            $this->updateCoaLine($order, $product, $clear);
+
+            return $record($previous);
         });
 
-        // The micrograph goes with the rest of the COA. The audit entry below
-        // keeps its file name. A file still used by another line (copied
-        // there before COAs were per line) is left in place.
-        if ($oldImage && !$this->coaFileUsedElsewhere('coa_morphology_image', $oldImage, $line)) {
+        ActivityLogger::recordCoaChange(
+            $order,
+            $before,
+            array_merge($before, $clear),
+            $this->coaLineName($product),
+            $summary
+        );
+
+        return $unlock;
+    }
+
+    /**
+     * Email the QC staff who submitted (or uploaded) a COA that the HOD has
+     * returned. Skipped when there is nobody to tell, or the HOD returned her
+     * own COA. A mail failure must not undo the return.
+     */
+    private function sendCoaReturnedEmail(CoaEditRequest $unlock, Order $order, Product $product, $recipientId, User $returnedBy, bool $isUpload): void
+    {
+        $recipient = $recipientId ? User::find($recipientId) : null;
+
+        if (!$recipient || !$recipient->email || (int) $recipient->id === (int) $returnedBy->id) {
+            return;
+        }
+
+        try {
+            Mail::to($recipient->email)->send(
+                new CoaReturnedNotification($unlock, $order, $product, $recipient, $returnedBy, $isUpload)
+            );
+        } catch (\Throwable $e) {
+            Log::error('COA returned email failed', [
+                'unlock_id' => $unlock->id,
+                'recipient' => $recipient->email,
+                'error'     => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Switch an order line between the COA template and an uploaded COA.
+     * COA approver (QC HOD) only. Backup for when the COA can't be prepared
+     * in TRACOM because of a system issue.
+     *
+     *   mode=upload    only before the template COA is submitted
+     *   mode=template  only while no file has been uploaded; once a file is
+     *                  uploaded it is the final COA
+     */
+    public function setCoaUploadMode(Request $request, Order $order, int $line, CoaTemplateService $coa)
+    {
+        $user = auth()->user();
+
+        if (!$user->canApproveCoaEdit()) {
+            return back()->with('error', 'Only the COA approver (QC HOD) can change how this COA is prepared.');
+        }
+
+        $validated = $request->validate([
+            'mode' => 'required|in:upload,template',
+        ]);
+
+        $product = $this->coaLine($order, $line);
+
+        if (!$product) {
+            return redirect()->route('orderdetails', $order->id)
+                ->with('error', 'Product not found in this order.');
+        }
+
+        $pivot = $product->pivot;
+
+        if (!$pivot->coa_required || !$coa->productHasCoa($product)) {
+            return redirect()->route('orderdetails', $order->id)
+                ->with('error', 'This product has no COA template to switch from.');
+        }
+
+        $toUpload = $validated['mode'] === 'upload';
+
+        if ($toUpload) {
+            if ($coa->isUploadMode($pivot)) {
+                return redirect()->route('orderdetails', $order->id)
+                    ->with('error', $product->name . ' already uses an uploaded COA.');
+            }
+            if ($coa->isSubmitted($pivot)) {
+                return redirect()->route('orderdetails', $order->id)
+                    ->with('error', 'The COA for ' . $product->name . ' has been submitted. Return or reopen it first.');
+            }
+        } else {
+            if (!$coa->isUploadMode($pivot)) {
+                return redirect()->route('orderdetails', $order->id)
+                    ->with('error', $product->name . ' already uses the COA template.');
+            }
+            if ($pivot->coa_document) {
+                return redirect()->route('orderdetails', $order->id)
+                    ->with('error', 'A COA file has been uploaded for ' . $product->name . ', so it is the final COA.');
+            }
+        }
+
+        $this->updateCoaLine($order, $product, ['coa_upload_mode' => $toUpload ? 1 : 0], $toUpload);
+
+        ActivityLogger::recordCoaEvent(
+            $order,
+            $this->coaLineName($product),
+            $toUpload ? 'Switched COA to uploaded file' : 'Switched COA back to template',
+            ['coa_upload_mode' => [
+                'old' => $toUpload ? 'template' : 'upload',
+                'new' => $toUpload ? 'upload' : 'template',
+            ]]
+        );
+
+        return redirect()->route('orderdetails', $order->id)
+            ->with('success', $toUpload
+                ? $product->name . ' now uses an uploaded COA. Quality Control can upload it from this page.'
+                : $product->name . ' is back on the COA template.');
+    }
+
+    /**
+     * Return an uploaded COA file to the QC staff who uploaded it. The COA
+     * approver (QC HOD) only. The file is removed, so the line waits for a
+     * corrected upload, and the uploader is emailed the reason.
+     */
+    public function returnCoaDocument(Request $request, Order $order, int $line, CoaTemplateService $coa)
+    {
+        $user = auth()->user();
+
+        if (!$user->canApproveCoaEdit()) {
+            return back()->with('error', 'Only the COA approver (QC HOD) can return an uploaded COA.');
+        }
+
+        $validated = $request->validate([
+            'reason' => 'required|string|max:1000',
+        ], [
+            'reason.required' => 'Please give a reason.',
+        ]);
+
+        $product = $this->coaLine($order, $line);
+
+        if (!$product) {
+            return redirect()->route('orderdetails', $order->id)
+                ->with('error', 'Product not found in this order.');
+        }
+
+        $pivot    = $product->pivot;
+        $existing = $pivot->coa_document;
+
+        if (!$existing) {
+            return redirect()->route('orderdetails', $order->id)
+                ->with('error', 'No COA file has been uploaded for ' . $product->name . '.');
+        }
+
+        $uploaderId = $pivot->coa_document_uploaded_by;
+        $uploader   = $uploaderId ? User::find($uploaderId) : null;
+        $reason     = trim($validated['reason']);
+
+        $unlock = DB::transaction(function () use ($order, $product, $line, $user, $reason, $uploader, $pivot) {
+            $this->updateCoaLine($order, $product, [
+                'coa_document'             => null,
+                'coa_document_uploaded_by' => null,
+                'coa_document_uploaded_at' => null,
+            ]);
+
+            return CoaEditRequest::create([
+                'order_id'                => $order->id,
+                'product_id'              => $product->id,
+                'order_product_id'        => $line,
+                'type'                    => CoaEditRequest::TYPE_RETURN_UPLOAD,
+                'requested_by'            => $user->id,
+                'reason'                  => $reason,
+                'status'                  => CoaEditRequest::STATUS_APPROVED,
+                'decided_by'              => $user->id,
+                'decided_at'              => now(),
+                'previous_signatory_name' => $uploader?->fullName(),
+                'previous_submitted_at'   => $pivot->coa_document_uploaded_at,
+            ]);
+        });
+
+        // Same clean-up as replacing a file. The audit entry keeps its name.
+        if (!$this->coaFileUsedElsewhere('coa_document', $existing, $line)) {
             foreach ([
-                public_path('storage/coa_morphology/' . $oldImage),
-                storage_path('app/public/coa_morphology/' . $oldImage),
+                public_path('storage/coa_documents/' . $existing),
+                storage_path('app/public/coa_documents/' . $existing),
             ] as $path) {
                 if (file_exists($path)) {
                     @unlink($path);
@@ -1435,20 +1766,18 @@ class OrderController extends Controller
             }
         }
 
-        $requester = $coaEditRequest->requester;
-
         ActivityLogger::recordCoaChange(
             $order,
-            $before,
-            array_merge($before, $clear),
+            ['coa_document' => $existing],
+            ['coa_document' => null],
             $this->coaLineName($product),
-            'Approved edit request #' . $coaEditRequest->id
-                . ($requester ? ' from ' . $requester->fullName() : '')
-                . ' and cleared COA'
+            'Returned uploaded COA to QC: ' . $reason
         );
 
-        return redirect()->route('orders.coa', [$order->id, $line])
-            ->with('success', 'Request approved. The COA has been cleared and can be filled in again.');
+        $this->sendCoaReturnedEmail($unlock, $order, $product, $uploaderId, $user, true);
+
+        return redirect()->route('orderdetails', $order->id)
+            ->with('success', 'Uploaded COA returned to QC. The staff who uploaded it has been emailed.');
     }
 
     /**
@@ -1576,6 +1905,13 @@ class OrderController extends Controller
                 ->with('error', 'Product not found in this order.');
         }
 
+        // Products with no template, or lines the HOD switched to an uploaded
+        // COA. Everything else uses the COA template.
+        if (!$orderProduct->pivot->coa_required || !$coa->lineUsesUpload($orderProduct)) {
+            return redirect()->route('orderdetails', $order->id)
+                ->with('error', $product->name . ' uses the COA template. The HOD can switch it to an uploaded COA if TRACOM has a problem.');
+        }
+
         $request->validate([
             'coa_document' => 'required|file|mimes:pdf|max:' . self::COA_DOCUMENT_MAX_KB,
         ], [
@@ -1679,6 +2015,13 @@ class OrderController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'This COA has been submitted and is locked. Request an edit to change it.'
+                ], 409);
+            }
+
+            if ($coa->isUploadMode($orderProduct->pivot)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The HOD switched this product to an uploaded COA, so the COA template can\'t be used.'
                 ], 409);
             }
 

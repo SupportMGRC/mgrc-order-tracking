@@ -135,7 +135,8 @@ class Product extends Model
                 'coa_updated_at',
                 'coa_submitted_by',
                 'coa_submitted_at',
-                'coa_signatory_name'
+                'coa_signatory_name',
+                'coa_upload_mode'
             )
             ->withTimestamps();
     }

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>COA Edit Request</title>
+    <title>COA Returned for Correction</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -105,48 +105,53 @@
         </div>
 
         <div class="header">
-            <h2>COA Edit Request</h2>
+            <h2>COA Returned for Correction</h2>
             <p>Order #{{ $order->id }} &mdash; {{ $product->name }}</p>
         </div>
 
         <div class="body-content">
-            <p>Hello {{ $approver->fullName() }},</p>
+            <p>Hello {{ $recipient->fullName() }},</p>
 
-            <p>{{ $requester->fullName() }} has asked to edit a submitted Certificate of Analysis. The COA stays locked until you approve or reject the request.</p>
+            @if($isUpload)
+                <p>{{ $returnedBy->fullName() }} has returned the COA file you uploaded. Please upload a corrected COA.</p>
+            @else
+                <p>{{ $returnedBy->fullName() }} has returned the COA you submitted. Please correct it and submit it again.</p>
+            @endif
 
-            <div class="status-badge">Waiting for approval</div>
+            <div class="status-badge">Returned for correction</div>
 
-            <h3>Request</h3>
+            <h3>Reason</h3>
             <div class="card">
-                <p><span class="label">Requested By:</span> {{ $requester->fullName() }}</p>
-                <p><span class="label">Requested At:</span> {{ $editRequest->created_at->format('F j, Y g:i A') }}</p>
-                <p><span class="label">Reason:</span> {{ $editRequest->reason }}</p>
+                <p>{{ $unlock->reason }}</p>
             </div>
 
             <h3>COA</h3>
             <div class="card">
                 <p><span class="label">Order:</span> #{{ $order->id }}</p>
                 <p><span class="label">Product:</span> {{ $product->name }}</p>
-                @php $line = $order->products()->wherePivot('id', $editRequest->order_product_id)->first(); @endphp
+                @php $line = $order->products()->wherePivot('id', $unlock->order_product_id)->first(); @endphp
                 @if($line && $line->pivot->patient_name)
                     <p><span class="label">Patient:</span> {{ $line->pivot->patient_name }}</p>
                 @endif
-                @if($line)
+                @if(!$isUpload && $line)
                     <p><span class="label">COA No:</span> {{ $line->pivot->qc_document_number ?: '-' }}</p>
-                    <p><span class="label">Submitted By:</span> {{ $line->pivot->coa_signatory_name ?: '-' }}</p>
                 @endif
+                <p><span class="label">Returned By:</span> {{ $returnedBy->fullName() }}</p>
+                <p><span class="label">Returned At:</span> {{ ($unlock->decided_at ?? $unlock->created_at)->format('F j, Y g:i A') }}</p>
             </div>
 
-            <p style="font-size:13px; color:#777;">If you approve, the COA is unlocked for Quality Control to correct and submit again. The values already entered are kept.</p>
+            @if($isUpload)
+                <p style="font-size:13px; color:#777;">The returned file has been removed from the order. Upload the corrected COA from Order Details.</p>
+            @else
+                <p style="font-size:13px; color:#777;">The values already entered are kept. Correct what is wrong and submit the COA again. It is signed by whoever submits it.</p>
+            @endif
 
             <div class="button-wrap">
-                <a href="{{ route('orders.coa', [$order->id, $editRequest->order_product_id]) }}"
+                <a href="{{ $isUpload ? route('orderdetails', $order->id) : route('orders.coa', [$order->id, $unlock->order_product_id]) }}"
                    style="display:inline-block; background-color:#f0ad4e; color:#ffffff; text-decoration:none; padding:12px 26px; border-radius:5px; font-weight:bold; font-family:Arial, sans-serif;">
-                   Open COA to Decide
+                   {{ $isUpload ? 'Open Order' : 'Open COA' }}
                 </a>
             </div>
-
-            <p style="font-size:13px; color:#777;">You are receiving this because you are set as a COA approver in TRACOM.</p>
         </div>
 
         <div class="footer">

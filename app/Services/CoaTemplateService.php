@@ -14,27 +14,18 @@ class CoaTemplateService
     public const NONE = 'none';
 
     /**
-     * Order-line columns wiped when a request to edit a submitted COA is
-     * approved: every COA value plus the lock itself. Patient name and batch
-     * number are not here: they are order data shared with Order Details and
-     * the batch form, and only pre-fill the COA.
+     * Order-line columns cleared when a submitted COA is unlocked for
+     * correction (request approved, returned to QC, or reopened by the HOD).
+     *
+     * Only the lock and the signature go. Every value QC entered stays, so
+     * the person correcting it changes the wrong field and submits again,
+     * and is then the one who signs it.
      */
-    public const CLEARED_ON_UNLOCK = [
-        'qc_document_number',
-        'coa_number',
-        'coa_product_date',
-        'coa_mfg_date',
-        'coa_expiry_date',
-        'coa_viable_cell_count',
-        'coa_signature_date',
-        'coa_immuno_cd73',
-        'coa_immuno_cd90',
-        'coa_immuno_cd105',
-        'coa_immuno_negative',
-        'coa_morphology_image',
+    public const CLEARED_ON_REOPEN = [
         'coa_submitted_by',
         'coa_submitted_at',
         'coa_signatory_name',
+        'coa_signature_date',
     ];
 
     /** All configured templates, keyed by template id. */
@@ -293,6 +284,25 @@ class CoaTemplateService
     public function isSubmitted($pivot): bool
     {
         return $pivot !== null && !empty($pivot->coa_submitted_at);
+    }
+
+    /**
+     * The HOD has switched this order line from the COA template to an
+     * uploaded COA (backup for when the COA can't be prepared in TRACOM).
+     * From then on the template can't be used for the line.
+     */
+    public function isUploadMode($pivot): bool
+    {
+        return $pivot !== null && !empty($pivot->coa_upload_mode);
+    }
+
+    /**
+     * Whether an order line takes an uploaded COA file instead of the
+     * template: products with no template, or lines switched by the HOD.
+     */
+    public function lineUsesUpload(Product $line): bool
+    {
+        return !$this->productHasCoa($line) || $this->isUploadMode($line->pivot);
     }
 
     public function acceptsMorphologyImage(?string $key): bool

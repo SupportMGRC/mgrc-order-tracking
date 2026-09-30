@@ -20,16 +20,24 @@
     from the template, so what QC sees on screen is what prints.
 
     Workflow: Quality Control fills the COA in and submits it. Submitting
-    stores who signed it and locks it for everyone. To change a submitted COA,
-    QC requests an edit; the COA approver (QC HOD) or a superadmin approves,
-    which clears it for QC to fill in again, or rejects.
+    stores who signed it and locks it for everyone. To change a submitted COA:
+      - QC staff request an edit; the COA approver (QC HOD) or a superadmin
+        approves or rejects.
+      - The COA approver can also Return it to QC (submitter emailed) or
+        Reopen it to correct it herself.
+    Unlocking keeps every value and removes the lock and the signature; the
+    next person to submit signs it. Until then a yellow banner says why.
 
       $submitted       locked?
       $canEdit         may fill in and submit (QC / superadmin, not submitted)
       $canPrint        QC, QA, superadmin
       $canDownload     anyone once submitted; QC / superadmin also on a draft
-      $canRequestEdit  QC, on a submitted COA
+      $canRequestEdit  QC staff (not approvers), on a submitted COA
       $canDecideEdit   COA approver or superadmin
+      $canCorrect      approver, submitted COA, no request pending
+      $canReopenSelf   as above, and may also edit COAs (QC)
+      $lastUnlock      latest unlock of this COA (request/return/reopen)
+      $unlockCount     how many times it has been unlocked
 
     Coordinate schema v2: every y is a text BASELINE, not a bounding-box top.
     See the header of config/coa_templates.php for why that matters.
@@ -257,7 +265,47 @@
                             <strong>Submitted</strong>
                             by {{ $signatoryName ?: ($submittedBy ? $submittedBy->fullName() : 'Quality Control') }}
                             @if($submittedAt) on {{ $submittedAt->format('j M Y, g:i A') }}@endif.
-                            This COA is locked. To change it, Quality Control requests an edit and the HOD approves it.
+                            This COA is locked.
+                            @if($canDecideEdit)
+                                To change it, use Correct this COA below.
+                            @else
+                                To change it, Quality Control requests an edit and the HOD approves it.
+                            @endif
+                            @if($unlockCount > 0 && $lastUnlock && $lastUnlock->decided_at)
+                                <span class="d-block mt-1 text-muted">
+                                    <i class="ri-history-line me-1"></i>
+                                    @if($unlockCount === 1)
+                                        Reopened once before, on {{ $lastUnlock->decided_at->format('j M Y') }}.
+                                    @else
+                                        Reopened {{ $unlockCount }} times before, last on {{ $lastUnlock->decided_at->format('j M Y') }}.
+                                    @endif
+                                </span>
+                            @endif
+                        </small>
+                    </div>
+                @elseif($lastUnlock)
+                    @php
+                        $unlockKind = $lastUnlock->kind();
+                        $unlockBy   = $lastUnlock->decider ? $lastUnlock->decider->fullName() : 'the HOD';
+                        $unlockAt   = $lastUnlock->decided_at ? $lastUnlock->decided_at->format('j M Y, g:i A') : null;
+                    @endphp
+                    <div class="alert alert-warning mb-3">
+                        <i class="ri-lock-unlock-line me-1"></i>
+                        <small>
+                            @if($unlockKind === \App\Models\CoaEditRequest::TYPE_RETURN)
+                                <strong>Returned to QC</strong>
+                            @else
+                                <strong>Reopened</strong>
+                            @endif
+                            by {{ $unlockBy }}@if($unlockAt) on {{ $unlockAt }}@endif
+                            @if($unlockKind === \App\Models\CoaEditRequest::TYPE_REQUEST && $lastUnlock->requester)
+                                (request from {{ $lastUnlock->requester->fullName() }})
+                            @endif.<br>
+                            <strong>Reason:</strong> {{ $lastUnlock->reason }}<br>
+                            @if($lastUnlock->previous_signatory_name)
+                                Previously submitted by {{ $lastUnlock->previous_signatory_name }}@if($lastUnlock->previous_submitted_at) on {{ $lastUnlock->previous_submitted_at->format('j M Y, g:i A') }}@endif.<br>
+                            @endif
+                            Correct the COA and submit it again.
                         </small>
                     </div>
                 @endif
@@ -421,8 +469,8 @@
                             </button>
                         </div>
                         <small class="text-muted d-block mt-2">
-                            Every field must be filled in. After submitting, the COA is locked and can only be
-                            changed if the HOD approves a request to edit.
+                            Every field must be filled in. After submitting, the COA is locked. Only the HOD can
+                            unlock it for correction.
                         </small>
                     @elseif(!$submitted)
                         <div class="alert alert-secondary mb-0">
@@ -435,12 +483,14 @@
                     @endif
                 </form>
 
-                {{-- ── Request to edit a submitted COA ─────────────────────────── --}}
+                {{-- ── Changing a submitted COA ────────────────────────────────── --}}
+                {{-- A pending request from QC is decided first. With none pending, the
+                     COA approver corrects it directly; other QC staff request an edit. --}}
                 @if($submitted)
                     <hr class="my-3">
-                    <h6 class="fw-semibold mb-2"><i class="ri-edit-box-line me-1"></i> Request to Edit</h6>
 
                     @if($pendingRequest)
+                        <h6 class="fw-semibold mb-2"><i class="ri-edit-box-line me-1"></i> Request to Edit</h6>
                         <div class="alert alert-warning mb-2">
                             <small>
                                 <strong>Waiting for HOD approval.</strong><br>
@@ -454,7 +504,7 @@
                             <div class="d-flex gap-2">
                                 <form method="POST" class="flex-fill"
                                       action="{{ route('orders.coa.edit-request.approve', [$order->id, $lineId, $pendingRequest->id]) }}"
-                                      onsubmit="return confirm('Approve this request?\n\nEvery COA value on this order line will be cleared (COA No, dates, results, morphology image and signature). Quality Control then fills it in and submits it again.\n\nPatient name and batch number are kept.');">
+                                      onsubmit="return confirm('Approve this request?\n\nThe COA is unlocked for Quality Control to correct and submit it again. The values already entered are kept. The signature is removed.');">
                                     @csrf
                                     <button type="submit" class="btn btn-success w-100">
                                         <i class="ri-check-line me-1"></i> Approve
@@ -470,7 +520,47 @@
                                 </form>
                             </div>
                         @endif
+                    @elseif($canCorrect)
+                        <h6 class="fw-semibold mb-2"><i class="ri-edit-box-line me-1"></i> Correct this COA</h6>
+
+                        @if($lastDecided && $lastDecided->status === \App\Models\CoaEditRequest::STATUS_REJECTED)
+                            <p class="text-muted small mb-2">
+                                Last request was rejected by {{ $lastDecided->decider ? $lastDecided->decider->fullName() : 'the HOD' }}
+                                on {{ $lastDecided->decided_at ? $lastDecided->decided_at->format('j M Y, g:i A') : '-' }}.
+                            </p>
+                        @endif
+
+                        <form method="POST" action="{{ route('orders.coa.unlock', [$order->id, $lineId]) }}">
+                            @csrf
+                            <div class="mb-2">
+                                <label for="correct-reason" class="form-label small mb-1">Reason</label>
+                                <textarea id="correct-reason" name="reason" rows="3" maxlength="1000"
+                                          class="form-control form-control-sm @error('reason') is-invalid @enderror"
+                                          placeholder="What needs to be corrected?" required>{{ old('reason') }}</textarea>
+                                @error('reason')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="submit" name="action" value="return" class="btn btn-outline-primary flex-fill"
+                                        onclick="return confirmCorrect('return');">
+                                    <i class="ri-reply-line me-1"></i> Return to QC
+                                </button>
+                                @if($canReopenSelf)
+                                    <button type="submit" name="action" value="reopen" class="btn btn-outline-secondary flex-fill"
+                                            onclick="return confirmCorrect('reopen');">
+                                        <i class="ri-lock-unlock-line me-1"></i> Reopen and edit myself
+                                    </button>
+                                @endif
+                            </div>
+                            <small class="text-muted d-block mt-1">
+                                Return to QC emails the staff who submitted it. Either way the COA is unlocked,
+                                the values are kept and it must be submitted again.
+                            </small>
+                        </form>
                     @else
+                        <h6 class="fw-semibold mb-2"><i class="ri-edit-box-line me-1"></i> Request to Edit</h6>
+
                         @if($lastDecided && $lastDecided->status === \App\Models\CoaEditRequest::STATUS_REJECTED)
                             <p class="text-muted small mb-2">
                                 Last request was rejected by {{ $lastDecided->decider ? $lastDecided->decider->fullName() : 'the HOD' }}
@@ -496,21 +586,13 @@
                                     </button>
                                 </div>
                                 <small class="text-muted d-block mt-1">
-                                    If approved, the whole COA is cleared and must be filled in again.
+                                    If approved, the COA is unlocked so you can correct it and submit it again.
                                 </small>
                             </form>
                         @else
                             <p class="text-muted small mb-0">No edit request. Quality Control can request one if a correction is needed.</p>
                         @endif
                     @endif
-                @elseif($lastDecided && $lastDecided->status === \App\Models\CoaEditRequest::STATUS_APPROVED)
-                    <p class="text-muted small mt-3 mb-0">
-                        <i class="ri-history-line me-1"></i>
-                        The previous submission was cleared on
-                        {{ $lastDecided->decided_at ? $lastDecided->decided_at->format('j M Y, g:i A') : '-' }}
-                        after {{ $lastDecided->decider ? $lastDecided->decider->fullName() : 'the HOD' }}
-                        approved an edit request.
-                    </p>
                 @endif
             </div>
         </div>
@@ -675,6 +757,20 @@ function coaFormDirty() {
     return Array.prototype.some.call(coaTrackedInputs(), function (i) {
         return (coaInitial[i.id] || '') !== i.value;
     });
+}
+
+// Return to QC / Reopen on a submitted COA (COA approver). The reason box is
+// checked first so the confirm never shows for a form that won't submit.
+function confirmCorrect(action) {
+    const reason = document.getElementById('correct-reason');
+    if (reason && !reason.value.trim()) {
+        reason.reportValidity();
+        return false;
+    }
+    if (action === 'return') {
+        return confirm('Return this COA to QC?\n\nThe COA is unlocked and the staff who submitted it is emailed the reason. The values are kept, and it must be corrected and submitted again.');
+    }
+    return confirm('Reopen this COA?\n\nThe COA is unlocked for you to correct. The values are kept. When you submit it, your name is signed on it.');
 }
 
 function confirmVariantSwitch() {
