@@ -64,19 +64,3 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
-
-## Recent Order System Improvements
-
-The following improvements have been made to the order tracking system:
-
-### Workflow Enhancements
-- Improved the order status workflow with automatic status changes: orders now automatically transition from "new" to "preparing" when batch information, QC document, or prepared by fields are filled.
-- Streamlined the order creation process to ensure patient names are properly stored and displayed in order details.
-- Redirecting to the order details page after creating an order instead of the batch edit page for a more intuitive workflow.
-
-### User Interface Improvements
-- Enhanced the order progress tracker with a modern, interactive progress bar showing the current order status with visual cues and tooltips.
-- Cleaned up the order details page by removing redundant buttons and actions.
-- Improved visual feedback with status indicators and better information organization.
-
-These changes have been implemented to make the system more user-friendly and improve the order management process from creation to delivery.
