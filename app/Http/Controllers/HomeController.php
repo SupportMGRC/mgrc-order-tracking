@@ -4,9 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Order;
-use App\Models\Customer;
 use App\Models\Pickup;
-use App\Models\Product;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -31,6 +29,20 @@ class HomeController extends Controller
     private const OWN_RECORDS_ONLY_DEPARTMENTS = [
         'medical affairs',
         'business development',
+    ];
+
+    /**
+     * Order columns the calendar, Upcoming and Overdue lists display.
+     * Keep this list short: a full order row includes the e-signature image.
+     */
+    private const LIST_COLUMNS = [
+        'id',
+        'customer_id',
+        'status',
+        'delivery_type',
+        'time_sensitive',
+        'pickup_delivery_date',
+        'pickup_delivery_time',
     ];
 
     private function restrictedToOwnRecords(): bool
@@ -105,40 +117,6 @@ class HomeController extends Controller
             ->where('status', 'delivered')
             ->count();
             
-        $todayTotalOrders = $todayNewCount + $todayPreparingCount + $todayReadyCount + $todayDeliveredCount;
-        
-        // Today's orders list
-        $todayOrders = $this->orders()->with(['customer', 'products'])
-            ->whereDate('created_at', $today)
-            ->latest('created_at')
-            ->get();
-            
-        // This month's orders
-        $startOfMonth = Carbon::now()->startOfMonth();
-        $monthlyOrderCount = $this->orders()->whereDate('created_at', '>=', $startOfMonth)->count();
-        
-        // This year's orders
-        $startOfYear = Carbon::now()->startOfYear();
-        $yearlyOrderCount = $this->orders()->whereDate('created_at', '>=', $startOfYear)->count();
-        
-        // Total counts
-        $totalNewCount = $this->orders()->where('status', 'new')->count();
-        $totalPreparingCount = $this->orders()->where('status', 'preparing')->count();
-        $totalReadyCount = $this->orders()->where('status', 'ready')->count();
-        $totalDeliveredCount = $this->orders()->where('status', 'delivered')->count();
-        $totalOrders = $totalNewCount + $totalPreparingCount + $totalReadyCount + $totalDeliveredCount;
-        
-        // Customer and product counts
-        $customerCount = Customer::count();
-        $productCount = Product::count();
-        $lowStockCount = Product::where('stock', '<', 10)->count();
-        
-        // Recent orders
-        $recentOrders = $this->orders()->with(['customer', 'products'])
-            ->latest('created_at')
-            ->take(5)
-            ->get();
-            
         // Monthly order trends (current year)
         $currentYear = Carbon::now()->year;
         $monthlyOrders = $this->orders()->select(
@@ -164,12 +142,30 @@ class HomeController extends Controller
             $labels[] = date('M', mktime(0, 0, 0, $i + 1, 1));
         }
         
-        // Calendar events - orders with delivery dates
-        $calendarEvents = $this->orders()->with(['customer', 'products'])
-            ->whereNotNull('pickup_delivery_date')
-            ->where('status', '!=', 'cancel')
+        // Calendar events - orders with delivery dates.
+        // Only the columns the calendar shows are loaded. A full order row
+        // carries the e-signature image and every COA field per line, and
+        // loading that for the whole order history ran the page out of memory.
+        $calendarOrderQuery = function () {
+            return $this->orders()
+                ->whereNotNull('pickup_delivery_date')
+                ->where('status', '!=', 'cancel');
+        };
+
+        // Product name and quantity per order, in one light query instead of
+        // the full products relation and pivot.
+        $calendarProducts = DB::table('order_product')
+            ->join('products', 'products.id', '=', 'order_product.product_id')
+            ->whereIn('order_product.order_id', $calendarOrderQuery()->select('id'))
+            ->orderBy('order_product.id')
+            ->get(['order_product.order_id', 'products.name', 'order_product.quantity'])
+            ->groupBy('order_id');
+
+        $calendarEvents = $calendarOrderQuery()
+            ->select(self::LIST_COLUMNS)
+            ->with('customer:id,name')
             ->get()
-            ->map(function ($order) {
+            ->map(function ($order) use ($calendarProducts) {
                 $statusColors = [
                     'new' => '#f8f9fa',
                     'preparing' => '#f1b44c',
@@ -185,8 +181,9 @@ class HomeController extends Controller
                 ];
                 
                 // Get product list with quantities
-                $productList = $order->products->map(function ($product) {
-                    return $product->name . ' (Qty: ' . $product->pivot->quantity . ')';
+                $lines = $calendarProducts->get($order->id, collect());
+                $productList = $lines->map(function ($line) {
+                    return $line->name . ' (Qty: ' . $line->quantity . ')';
                 })->toArray();
                 
                 $backgroundColor = $statusColors[$order->status] ?? '#6c757d';
@@ -209,7 +206,7 @@ class HomeController extends Controller
                     'textColor' => $textColor,
                     'status' => $order->status,
                     'customer' => $order->customer->name ?? 'N/A',
-                    'products_count' => $order->products->count(),
+                    'products_count' => $lines->count(),
                     'products_list' => $productList,
                     'delivery_type' => $order->delivery_type,
                     'delivery_time' => $order->pickup_delivery_time ? $order->pickup_delivery_time->format('H:i') : null,
@@ -271,52 +268,37 @@ class HomeController extends Controller
         // Orders and pickups share one calendar.
         $calendarEvents = $calendarEvents->concat($pickupEvents)->values();
 
-        // Upcoming deliveries (today and tomorrow) - exclude delivered and canceled orders
-        $upcomingDeliveries = $this->orders()->with(['customer', 'products'])
+        // Upcoming deliveries (today and tomorrow) - exclude delivered and cancelled orders.
+        // Cancelled orders are stored as 'cancel'.
+        $upcomingDeliveries = $this->orders()
+            ->select(self::LIST_COLUMNS)
+            ->with('customer:id,name')
             ->whereNotNull('pickup_delivery_date')
             ->whereBetween('pickup_delivery_date', [Carbon::now()->startOfDay(), Carbon::now()->addDay()->endOfDay()])
-            ->whereNotIn('status', ['delivered', 'canceled'])
+            ->whereNotIn('status', ['delivered', 'cancel'])
             ->orderBy('pickup_delivery_date')
             ->get();
             
         // Overdue deliveries - orders that passed delivery date but not delivered
-        $overdueDeliveries = $this->orders()->with(['customer', 'products'])
+        $overdueDeliveries = $this->orders()
+            ->select(self::LIST_COLUMNS)
+            ->with('customer:id,name')
             ->whereNotNull('pickup_delivery_date')
             ->where('pickup_delivery_date', '<', Carbon::now())
             ->whereNotIn('status', ['delivered', 'cancel'])
             ->orderBy('pickup_delivery_date')
             ->get();
         
-        // Set by verifyPassword(). Read here so the prompt appears once per
-        // session rather than on every dashboard load - the flag was already
-        // being written, it was just never checked.
-        $dashboardUnlocked = (bool) session('dashboard_unlocked', false);
-
         return view('dashboard', compact(
             'todayNewCount',
             'todayPreparingCount',
             'todayReadyCount',
             'todayDeliveredCount',
-            'todayTotalOrders',
-            'todayOrders',
-            'monthlyOrderCount',
-            'yearlyOrderCount',
-            'totalNewCount',
-            'totalPreparingCount',
-            'totalReadyCount',
-            'totalDeliveredCount',
-            'totalOrders',
-            'customerCount',
-            'productCount',
-            'lowStockCount',
-            'recentOrders',
             'labels',
             'data',
-            'currentYear',
             'calendarEvents',
             'upcomingDeliveries',
-            'overdueDeliveries',
-            'dashboardUnlocked'
+            'overdueDeliveries'
         ));
     }
 
